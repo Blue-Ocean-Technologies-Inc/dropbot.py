@@ -97,20 +97,19 @@ public:
 
   static const uint16_t MAX_NUMBER_OF_CHANNELS = 120;
 
-  static const uint8_t SERVO_PIN = 2;
-  static const uint8_t HIGH_PIN = 6;
-  static const uint8_t LOW_PIN = 7;
   static const uint8_t LIGHT_PIN = 5;
+  static const uint8_t DRIVER_HIGH_PIN = 6;
+  static const uint8_t DRIVER_LOW_PIN = 7;
+  static const uint8_t HV_OUTPUT_SELECT_PIN = 8;
+  static const uint8_t SERVO_PIN = 9;
 
   // pins connected to the boost converter
-  static const uint8_t MCP41050_CS_PIN = 10;
   static const uint8_t SHDN_PIN = 4;
-
-  static const uint8_t HV_OUTPUT_SELECT_PIN = 8;
+  static const uint8_t MCP41050_CS_PIN = 10;
 
   // SPI pins
-  static const uint8_t SCK_PIN = 13;
   static const uint8_t MOSI_PIN = 11;
+  static const uint8_t SCK_PIN = 13;
 
   // PCA9505 (gpio) chip/register addresses
   static const uint8_t PCA9505_CONFIG_IO_REGISTER = 0x18;
@@ -251,8 +250,8 @@ public:
     if ((config_._.min_frequency <= frequency) &&
                 (frequency <= config_._.max_frequency)) {
       if (frequency == 0) { // DC mode
-        digitalWrite(Node::HIGH_PIN, HIGH); // set not blanked pin high
-        digitalWrite(Node::LOW_PIN, LOW); // set not blanked pin high
+        digitalWrite(DRIVER_HIGH_PIN, HIGH); // set voltage high
+        digitalWrite(DRIVER_LOW_PIN, LOW);
         Timer1.stop(); // stop timer
       } else {
         Timer1.setPeriod(500000.0 / frequency); // set timer period in ms
