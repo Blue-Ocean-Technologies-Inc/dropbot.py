@@ -1,7 +1,7 @@
 @echo off
 setlocal enableextensions
 md "%PREFIX%"\Library\include\Arduino
-md "%PREFIX%"\Library\bin\platformio\dropbot-dx\teensy31
+md "%PREFIX%"\Library\bin\platformio\dropbot\teensy31
 endlocal
 
 REM Generate Arduino/Python code
@@ -11,9 +11,9 @@ REM Build firmware
 "%PYTHON%" -m paver build_firmware
 if errorlevel 1 exit 1
 REM Copy Arduino library to Conda include directory
-xcopy /S /Y /I /Q "%SRC_DIR%"\lib\DropbotDx "%PREFIX%"\Library\include\Arduino\DropbotDx
+xcopy /S /Y /I /Q "%SRC_DIR%"\lib\Dropbot "%PREFIX%"\Library\include\Arduino\Dropbot
 REM Copy compiled firmware to Conda bin directory
-copy "%SRC_DIR%"\.pioenvs\teensy31\firmware.hex "%PREFIX%"\Library\bin\platformio\dropbot-dx\teensy31\firmware.hex
+copy "%SRC_DIR%"\.pioenvs\teensy31\firmware.hex "%PREFIX%"\Library\bin\platformio\dropbot\teensy31\firmware.hex
 if errorlevel 1 exit 1
 
 REM Generate `setup.py` from `pavement.py` definition.

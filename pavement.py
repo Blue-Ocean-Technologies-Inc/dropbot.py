@@ -17,7 +17,7 @@ import version
 install_distutils_tasks()
 
 DEFAULT_ARDUINO_BOARDS = []  #['mega2560']
-PROJECT_PREFIX = 'dropbot_dx'
+PROJECT_PREFIX = 'dropbot'
 module_name = PROJECT_PREFIX
 package_name = module_name.replace('_', '-')
 rpc_module = import_module(PROJECT_PREFIX)
@@ -50,7 +50,7 @@ options(
                   'BaseNodeI2cHandler<Handler>',
                   'BaseNodeConfig<ConfigMessage, Address>',
                   'BaseNodeState<StateMessage>'],
-    rpc_classes=['dropbot_dx::Node'],
+    rpc_classes=['dropbot::Node'],
     DEFAULT_ARDUINO_BOARDS=DEFAULT_ARDUINO_BOARDS,
     setup=dict(name=package_name,
                version=VERSION,

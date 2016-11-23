@@ -1,5 +1,5 @@
 mkdir -p "${PREFIX}"/include/Arduino
-mkdir -p "${PREFIX}"/bin/platformio/dropbot-dx/teensy31
+mkdir -p "${PREFIX}"/bin/platformio/dropbot/teensy31
 
 # Generate Arduino code
 "${PYTHON}" -m paver generate_all_code
@@ -10,9 +10,9 @@ rc=$?; if [[ $rc != 0  ]]; then exit $rc; fi
 rc=$?; if [[ $rc != 0  ]]; then exit $rc; fi
 
 # Copy Arduino library to Conda include directory
-cp -ra "${SRC_DIR}"/lib/DropbotDx "${PREFIX}"/include/Arduino/DropbotDx
+cp -ra "${SRC_DIR}"/lib/Dropbot "${PREFIX}"/include/Arduino/Dropbot
 # Copy compiled firmware to Conda bin directory
-cp -a "${SRC_DIR}"/lib/.pioenvs/teensy31/firmware.hex "${PREFIX}"/bin/dropbot-dx/teensy31/firmware.hex
+cp -a "${SRC_DIR}"/lib/.pioenvs/teensy31/firmware.hex "${PREFIX}"/bin/dropbot/teensy31/firmware.hex
 rc=$?; if [[ $rc != 0  ]]; then exit $rc; fi
 
 # Generate `setup.py` from `pavement.py` definition.

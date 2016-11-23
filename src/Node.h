@@ -8,7 +8,7 @@
 #include <NadaMQ.h>
 #include <CArrayDefs.h>
 #include "RPCBuffer.h"  // Define packet sizes
-#include "DropbotDx/Properties.h"  // Define package name, URL, etc.
+#include "Dropbot/Properties.h"  // Define package name, URL, etc.
 #include <BaseNodeRpc/BaseNode.h>
 #include <BaseNodeRpc/BaseNodeEeprom.h>
 #include <BaseNodeRpc/BaseNodeI2c.h>
@@ -30,10 +30,10 @@
 #include <pb_eeprom.h>
 #include <LinkedList.h>
 #include <TimerOne.h>
-#include "dropbot_dx_config_validate.h"
-#include "dropbot_dx_state_validate.h"
-#include "DropbotDx/config_pb.h"
-#include "DropbotDx/state_pb.h"
+#include "dropbot_config_validate.h"
+#include "dropbot_state_validate.h"
+#include "Dropbot/config_pb.h"
+#include "Dropbot/state_pb.h"
 
 
 const uint32_t ADC_BUFFER_SIZE = 4096;
@@ -55,7 +55,7 @@ extern void dma_ch13_isr(void);
 extern void dma_ch14_isr(void);
 extern void dma_ch15_isr(void);
 
-namespace dropbot_dx {
+namespace dropbot {
 
 // Define the array that holds the conversions here.
 // buffer_size must be a power of two.
@@ -72,9 +72,9 @@ const size_t FRAME_SIZE = (3 * sizeof(uint8_t)  // Frame boundary
 class Node;
 const char HARDWARE_VERSION_[] = "0.3";
 
-typedef nanopb::EepromMessage<dropbot_dx_Config,
+typedef nanopb::EepromMessage<dropbot_Config,
                               config_validate::Validator<Node> > config_t;
-typedef nanopb::Message<dropbot_dx_State,
+typedef nanopb::Message<dropbot_State,
                         state_validate::Validator<Node> > state_t;
 
 class Node :
@@ -141,8 +141,8 @@ public:
   LinkedList<uint32_t> aligned_allocations_;
 
   Node() : BaseNode(),
-           BaseNodeConfig<config_t>(dropbot_dx_Config_fields),
-           BaseNodeState<state_t>(dropbot_dx_State_fields), dmaBuffer_(NULL),
+           BaseNodeConfig<config_t>(dropbot_Config_fields),
+           BaseNodeState<state_t>(dropbot_State_fields), dmaBuffer_(NULL),
            adc_period_us_(0), adc_timestamp_us_(0), adc_tick_tock_(false),
            adc_count_(0), dma_channel_done_(-1), last_dma_channel_done_(-1),
            adc_read_active_(false) {
@@ -369,7 +369,7 @@ public:
                                !(buffer_size & (buffer_size - 1)));
     if ((buffer_size > ADC_BUFFER_SIZE) || !power_of_two) { return false; }
     dma_stop();
-    dmaBuffer_ = new RingBufferDMA(dropbot_dx::adc_buffer,
+    dmaBuffer_ = new RingBufferDMA(dropbot::adc_buffer,
                                    buffer_size, ADC_0);
     dmaBuffer_->start();
     return true;
@@ -1066,7 +1066,7 @@ public:
 
 };
 
-}  // namespace dropbot_dx
+}  // namespace dropbot
 
 
 #endif  // #ifndef ___NODE__H___

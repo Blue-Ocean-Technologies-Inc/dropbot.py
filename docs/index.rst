@@ -1,9 +1,9 @@
-.. dropbot_dx documentation master file, created by
+.. dropbot documentation master file, created by
    sphinx-quickstart on Thu Dec 03 13:11:33 2015.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to dropbot_dx's documentation!
+Welcome to dropbot's documentation!
 ==============================================
 
 Contents:

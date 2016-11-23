@@ -1,6 +1,6 @@
 #include "Node.h"
 
-namespace dropbot_dx {
+namespace dropbot {
 
 const float Node::R6 = 2e6;
 
@@ -117,4 +117,4 @@ void Node::timer_callback() {
   }
 }
 
-}  // namespace dropbot_dx
+}  // namespace dropbot
