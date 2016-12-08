@@ -2,10 +2,10 @@ from collections import OrderedDict
 
 from path_helpers import path
 try:
+    from .proxy import Proxy, I2cProxy, SerialProxy, serial_ports
     from .config import Config, State
 except (ImportError, TypeError):
     pass
-from .proxy import Proxy, I2cProxy, SerialProxy, serial_ports
 
 
 def package_path():
