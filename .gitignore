@@ -23,6 +23,7 @@ build.log
 .ipynb_checkpoints
 */node.py
 */config.py
+*/state.py
 *~
 *.swp
 .project

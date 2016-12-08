@@ -3,6 +3,7 @@
 namespace dropbot {
 
 const float Node::R6 = 2e6;
+SoftI2CMaster Node::i2c = SoftI2CMaster();
 
 void Node::begin() {
   pinMode(LIGHT_PIN, OUTPUT);
