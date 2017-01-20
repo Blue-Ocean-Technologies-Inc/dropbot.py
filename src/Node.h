@@ -30,11 +30,11 @@
 #include <pb_eeprom.h>
 #include <LinkedList.h>
 #include <TimerOne.h>
-#include <SoftI2CMaster.h>
 #include "dropbot_config_validate.h"
 #include "dropbot_state_validate.h"
 #include "Dropbot/config_pb.h"
 #include "Dropbot/state_pb.h"
+
 
 const uint32_t ADC_BUFFER_SIZE = 4096;
 
@@ -91,8 +91,6 @@ public:
   typedef PacketParser<FixedPacket> parser_t;
 
   static void timer_callback();
-  static SoftI2CMaster i2c;
-
   Servo servo_;
 
   static const uint32_t BUFFER_SIZE = 8192;  // >= longest property string
@@ -172,33 +170,6 @@ public:
    * [1]: https://github.com/wheeler-microfluidics/arduino_rpc
    * [2]: https://github.com/wheeler-microfluidics/base_node_rpc
    */
-  void soft_i2c_init(uint8_t scl_pin, uint8_t sda_pin, uint8_t use_pullups) {
-    i2c.setPins(scl_pin, sda_pin, use_pullups);
-  }
-
-  void soft_i2c_write(uint8_t address, UInt8Array data) {
-    i2c.beginTransmission(address);
-    i2c.write(data.data, data.length);
-    i2c.endTransmission();
-  }
-  
-  UInt8Array soft_i2c_read(uint8_t address, uint8_t n_bytes_to_read) {
-    UInt8Array output = get_buffer();
-    i2c.requestFrom(address);
-    uint8_t n_bytes_read = 0;
-    uint8_t value;
-    while (n_bytes_read < n_bytes_to_read) {
-      if (n_bytes_read == n_bytes_to_read - 1) {
-        value = i2c.readLast();
-      } else {
-        value = i2c.read();
-      }
-      output.data[n_bytes_read++] = value;
-    }
-    output.length = n_bytes_read;
-    return output;
-  }
-
   uint8_t servo_read() { return servo_.read(); }
   void servo_write(uint8_t angle) { servo_.write(angle); }
   void servo_write_microseconds(uint16_t us) { servo_.writeMicroseconds(us); }

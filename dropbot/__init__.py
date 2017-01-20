@@ -1,11 +1,13 @@
 from collections import OrderedDict
+import warnings
 
 from path_helpers import path
 try:
     from .proxy import Proxy, I2cProxy, SerialProxy, serial_ports
-    from .config import Config, State
-except (ImportError, TypeError):
-    pass
+    from .config import Config
+    from .state import State
+except (ImportError, TypeError), exception:
+    warnings.warn(str(exception))
 
 
 def package_path():
@@ -16,11 +18,11 @@ def get_sketch_directory():
     '''
     Return directory containing the Arduino sketch.
     '''
-    return package_path().joinpath('Arduino', package_path().name)
+    return package_path().joinpath('..', 'src').realpath()
 
 
 def get_lib_directory():
-    return package_path().joinpath('Arduino', 'library')
+    return package_path().joinpath('..', 'lib').realpath()
 
 
 def get_includes():

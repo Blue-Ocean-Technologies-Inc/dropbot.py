@@ -16,10 +16,8 @@ sys.path.insert(0, '.')
 import version
 install_distutils_tasks()
 
-DEFAULT_ARDUINO_BOARDS = []
-PROJECT_PREFIX = [d for d in path('.').dirs()
-                  if d.joinpath('Arduino').isdir()
-                  and d.name not in ('build', )][0].name
+DEFAULT_ARDUINO_BOARDS = []  #['mega2560']
+PROJECT_PREFIX = 'dropbot'
 module_name = PROJECT_PREFIX
 package_name = module_name.replace('_', '-')
 rpc_module = import_module(PROJECT_PREFIX)
@@ -61,8 +59,18 @@ options(
                author_email='christian@fobel.net',
                url=URL,
                license='GPLv2',
-               install_requires=['base-node-rpc>=0.16.post3',
-                                 'serial-device>=0.3',
-                                 'arduino-rpc>=1.7.post20'],
+               install_requires=['teensy-minimal-rpc>=0.3.0'],
                include_package_data=True,
                packages=[str(PROJECT_PREFIX)]))
+
+
+@task
+@needs('generate_all_code')
+def build_firmware():
+    sh('pio run')
+
+
+@task
+@needs('build_firmware')
+def upload():
+    sh('pio run --target upload --target nobuild')

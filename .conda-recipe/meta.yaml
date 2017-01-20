@@ -1,0 +1,39 @@
+# source will be downloaded prior to filling in jinja templates
+# Example assumes that this folder has setup.py in it
+source:
+  git_url: ../
+
+package:
+  name: dropbot
+{% if GIT_DESCRIBE_NUMBER > '0' %}
+  version: {{ GIT_DESCRIBE_TAG[1:] }}.post{{ GIT_DESCRIBE_NUMBER }}
+{% else %}
+  version: {{ GIT_DESCRIBE_TAG[1:] }}.0
+{% endif %}
+
+requirements:
+  build:
+    - arduino-linked-list >=1.2.3
+    - future
+    - nanopb-helpers >=0.6
+    - paver
+    - pip
+    - platformio-framework-arduinoteensy
+    - platformio-helpers
+    - platformio-tool-scons
+    - platformio-tool-teensy
+    - platformio-toolchain-gccarmnoneeabi
+    - python 2.7*
+    - teensy-minimal-rpc >=0.3.0
+
+  run:
+    - arduino-linked-list >=1.2.3
+    - nanopb-helpers >=0.6
+    - platformio-helpers
+    - platformio-tool-teensy
+    - python 2.7*
+    - teensy-minimal-rpc >=0.3.0
+
+about:
+  home: https://github.com/wheeler-microfluidics/dropbot
+  license: MIT
