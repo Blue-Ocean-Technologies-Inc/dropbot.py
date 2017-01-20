@@ -1,11 +1,13 @@
 from collections import OrderedDict
+import warnings
 
 from path_helpers import path
 try:
-    from .config import Config, State
     from .proxy import Proxy, I2cProxy, SerialProxy, serial_ports
-except (ImportError, TypeError):
-    pass
+    from .config import Config
+    from .state import State
+except (ImportError, TypeError), exception:
+    warnings.warn(str(exception))
 
 
 def package_path():
