@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# dropbot documentation build configuration file, created by
+# dropbot_dx documentation build configuration file, created by
 # sphinx-quickstart on Thu Dec 03 13:11:33 2015.
 #
 # This file is execfile()d with the current directory set to its
@@ -53,7 +53,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'dropbot'
+project = u'dropbot_dx'
 copyright = u'2015, Christian Fobel'
 author = u'Christian Fobel'
 
@@ -207,7 +207,7 @@ html_static_path = ['_static']
 #html_search_scorer = 'scorer.js'
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'dropbotdoc'
+htmlhelp_basename = 'dropbot_dxdoc'
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -229,7 +229,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  (master_doc, 'dropbot.tex', u'teensy\\_minimal\\_rpc Documentation',
+  (master_doc, 'dropbot_dx.tex', u'teensy\\_minimal\\_rpc Documentation',
    u'Christian Fobel', 'manual'),
 ]
 
@@ -259,7 +259,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'dropbot', u'dropbot Documentation',
+    (master_doc, 'dropbot_dx', u'dropbot_dx Documentation',
      [author], 1)
 ]
 
@@ -273,8 +273,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  (master_doc, 'dropbot', u'dropbot Documentation',
-   author, 'dropbot', 'One line description of project.',
+  (master_doc, 'dropbot_dx', u'dropbot_dx Documentation',
+   author, 'dropbot_dx', 'One line description of project.',
    'Miscellaneous'),
 ]
 

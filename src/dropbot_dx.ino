@@ -12,15 +12,15 @@
 #include "BaseNodeRpc.h"  // Check for changes (may have removed some include statements...
 #include "TeensyMinimalRpc.h"
 #include "TimerOne.h"
-#include "Dropbot.h"
+#include "DropbotDx.h"
 #include "NodeCommandProcessor.h"
 #include "ADC.h"
 #include "Servo.h"
 #include "Node.h"
-#include "SoftI2CMaster.h"
 
-dropbot::Node node_obj;
-dropbot::CommandProcessor<dropbot::Node> command_processor(node_obj);
+
+dropbot_dx::Node node_obj;
+dropbot_dx::CommandProcessor<dropbot_dx::Node> command_processor(node_obj);
 
 // when the measurement finishes, this will be called
 // first: see which pin finished and then save the measurement into the correct buffer

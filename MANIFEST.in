@@ -6,8 +6,8 @@ include pavement.py
 include paver-minilib.zip
 include setup.py
 include SConstruct
-recursive-include dropbot *
-recursive-exclude dropbot *.pyc
-recursive-exclude dropbot *.o
-recursive-exclude dropbot *.exe
-recursive-exclude dropbot .ipynb_checkpoints/*
+recursive-include dropbot_dx *
+recursive-exclude dropbot_dx *.pyc
+recursive-exclude dropbot_dx *.o
+recursive-exclude dropbot_dx *.exe
+recursive-exclude dropbot_dx .ipynb_checkpoints/*

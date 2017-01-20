@@ -1,4 +1,4 @@
-# dropbot #
+# dropbot-dx #
 
 Template package for remote procedure call (RPC) project, utilizing
 [`base-node-rpc`][3].
@@ -15,14 +15,14 @@ This package contains:
 
 The Python package can be installed through `pip` using the following command:
 
-    pip install dropbot
+    pip install dropbot-dx
 
 ## Upload firmware ##
 
 To upload the pre-compiled firmware included in the Python package, run the
 following command:
 
-    python -m dropbot.bin.upload <board type>
+    python -m dropbot_dx.bin.upload <board type>
 
 replacing `<board type>` with either `uno` or `mega2560`, depending on the
 model of the board.
@@ -31,13 +31,13 @@ This will attempt to upload the firmware by automatically discovering the
 serial port.  On systems with multiple serial ports, use the `-p` command line
 argument to specify the serial port to use.  For example:
 
-    python -m dropbot.bin.upload -p COM3 uno
+    python -m dropbot_dx.bin.upload -p COM3 uno
 
 --------------------------------------------------
 
 ## Usage ##
 
-After uploading the firmware to the board, the `dropbot.Proxy` class can be
+After uploading the firmware to the board, the `dropbot_dx.Proxy` class can be
 used to interact with the Arduino device.
 
 See the session log below for example usage.
@@ -45,7 +45,7 @@ See the session log below for example usage.
 ### Example interactive session ###
 
     >>> from serial import Serial
-    >>> from dropbot import Proxy
+    >>> from dropbot_dx import Proxy
 
 Connect to serial device.
 
@@ -64,7 +64,7 @@ Query descriptive properties of device.
 
     >>> proxy.properties()
     base_node_software_version                               0.9.post8.dev141722557
-    name                                                                  dropbot
+    name                                                                  dropbot_dx
     manufacturer                                                        Wheeler Lab
     url                           http://github.com/wheeler-microfluidics/rpc-p...
     software_version                                                            0.1
@@ -106,7 +106,7 @@ To persist changes to *configuration* across device reset - *not* state - use
 
 ### Other methods ###
 
-Below is a list of the attributes of the `dropbot.Proxy` Python class.  Note
+Below is a list of the attributes of the `dropbot_dx.Proxy` Python class.  Note
 that many of the [Arduino API][1] functions (e.g., `pin_mode`, `digital_write`,
 etc.) are exposed through the RPC API.
 
@@ -143,8 +143,8 @@ etc.) are exposed through the RPC API.
 
 ## Firmware development ##
 
-The Arduino firmware/sketch is located in the `dropbot/Arduino/dropbot`
-directory.  The key functionality is defined in the `dropbot::Node` class in
+The Arduino firmware/sketch is located in the `dropbot_dx/Arduino/dropbot_dx`
+directory.  The key functionality is defined in the `dropbot_dx::Node` class in
 the file `Node.h`.
 
 Running the following command will build the firmware using [SCons][2] for
@@ -156,7 +156,7 @@ Python package, ready for distribution.
 ### Adding new remote procedure call (RPC) methods ###
 
 New methods may be added to the RPC API by adding new methods to the
-`dropbot::Node` class in the file `Node.h`.
+`dropbot_dx::Node` class in the file `Node.h`.
 
 # Author #
 

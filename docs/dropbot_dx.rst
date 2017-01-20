@@ -1,10 +1,10 @@
-dropbot Package
+dropbot_dx Package
 ==========================
 
-:mod:`dropbot` Package
+:mod:`dropbot_dx` Package
 ---------------------------------
 
-.. automodule:: dropbot.__init__
+.. automodule:: dropbot_dx.__init__
     :members:
     :undoc-members:
     :show-inheritance:
@@ -12,7 +12,7 @@ dropbot Package
 :mod:`ADC` Module
 -----------------
 
-.. automodule:: dropbot.ADC
+.. automodule:: dropbot_dx.ADC
     :members:
     :undoc-members:
     :show-inheritance:
@@ -20,7 +20,7 @@ dropbot Package
 :mod:`DMA` Module
 -----------------
 
-.. automodule:: dropbot.DMA
+.. automodule:: dropbot_dx.DMA
     :members:
     :undoc-members:
     :show-inheritance:
@@ -28,7 +28,7 @@ dropbot Package
 :mod:`PIT` Module
 -----------------
 
-.. automodule:: dropbot.PIT
+.. automodule:: dropbot_dx.PIT
     :members:
     :undoc-members:
     :show-inheritance:
@@ -36,7 +36,7 @@ dropbot Package
 :mod:`SIM` Module
 -----------------
 
-.. automodule:: dropbot.SIM
+.. automodule:: dropbot_dx.SIM
     :members:
     :undoc-members:
     :show-inheritance:
@@ -44,7 +44,7 @@ dropbot Package
 :mod:`adc_sampler` Module
 -------------------------
 
-.. automodule:: dropbot.adc_sampler
+.. automodule:: dropbot_dx.adc_sampler
     :members:
     :undoc-members:
     :show-inheritance:
@@ -52,7 +52,7 @@ dropbot Package
 :mod:`config` Module
 --------------------
 
-.. automodule:: dropbot.config
+.. automodule:: dropbot_dx.config
     :members:
     :undoc-members:
     :show-inheritance:
@@ -60,7 +60,7 @@ dropbot Package
 :mod:`node` Module
 ------------------
 
-.. automodule:: dropbot.node
+.. automodule:: dropbot_dx.node
     :members:
     :undoc-members:
     :show-inheritance:
@@ -68,7 +68,7 @@ dropbot Package
 :mod:`proxy` Module
 -------------------
 
-.. automodule:: dropbot.proxy
+.. automodule:: dropbot_dx.proxy
     :members:
     :undoc-members:
     :show-inheritance:
@@ -78,5 +78,5 @@ Subpackages
 
 .. toctree::
 
-    dropbot.bin
+    dropbot_dx.bin
 

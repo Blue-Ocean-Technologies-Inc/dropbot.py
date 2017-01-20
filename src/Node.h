@@ -8,7 +8,7 @@
 #include <NadaMQ.h>
 #include <CArrayDefs.h>
 #include "RPCBuffer.h"  // Define packet sizes
-#include "Dropbot/Properties.h"  // Define package name, URL, etc.
+#include "DropbotDx/Properties.h"  // Define package name, URL, etc.
 #include <BaseNodeRpc/BaseNode.h>
 #include <BaseNodeRpc/BaseNodeEeprom.h>
 #include <BaseNodeRpc/BaseNodeI2c.h>
@@ -30,11 +30,11 @@
 #include <pb_eeprom.h>
 #include <LinkedList.h>
 #include <TimerOne.h>
-#include <SoftI2CMaster.h>
-#include "dropbot_config_validate.h"
-#include "dropbot_state_validate.h"
-#include "Dropbot/config_pb.h"
-#include "Dropbot/state_pb.h"
+#include "dropbot_dx_config_validate.h"
+#include "dropbot_dx_state_validate.h"
+#include "DropbotDx/config_pb.h"
+#include "DropbotDx/state_pb.h"
+
 
 const uint32_t ADC_BUFFER_SIZE = 4096;
 
@@ -55,7 +55,7 @@ extern void dma_ch13_isr(void);
 extern void dma_ch14_isr(void);
 extern void dma_ch15_isr(void);
 
-namespace dropbot {
+namespace dropbot_dx {
 
 // Define the array that holds the conversions here.
 // buffer_size must be a power of two.
@@ -72,9 +72,9 @@ const size_t FRAME_SIZE = (3 * sizeof(uint8_t)  // Frame boundary
 class Node;
 const char HARDWARE_VERSION_[] = "0.3";
 
-typedef nanopb::EepromMessage<dropbot_Config,
+typedef nanopb::EepromMessage<dropbot_dx_Config,
                               config_validate::Validator<Node> > config_t;
-typedef nanopb::Message<dropbot_State,
+typedef nanopb::Message<dropbot_dx_State,
                         state_validate::Validator<Node> > state_t;
 
 class Node :
@@ -91,27 +91,26 @@ public:
   typedef PacketParser<FixedPacket> parser_t;
 
   static void timer_callback();
-  static SoftI2CMaster i2c;
-
   Servo servo_;
 
   static const uint32_t BUFFER_SIZE = 8192;  // >= longest property string
 
   static const uint16_t MAX_NUMBER_OF_CHANNELS = 120;
 
+  static const uint8_t SERVO_PIN = 2;
+  static const uint8_t HIGH_PIN = 6;
+  static const uint8_t LOW_PIN = 7;
   static const uint8_t LIGHT_PIN = 5;
-  static const uint8_t DRIVER_HIGH_PIN = 6;
-  static const uint8_t DRIVER_LOW_PIN = 7;
-  static const uint8_t HV_OUTPUT_SELECT_PIN = 8;
-  static const uint8_t SERVO_PIN = 9;
 
   // pins connected to the boost converter
-  static const uint8_t SHDN_PIN = 4;
   static const uint8_t MCP41050_CS_PIN = 10;
+  static const uint8_t SHDN_PIN = 4;
+
+  static const uint8_t HV_OUTPUT_SELECT_PIN = 8;
 
   // SPI pins
-  static const uint8_t MOSI_PIN = 11;
   static const uint8_t SCK_PIN = 13;
+  static const uint8_t MOSI_PIN = 11;
 
   // PCA9505 (gpio) chip/register addresses
   static const uint8_t PCA9505_CONFIG_IO_REGISTER = 0x18;
@@ -142,8 +141,8 @@ public:
   LinkedList<uint32_t> aligned_allocations_;
 
   Node() : BaseNode(),
-           BaseNodeConfig<config_t>(dropbot_Config_fields),
-           BaseNodeState<state_t>(dropbot_State_fields), dmaBuffer_(NULL),
+           BaseNodeConfig<config_t>(dropbot_dx_Config_fields),
+           BaseNodeState<state_t>(dropbot_dx_State_fields), dmaBuffer_(NULL),
            adc_period_us_(0), adc_timestamp_us_(0), adc_tick_tock_(false),
            adc_count_(0), dma_channel_done_(-1), last_dma_channel_done_(-1),
            adc_read_active_(false) {
@@ -172,33 +171,6 @@ public:
    * [1]: https://github.com/wheeler-microfluidics/arduino_rpc
    * [2]: https://github.com/wheeler-microfluidics/base_node_rpc
    */
-  void soft_i2c_init(uint8_t scl_pin, uint8_t sda_pin, uint8_t use_pullups) {
-    i2c.setPins(scl_pin, sda_pin, use_pullups);
-  }
-
-  void soft_i2c_write(uint8_t address, UInt8Array data) {
-    i2c.beginTransmission(address);
-    i2c.write(data.data, data.length);
-    i2c.endTransmission();
-  }
-  
-  UInt8Array soft_i2c_read(uint8_t address, uint8_t n_bytes_to_read) {
-    UInt8Array output = get_buffer();
-    i2c.requestFrom(address);
-    uint8_t n_bytes_read = 0;
-    uint8_t value;
-    while (n_bytes_read < n_bytes_to_read) {
-      if (n_bytes_read == n_bytes_to_read - 1) {
-        value = i2c.readLast();
-      } else {
-        value = i2c.read();
-      }
-      output.data[n_bytes_read++] = value;
-    }
-    output.length = n_bytes_read;
-    return output;
-  }
-
   uint8_t servo_read() { return servo_.read(); }
   void servo_write(uint8_t angle) { servo_.write(angle); }
   void servo_write_microseconds(uint16_t us) { servo_.writeMicroseconds(us); }
@@ -279,8 +251,8 @@ public:
     if ((config_._.min_frequency <= frequency) &&
                 (frequency <= config_._.max_frequency)) {
       if (frequency == 0) { // DC mode
-        digitalWrite(DRIVER_HIGH_PIN, HIGH); // set voltage high
-        digitalWrite(DRIVER_LOW_PIN, LOW);
+        digitalWrite(Node::HIGH_PIN, HIGH); // set not blanked pin high
+        digitalWrite(Node::LOW_PIN, LOW); // set not blanked pin high
         Timer1.stop(); // stop timer
       } else {
         Timer1.setPeriod(500000.0 / frequency); // set timer period in ms
@@ -397,7 +369,7 @@ public:
                                !(buffer_size & (buffer_size - 1)));
     if ((buffer_size > ADC_BUFFER_SIZE) || !power_of_two) { return false; }
     dma_stop();
-    dmaBuffer_ = new RingBufferDMA(dropbot::adc_buffer,
+    dmaBuffer_ = new RingBufferDMA(dropbot_dx::adc_buffer,
                                    buffer_size, ADC_0);
     dmaBuffer_->start();
     return true;
@@ -1094,7 +1066,7 @@ public:
 
 };
 
-}  // namespace dropbot
+}  // namespace dropbot_dx
 
 
 #endif  // #ifndef ___NODE__H___

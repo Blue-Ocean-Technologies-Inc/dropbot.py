@@ -1,4 +1,4 @@
-package dropbot;
+package dropbot_dx;
 
 message State {
   /* # State structure #

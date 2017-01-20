@@ -1,26 +1,18 @@
 #include "Node.h"
 
-namespace dropbot {
+namespace dropbot_dx {
 
 const float Node::R6 = 2e6;
-SoftI2CMaster Node::i2c = SoftI2CMaster();
 
 void Node::begin() {
   pinMode(LIGHT_PIN, OUTPUT);
-  pinMode(DRIVER_HIGH_PIN, OUTPUT);
-  pinMode(DRIVER_LOW_PIN, OUTPUT);
+  pinMode(HIGH_PIN, OUTPUT);
+  pinMode(LOW_PIN, OUTPUT);
   pinMode(MCP41050_CS_PIN, OUTPUT);
   pinMode(SHDN_PIN, OUTPUT);
   pinMode(SCK_PIN, OUTPUT);
   pinMode(MOSI_PIN, OUTPUT);
   pinMode(HV_OUTPUT_SELECT_PIN, OUTPUT);
-
-  // Set D0-D3 low (these are used to select test capacitors for
-  // on-board calibration).
-  for (uint8_t i = 0; i <= 3; i++) {
-    pinMode(i, OUTPUT);
-    digitalWrite(i, LOW);
-  }
 
   // set SPI pins high
   digitalWrite(SCK_PIN, HIGH);
@@ -115,14 +107,14 @@ void Node::_initialize_switching_boards() {
 }
 
 void Node::timer_callback() {
-  uint8_t high_pin_state = digitalRead(DRIVER_HIGH_PIN);
+  uint8_t high_pin_state = digitalRead(Node::HIGH_PIN);
   if (high_pin_state == HIGH) {
-    digitalWrite(DRIVER_HIGH_PIN, LOW);
-    digitalWrite(DRIVER_LOW_PIN, HIGH);
+    digitalWrite(Node::HIGH_PIN, LOW);
+    digitalWrite(Node::LOW_PIN, HIGH);
   } else {
-    digitalWrite(DRIVER_LOW_PIN, LOW);
-    digitalWrite(DRIVER_HIGH_PIN, HIGH);
+    digitalWrite(Node::LOW_PIN, LOW);
+    digitalWrite(Node::HIGH_PIN, HIGH);
   }
 }
 
-}  // namespace dropbot
+}  // namespace dropbot_dx
