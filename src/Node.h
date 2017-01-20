@@ -512,7 +512,6 @@ public:
   }
   uint16_t digital_pin_has_pwm(uint16_t pin) { return digitalPinHasPWM(pin); }
   uint16_t digital_pin_to_interrupt(uint16_t pin) { return digitalPinToInterrupt(pin); }
-  uint32_t dma_available() { return (dmaBuffer_ == NULL) ? 0 : dmaBuffer_->available(); }
   uint16_t dma_channel_count() { return DMA_NUM_CHANNELS; }
   bool dma_empty() { return (dmaBuffer_ == NULL) ? 0 : dmaBuffer_->isEmpty(); }
   bool dma_full() { return (dmaBuffer_ == NULL) ? 0 : dmaBuffer_->isFull(); }
@@ -571,17 +570,15 @@ public:
     UInt8Array byte_buffer = get_buffer();
     UInt16Array result;
     result.data = reinterpret_cast<uint16_t *>(byte_buffer.data);
-    //result.length = dmaBuffer_->available();
-    result.length = dmaBuffer_->available() + (sizeof(uint32_t) /
-                                               sizeof(uint16_t));
+    result.length = sizeof(uint32_t) / sizeof(uint16_t);
     uint32_t &adc_count = *(reinterpret_cast<uint32_t *>(result.data));
     adc_count = adc_count_;
     adc_count_ = 0;
 
     uint16_t i = 0;
-    for (i = 0; i < result.length; i++) {
-      //result.data[i] = dmaBuffer_->read();
+    while (!dmaBuffer_->isEmpty()) {
       result.data[i + 2] = dmaBuffer_->read();
+      i++;
     }
     adc_read_active_ = false;
     return result;
