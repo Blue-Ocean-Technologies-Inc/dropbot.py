@@ -6,7 +6,7 @@ const float Node::R6 = 2e6;
 SoftI2CMaster Node::i2c = SoftI2CMaster();
 
 void Node::begin() {
-  pinMode(LIGHT_PIN, OUTPUT);
+
   pinMode(DRIVER_HIGH_PIN, OUTPUT);
   pinMode(DRIVER_LOW_PIN, OUTPUT);
   pinMode(MCP41050_CS_PIN, OUTPUT);
@@ -63,9 +63,6 @@ void Node::begin() {
 
   // attach timer_callback() as a timer overflow interrupt
   Timer1.attachInterrupt(timer_callback);
-
-  // this method needs to be called after initializing the Timer1 library!
-  servo_.attach(SERVO_PIN);
 
   //_initialize_switching_boards();
 

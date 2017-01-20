@@ -5,7 +5,6 @@
 #include <string.h>
 #include <stdint.h>
 #include <Arduino.h>
-#include <Servo.h>
 #include <NadaMQ.h>
 #include <CArrayDefs.h>
 #include "RPCBuffer.h"  // Define packet sizes
@@ -92,18 +91,15 @@ public:
   typedef PacketParser<FixedPacket> parser_t;
 
   static void timer_callback();
-  Servo servo_;
   static SoftI2CMaster i2c;
 
   static const uint32_t BUFFER_SIZE = 8192;  // >= longest property string
 
   static const uint16_t MAX_NUMBER_OF_CHANNELS = 120;
 
-  static const uint8_t LIGHT_PIN = 5;
   static const uint8_t DRIVER_HIGH_PIN = 6;
   static const uint8_t DRIVER_LOW_PIN = 7;
   static const uint8_t HV_OUTPUT_SELECT_PIN = 8;
-  static const uint8_t SERVO_PIN = 9;
 
   // pins connected to the boost converter
   static const uint8_t SHDN_PIN = 4;
@@ -172,21 +168,14 @@ public:
    * [1]: https://github.com/wheeler-microfluidics/arduino_rpc
    * [2]: https://github.com/wheeler-microfluidics/base_node_rpc
    */
-  uint8_t servo_read() { return servo_.read(); }
-  void servo_write(uint8_t angle) { servo_.write(angle); }
-  void servo_write_microseconds(uint16_t us) { servo_.writeMicroseconds(us); }
-  bool servo_attached() { return servo_.attached(); }
-
   void soft_i2c_init(uint8_t scl_pin, uint8_t sda_pin, uint8_t use_pullups) {
     i2c.setPins(scl_pin, sda_pin, use_pullups);
   }
-
   void soft_i2c_write(uint8_t address, UInt8Array data) {
     i2c.beginTransmission(address);
     i2c.write(data.data, data.length);
     i2c.endTransmission();
   }
-
   UInt8Array soft_i2c_read(uint8_t address, uint8_t n_bytes_to_read) {
     UInt8Array output = get_buffer();
     i2c.requestFrom(address);
@@ -203,7 +192,6 @@ public:
     output.length = n_bytes_read;
     return output;
   }
-
   uint16_t number_of_channels() const { return number_of_channels_; }
   void set_number_of_channels(uint16_t number_of_channels) { number_of_channels_ = number_of_channels; }
   UInt8Array hardware_version() { return UInt8Array_init(strlen(HARDWARE_VERSION_),
@@ -298,14 +286,10 @@ public:
     return false;
   }
 
-  bool magnet_engaged() { return state_._.magnet_engaged; }
-
   // Local methods
   // TODO: Should likely be private, but need to add private handling to code
   // scraper/generator.
   void _initialize_switching_boards();
-  void _magnet_engage() { servo_.write(config_._.engaged_angle); }
-  void _magnet_disengage() { servo_.write(config_._.disengaged_angle); }
 
   // # Callback methods
   bool on_state_frequency_changed(float frequency) {
@@ -354,31 +338,6 @@ public:
     return true;
   }
 
-  bool on_state_magnet_engaged_changed(bool value) {
-    if (value) {
-      _magnet_engage();
-    } else {
-      _magnet_disengage();
-    }
-    return true;
-  }
-
-  bool on_config_light_intensity_changed(float value) {
-    if (state_._.light_enabled) {
-      analogWrite(LIGHT_PIN, value * 255.0);
-    }
-    return true;
-  }
-
-  bool on_state_light_enabled_changed(bool value) {
-    if (value) {
-      analogWrite(LIGHT_PIN, config_._.light_intensity * 255.0);
-    } else {
-      analogWrite(LIGHT_PIN, 0);
-    }
-    return true;
-  }
-
   void on_tick() {
     if (adc_read_active_) return;
     uint8_t channel;
@@ -391,6 +350,7 @@ public:
     }
     adc_->startSingleRead(channel, ADC_0);
   }
+
   void on_adc_done() {
     if (adc_read_active_) return;
     adc_count_++;
@@ -400,6 +360,7 @@ public:
     //adc_millis_ = millis();
     //adc_SYST_CVR_ = SYST_CVR;
   }
+
   void loop() {
     if (dma_channel_done_ >= 0) {
       // DMA channel has completed.

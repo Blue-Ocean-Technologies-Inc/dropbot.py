@@ -15,7 +15,6 @@
 #include "Dropbot.h"
 #include "NodeCommandProcessor.h"
 #include "ADC.h"
-#include "Servo.h"
 #include "Node.h"
 #include "SoftI2CMaster.h"
 

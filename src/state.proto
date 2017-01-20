@@ -10,7 +10,5 @@ message State {
   optional float frequency = 2 [default = 10000];
   optional bool hv_output_enabled = 3 [default = false];
   optional bool hv_output_selected = 4 [default = true];
-  optional bool light_enabled = 5 [default = true];
-  optional bool magnet_engaged = 6 [default = false];
 }
 

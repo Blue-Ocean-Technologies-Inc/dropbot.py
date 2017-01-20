@@ -22,9 +22,6 @@ message Config {
    *      optional float my_float_field = 50;
    *      optional int32 my_int_field = 51;
    */
-  optional uint32 engaged_angle = 50 [default = 75];
-  optional uint32 disengaged_angle = 51 [default = 103];
-  optional float light_intensity = 52 [default = 0.01];
   optional uint32 switching_board_i2c_address =  53 [default = 32];
   optional float R7 =  54 [default = 10e3];
   optional float pot_max =  55 [default = 50e3];
