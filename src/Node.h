@@ -682,7 +682,6 @@ public:
     free((void *)address);
   }
   void reset_last_dma_channel_done() { last_dma_channel_done_ = -1; }
-  void set_i2c_address(uint8_t value);  // Override to validate i2c address
   int8_t update_adc_registers(uint8_t adc_num, UInt8Array serialized_adc_msg) {
     return teensy::adc::update_registers(adc_num, serialized_adc_msg);
   }
