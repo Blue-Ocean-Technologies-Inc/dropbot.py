@@ -43,8 +43,6 @@ void Node::begin() {
   state_._.has_frequency = true;
   state_._.has_hv_output_enabled = true;
   state_._.has_hv_output_selected = true;
-  state_._.has_magnet_engaged = true;
-  state_._.has_light_enabled = true;
   // Validate state to trigger on-changed handling for state fields that are
   // set (which initializes the state to the default values supplied in the
   // state protocol buffer definition).
