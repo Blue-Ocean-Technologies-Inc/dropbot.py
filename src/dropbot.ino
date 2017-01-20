@@ -17,7 +17,7 @@
 #include "ADC.h"
 #include "Servo.h"
 #include "Node.h"
-
+#include "SoftI2CMaster.h"
 
 dropbot::Node node_obj;
 dropbot::CommandProcessor<dropbot::Node> command_processor(node_obj);

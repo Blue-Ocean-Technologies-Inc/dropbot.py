@@ -31,11 +31,11 @@
 #include <pb_eeprom.h>
 #include <LinkedList.h>
 #include <TimerOne.h>
+#include <SoftI2CMaster.h>
 #include "dropbot_config_validate.h"
 #include "dropbot_state_validate.h"
 #include "Dropbot/config_pb.h"
 #include "Dropbot/state_pb.h"
-
 
 const uint32_t ADC_BUFFER_SIZE = 4096;
 
@@ -93,6 +93,7 @@ public:
 
   static void timer_callback();
   Servo servo_;
+  static SoftI2CMaster i2c;
 
   static const uint32_t BUFFER_SIZE = 8192;  // >= longest property string
 
@@ -175,6 +176,33 @@ public:
   void servo_write(uint8_t angle) { servo_.write(angle); }
   void servo_write_microseconds(uint16_t us) { servo_.writeMicroseconds(us); }
   bool servo_attached() { return servo_.attached(); }
+
+  void soft_i2c_init(uint8_t scl_pin, uint8_t sda_pin, uint8_t use_pullups) {
+    i2c.setPins(scl_pin, sda_pin, use_pullups);
+  }
+
+  void soft_i2c_write(uint8_t address, UInt8Array data) {
+    i2c.beginTransmission(address);
+    i2c.write(data.data, data.length);
+    i2c.endTransmission();
+  }
+
+  UInt8Array soft_i2c_read(uint8_t address, uint8_t n_bytes_to_read) {
+    UInt8Array output = get_buffer();
+    i2c.requestFrom(address);
+    uint8_t n_bytes_read = 0;
+    uint8_t value;
+    while (n_bytes_read < n_bytes_to_read) {
+      if (n_bytes_read == n_bytes_to_read - 1) {
+        value = i2c.readLast();
+      } else {
+        value = i2c.read();
+      }
+      output.data[n_bytes_read++] = value;
+    }
+    output.length = n_bytes_read;
+    return output;
+  }
 
   uint16_t number_of_channels() const { return number_of_channels_; }
   void set_number_of_channels(uint16_t number_of_channels) { number_of_channels_ = number_of_channels; }
