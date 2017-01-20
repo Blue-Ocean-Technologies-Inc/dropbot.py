@@ -24,6 +24,7 @@ requirements:
     - platformio-tool-scons
     - platformio-tool-teensy
     - platformio-toolchain-gccarmnoneeabi
+    - pytables
     - python 2.7*
     - teensy-minimal-rpc >=0.3.0
 
@@ -33,8 +34,14 @@ requirements:
     - nanopb-helpers >=0.6
     - platformio-helpers
     - platformio-tool-teensy
+    - pytables
     - python 2.7*
     - teensy-minimal-rpc >=0.3.0
+
+test:
+  imports:
+    - dropbot
+    - dropbot.proxy
 
 about:
   home: https://github.com/wheeler-microfluidics/dropbot
