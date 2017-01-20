@@ -13,6 +13,7 @@ if errorlevel 1 exit 1
 REM Copy Arduino library to Conda include directory
 xcopy /S /Y /I /Q "%SRC_DIR%"\lib\Dropbot "%PREFIX%"\Library\include\Arduino\Dropbot
 REM Copy compiled firmware to Conda bin directory
+copy "%SRC_DIR%"\platformio.ini "%PREFIX%"\Library\bin\platformio\dropbot
 copy "%SRC_DIR%"\.pioenvs\teensy31\firmware.hex "%PREFIX%"\Library\bin\platformio\dropbot\teensy31\firmware.hex
 if errorlevel 1 exit 1
 
