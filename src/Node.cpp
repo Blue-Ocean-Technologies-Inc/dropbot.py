@@ -67,6 +67,8 @@ void Node::begin() {
   servo_.attach(SERVO_PIN);
 
   //_initialize_switching_boards();
+
+  adc_ = new ADC();
 }
 
 void Node::_initialize_switching_boards() {
