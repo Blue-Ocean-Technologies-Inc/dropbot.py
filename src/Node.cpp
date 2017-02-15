@@ -3,10 +3,9 @@
 namespace dropbot {
 
 const float Node::R6 = 2e6;
-SoftI2CMaster Node::i2c = SoftI2CMaster();
+SlowSoftWire Node::i2c = SlowSoftWire(Node::SSDA_PIN, Node::SSCL_PIN);
 
 void Node::begin() {
-
   pinMode(DRIVER_HIGH_PIN, OUTPUT);
   pinMode(DRIVER_LOW_PIN, OUTPUT);
   pinMode(SHDN_PIN, OUTPUT);
