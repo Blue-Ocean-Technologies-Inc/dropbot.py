@@ -71,6 +71,5 @@ def build_firmware():
 
 
 @task
-@needs('build_firmware')
 def upload():
     sh('pio run --target upload --target nobuild')
