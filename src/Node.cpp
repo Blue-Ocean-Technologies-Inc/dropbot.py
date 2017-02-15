@@ -12,6 +12,8 @@ void Node::begin() {
   pinMode(SCK_PIN, OUTPUT);
   pinMode(MOSI_PIN, OUTPUT);
   pinMode(HV_OUTPUT_SELECT_PIN, OUTPUT);
+  pinMode(SSDA_PIN, OUTPUT);
+  pinMode(SSCL_PIN, OUTPUT);
 
   // Set D0-D3 low (these are used to select test capacitors for
   // on-board calibration).

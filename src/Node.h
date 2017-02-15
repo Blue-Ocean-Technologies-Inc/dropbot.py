@@ -186,6 +186,25 @@ public:
     output.length = n_bytes_read;
     return output;
   }
+  UInt8Array soft_i2c_scan() {
+    UInt8Array output = get_buffer();
+    uint16_t count = 0;
+
+    /* The I2C specification has reserved addresses in the ranges `0x1111XXX`
+     * and `0x0000XXX`.  See [here][1] for more details.
+     *
+     * [1]: http://www.totalphase.com/support/articles/200349176-7-bit-8-bit-and-10-bit-I2C-Slave-Addressing */
+    for (uint8_t i = 8; i < 120; i++) {
+      if (count >= output.length) { break; }
+      i2c.beginTransmission(i);
+      if (i2c.endTransmission() == 0) {
+        output.data[count++] = i;
+        delay(1);  // maybe unneeded?
+      }
+    }
+    output.length = count;
+    return output;
+  }
   uint16_t number_of_channels() const { return number_of_channels_; }
   void set_number_of_channels(uint16_t number_of_channels) { number_of_channels_ = number_of_channels; }
   UInt8Array hardware_version() { return UInt8Array_init(strlen(HARDWARE_VERSION_),
