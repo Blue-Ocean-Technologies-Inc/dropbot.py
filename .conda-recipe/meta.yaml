@@ -14,7 +14,7 @@ package:
 requirements:
   build:
     - arduino-linked-list >=1.2.3
-    - arduino-soft-i2c-master
+    - arduino-slow-soft-i2c-wire
     - future
     - nanopb-helpers >=0.6
     - paver
@@ -30,7 +30,7 @@ requirements:
 
   run:
     - arduino-linked-list >=1.2.3
-    - arduino-soft-i2c-master
+    - arduino-slow-soft-i2c-wire
     - nanopb-helpers >=0.6
     - platformio-helpers
     - platformio-tool-scons

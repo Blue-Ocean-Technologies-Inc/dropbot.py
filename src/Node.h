@@ -30,7 +30,7 @@
 #include <pb_eeprom.h>
 #include <LinkedList.h>
 #include <TimerOne.h>
-#include <SoftI2CMaster.h>
+#include <SlowSoftWire.h>
 #include "dropbot_config_validate.h"
 #include "dropbot_state_validate.h"
 #include "Dropbot/config_pb.h"
@@ -91,7 +91,7 @@ public:
   typedef PacketParser<FixedPacket> parser_t;
 
   static void timer_callback();
-  static SoftI2CMaster i2c;
+  static SlowSoftWire i2c;
 
   static const uint32_t BUFFER_SIZE = 8192;  // >= longest property string
 
@@ -169,9 +169,6 @@ public:
    * [1]: https://github.com/wheeler-microfluidics/arduino_rpc
    * [2]: https://github.com/wheeler-microfluidics/base_node_rpc
    */
-  void soft_i2c_init(uint8_t scl_pin, uint8_t sda_pin, uint8_t use_pullups) {
-    i2c.setPins(scl_pin, sda_pin, use_pullups);
-  }
   void soft_i2c_write(uint8_t address, UInt8Array data) {
     i2c.beginTransmission(address);
     i2c.write(data.data, data.length);
@@ -179,18 +176,33 @@ public:
   }
   UInt8Array soft_i2c_read(uint8_t address, uint8_t n_bytes_to_read) {
     UInt8Array output = get_buffer();
-    i2c.requestFrom(address);
+    i2c.requestFrom(address, n_bytes_to_read);
     uint8_t n_bytes_read = 0;
     uint8_t value;
     while (n_bytes_read < n_bytes_to_read) {
-      if (n_bytes_read == n_bytes_to_read - 1) {
-        value = i2c.readLast();
-      } else {
-        value = i2c.read();
-      }
+      value = i2c.read();
       output.data[n_bytes_read++] = value;
     }
     output.length = n_bytes_read;
+    return output;
+  }
+  UInt8Array soft_i2c_scan() {
+    UInt8Array output = get_buffer();
+    uint16_t count = 0;
+
+    /* The I2C specification has reserved addresses in the ranges `0x1111XXX`
+     * and `0x0000XXX`.  See [here][1] for more details.
+     *
+     * [1]: http://www.totalphase.com/support/articles/200349176-7-bit-8-bit-and-10-bit-I2C-Slave-Addressing */
+    for (uint8_t i = 8; i < 120; i++) {
+      if (count >= output.length) { break; }
+      i2c.beginTransmission(i);
+      if (i2c.endTransmission() == 0) {
+        output.data[count++] = i;
+        delay(1);  // maybe unneeded?
+      }
+    }
+    output.length = count;
     return output;
   }
   uint16_t number_of_channels() const { return number_of_channels_; }

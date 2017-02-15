@@ -5,7 +5,7 @@
 #include "Memory.h"  // Required replacing memory functions with stubs returning 0.
 #include "ArduinoRpc.h"
 #include "nanopb.h"
-
+#include "SlowSoftWire.h"
 #include "NadaMQ.h"  // Required replacing `#ifndef AVR` with `#if !defined(AVR) && !defined(__arm__)`
 #include "CArrayDefs.h"
 #include "RPCBuffer.h"
@@ -16,7 +16,6 @@
 #include "NodeCommandProcessor.h"
 #include "ADC.h"
 #include "Node.h"
-#include "SoftI2CMaster.h"
 
 dropbot::Node node_obj;
 dropbot::CommandProcessor<dropbot::Node> command_processor(node_obj);

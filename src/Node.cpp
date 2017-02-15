@@ -3,16 +3,17 @@
 namespace dropbot {
 
 const float Node::R6 = 2e6;
-SoftI2CMaster Node::i2c = SoftI2CMaster();
+SlowSoftWire Node::i2c = SlowSoftWire(Node::SSDA_PIN, Node::SSCL_PIN);
 
 void Node::begin() {
-
   pinMode(DRIVER_HIGH_PIN, OUTPUT);
   pinMode(DRIVER_LOW_PIN, OUTPUT);
   pinMode(SHDN_PIN, OUTPUT);
   pinMode(SCK_PIN, OUTPUT);
   pinMode(MOSI_PIN, OUTPUT);
   pinMode(HV_OUTPUT_SELECT_PIN, OUTPUT);
+  pinMode(SSDA_PIN, OUTPUT);
+  pinMode(SSCL_PIN, OUTPUT);
 
   // Set D0-D3 low (these are used to select test capacitors for
   // on-board calibration).
