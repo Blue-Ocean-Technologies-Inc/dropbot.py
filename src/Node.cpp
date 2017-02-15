@@ -9,7 +9,6 @@ void Node::begin() {
 
   pinMode(DRIVER_HIGH_PIN, OUTPUT);
   pinMode(DRIVER_LOW_PIN, OUTPUT);
-  pinMode(MCP41050_CS_PIN, OUTPUT);
   pinMode(SHDN_PIN, OUTPUT);
   pinMode(SCK_PIN, OUTPUT);
   pinMode(MOSI_PIN, OUTPUT);
@@ -25,9 +24,6 @@ void Node::begin() {
   // set SPI pins high
   digitalWrite(SCK_PIN, HIGH);
   digitalWrite(MOSI_PIN, HIGH);
-
-  // ensure SS pins stay high for now
-  digitalWrite(MCP41050_CS_PIN, HIGH);
 
   config_.set_buffer(get_buffer());
   config_.validator_.set_node(*this);

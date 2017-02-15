@@ -102,8 +102,9 @@ public:
   static const uint8_t HV_OUTPUT_SELECT_PIN = 8;
 
   // pins connected to the boost converter
-  static const uint8_t SHDN_PIN = 4;
-  static const uint8_t MCP41050_CS_PIN = 10;
+  static const uint8_t SHDN_PIN = 10;
+  static const uint8_t SSDA_PIN = 4;
+  static const uint8_t SSCL_PIN = 5;
 
   // SPI pins
   static const uint8_t MOSI_PIN = 11;
@@ -271,16 +272,10 @@ public:
       // This method is triggered whenever a voltage is included in a state
       // update.
 
-      // take the SS pin low to select the chip:
-      digitalWrite(MCP41050_CS_PIN, LOW);
-
       // send Command to write value and enable the pot
-      shiftOut(MOSI_PIN, SCK_PIN, MSBFIRST, 0x1F);
+      //shiftOut(MOSI_PIN, SCK_PIN, MSBFIRST, 0x1F);
       // send in the value via SPI:
-      shiftOut(MOSI_PIN, SCK_PIN, MSBFIRST, 255 - value / config_._.pot_max * 255);
-
-      // take the SS pin high to de-select the chip:
-      digitalWrite(MCP41050_CS_PIN, HIGH);
+      //shiftOut(MOSI_PIN, SCK_PIN, MSBFIRST, 255 - value / config_._.pot_max * 255);
       return true;
     }
     return false;
