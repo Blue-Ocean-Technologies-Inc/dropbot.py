@@ -283,11 +283,10 @@ public:
     if ( voltage <= config_._.max_voltage && value <= config_._.pot_max && value >= 0 ) {
       // This method is triggered whenever a voltage is included in a state
       // update.
-
-      // send Command to write value and enable the pot
-      //shiftOut(MOSI_PIN, SCK_PIN, MSBFIRST, 0x1F);
-      // send in the value via SPI:
-      //shiftOut(MOSI_PIN, SCK_PIN, MSBFIRST, 255 - value / config_._.pot_max * 255);
+      i2c.beginTransmission(44);
+      i2c.write(0);
+      i2c.write((uint8_t)(value / config_._.pot_max * 255));
+      i2c.endTransmission();
       return true;
     }
     return false;
