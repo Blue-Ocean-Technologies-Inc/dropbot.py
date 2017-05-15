@@ -26,7 +26,7 @@ requirements:
     - platformio-toolchain-gccarmnoneeabi
     - pytables
     - python 2.7*
-    - teensy-minimal-rpc >=0.3.0
+    - teensy-minimal-rpc >=0.3.post4
 
   run:
     - arduino-linked-list >=1.2.3
@@ -37,7 +37,7 @@ requirements:
     - platformio-tool-teensy
     - pytables
     - python 2.7*
-    - teensy-minimal-rpc >=0.3.0
+    - teensy-minimal-rpc >=0.3.post4
 
 test:
   imports:
