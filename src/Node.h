@@ -132,6 +132,7 @@ public:
   uint32_t adc_millis_prev_;
   uint32_t adc_SYST_CVR_prev_;
   uint32_t adc_count_;
+  bool dma_adc_active_;
   int8_t dma_channel_done_;
   int8_t last_dma_channel_done_;
   bool adc_read_active_;
@@ -144,8 +145,9 @@ public:
            BaseNodeConfig<config_t>(dropbot_Config_fields),
            BaseNodeState<state_t>(dropbot_State_fields), dmaBuffer_(NULL),
            adc_period_us_(0), adc_timestamp_us_(0), adc_tick_tock_(false),
-           adc_count_(0), dma_channel_done_(-1), last_dma_channel_done_(-1),
-           adc_read_active_(false), dma_stream_id_(0) {
+           adc_count_(0), dma_adc_active_(false), dma_channel_done_(-1),
+           last_dma_channel_done_(-1), adc_read_active_(false),
+           dma_stream_id_(0) {
     pinMode(LED_BUILTIN, OUTPUT);
     dma_data_ = UInt8Array_init_default();
   }
@@ -376,6 +378,7 @@ public:
       // DMA channel has completed.
       last_dma_channel_done_ = dma_channel_done_;
       dma_channel_done_ = -1;
+      dma_adc_active_ = false;
 
       // Copy DMA ADC data to serial port as a `STREAM` packet.
       if (dma_data_.length > 0) {
@@ -727,15 +730,21 @@ public:
    *
    * \see #loop
    */
-  void start_dma_adc(uint32_t pdb_config, uint32_t addr, uint32_t size,
+  bool start_dma_adc(uint32_t pdb_config, uint32_t addr, uint32_t size,
                      uint16_t stream_id) {
+    if (dma_adc_active_) {
+        // Another DMA ADC transfer is already in progress.
+        return false;
+    }
     dma_data_ = UInt8Array_init(size, reinterpret_cast<uint8_t*>(addr));
     dma_stream_id_ = stream_id;
+    dma_adc_active_ = true;
 
     // XXX Load configuration to Programmable Delay Block **but DO NOT start**.
     PDB0_SC = pdb_config & ~PDB_SC_SWTRIG;
     // XXX Trigger start of periodic ADC reads.
     PDB0_SC = pdb_config | PDB_SC_SWTRIG;
+    return true;
   }
 
   // ##########################################################################
