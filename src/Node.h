@@ -731,11 +731,11 @@ public:
                      uint16_t stream_id) {
     dma_data_ = UInt8Array_init(size, reinterpret_cast<uint8_t*>(addr));
     dma_stream_id_ = stream_id;
-    /*
-     * Load configuration to Programmable Delay Block to start periodic ADC
-     * reads.
-     */
-    PDB0_SC = pdb_config;
+
+    // XXX Load configuration to Programmable Delay Block **but DO NOT start**.
+    PDB0_SC = pdb_config & ~PDB_SC_SWTRIG;
+    // XXX Trigger start of periodic ADC reads.
+    PDB0_SC = pdb_config | PDB_SC_SWTRIG;
   }
 
   // ##########################################################################
