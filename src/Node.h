@@ -77,6 +77,7 @@ typedef nanopb::EepromMessage<dropbot_Config,
 typedef nanopb::Message<dropbot_State,
                         state_validate::Validator<Node> > state_t;
 
+// XXX For control-board hardware version v3.5
 class Node :
   public BaseNode,
   public BaseNodeEeprom,
@@ -109,6 +110,14 @@ public:
   // SPI pins
   static const uint8_t MOSI_PIN = 11;
   static const uint8_t SCK_PIN = 13;
+
+  // On-board calibration pins
+  // XXX The following pins are **active LOW**, i.e., each corresponding
+  // capacitance is activated between **high-voltage** and **(virtual) ground**
+  // when the respective pin is set **LOW**.
+  static const uint8_t CAPACITANCE_1PF_PIN = 0;
+  static const uint8_t CAPACITANCE_10PF_PIN = 1;
+  static const uint8_t CAPACITANCE_100PF_PIN = 2;
 
   // PCA9505 (gpio) chip/register addresses
   static const uint8_t PCA9505_CONFIG_IO_REGISTER = 0x18;
@@ -149,6 +158,8 @@ public:
            last_dma_channel_done_(-1), adc_read_active_(false),
            dma_stream_id_(0) {
     pinMode(LED_BUILTIN, OUTPUT);
+    // XXX De-activate all on-board capacitors by default.
+    set_on_board_capacitance(0);
     dma_data_ = UInt8Array_init_default();
   }
 
@@ -985,6 +996,63 @@ public:
   bool isDifferential(int8_t adc_num) {
   //! Is the ADC in differential mode?
     return adc_->isDifferential(adc_num);
+  }
+
+  float set_on_board_capacitance(float capacitance) {
+    /*
+     * Parameters
+     * ----------
+     * capacitance : float
+     *     On-board capacitance to activate.
+     *
+     *     If zero, de-activate all on-board capacitors.
+     *
+     * Returns
+     * -------
+     * float
+     *     Currently activated on-board capacitance.
+     */
+    // Set all pins controlling on-board test capacitors to outputs.
+    // XXX The following pins are **active LOW**.
+    pinMode(CAPACITANCE_1PF_PIN, OUTPUT);
+    pinMode(CAPACITANCE_10PF_PIN, OUTPUT);
+    pinMode(CAPACITANCE_100PF_PIN, OUTPUT);
+    // XXX De-activate all on-board calibration capacitors first to avoid
+    // accidentally activating multiple capacitors at the same time while
+    // switching.
+    digitalWriteFast(CAPACITANCE_1PF_PIN, HIGH);
+    digitalWriteFast(CAPACITANCE_10PF_PIN, HIGH);
+    digitalWriteFast(CAPACITANCE_100PF_PIN, HIGH);
+
+    if (fabs(capacitance - 1e-12) < 100e-13) {
+      // Activate 1 pF on-board capacitor.
+      digitalWriteFast(CAPACITANCE_1PF_PIN, LOW);
+    } else if (fabs(capacitance - 10e-12) < 100e-13) {
+      // Activate 10 pF on-board capacitor.
+      digitalWriteFast(CAPACITANCE_10PF_PIN, LOW);
+    } else if (fabs(capacitance - 100e-12) < 100e-13) {
+      // Activate 100 pF on-board capacitor.
+      digitalWriteFast(CAPACITANCE_100PF_PIN, LOW);
+    } else if (fabs(capacitance) < 100e-13) {
+      // XXX Leave all on-board capacitors de-activated.
+    }
+    return on_board_capacitance();
+  }
+
+  float on_board_capacitance() {
+    /*
+     * Returns
+     * -------
+     * float
+     *     Currently activated on-board capacitance.
+     */
+    // Read state of on-capacitor switch.
+    // XXX The following pins are **active LOW**.
+    const float CAPACITANCE_1PF = digitalRead(CAPACITANCE_1PF_PIN) ? 0 : 1e-12;
+    const float CAPACITANCE_10PF = digitalRead(CAPACITANCE_10PF_PIN) ? 0 : 10e-12;
+    const float CAPACITANCE_100PF = digitalRead(CAPACITANCE_100PF_PIN) ? 0 : 100e-12;
+
+    return CAPACITANCE_1PF + CAPACITANCE_10PF + CAPACITANCE_100PF;
   }
 
 };
