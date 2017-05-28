@@ -14,12 +14,12 @@ void Node::begin() {
   pinMode(HV_OUTPUT_SELECT_PIN, OUTPUT);
   pinMode(SSDA_PIN, OUTPUT);
   pinMode(SSCL_PIN, OUTPUT);
-
-  // Set D0-D3 low (these are used to select test capacitors for
+    
+  // Set D0-D2 high (these are used to select test capacitors for
   // on-board calibration).
   for (uint8_t i = 0; i <= 3; i++) {
     pinMode(i, OUTPUT);
-    digitalWrite(i, LOW);
+    digitalWriteFast(i, HIGH);
   }
 
   // set SPI pins high

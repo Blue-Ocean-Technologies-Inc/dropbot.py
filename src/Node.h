@@ -158,8 +158,6 @@ public:
            last_dma_channel_done_(-1), adc_read_active_(false),
            dma_stream_id_(0) {
     pinMode(LED_BUILTIN, OUTPUT);
-    // XXX De-activate all on-board capacitors by default.
-    set_on_board_capacitance(0);
     dma_data_ = UInt8Array_init_default();
   }
 
@@ -998,43 +996,28 @@ public:
     return adc_->isDifferential(adc_num);
   }
 
-  float set_on_board_capacitance(float capacitance) {
+  float select_on_board_test_capacitor(int8_t index) {
     /*
      * Parameters
      * ----------
-     * capacitance : float
-     *     On-board capacitance to activate.
+     * index : int8_t
+     *     Index of the on-board test capacitor to activate.
      *
-     *     If zero, de-activate all on-board capacitors.
+     *     If -1, de-activate all on-board test capacitors.
      *
      * Returns
      * -------
      * float
      *     Currently activated on-board capacitance.
      */
-    // Set all pins controlling on-board test capacitors to outputs.
-    // XXX The following pins are **active LOW**.
-    pinMode(CAPACITANCE_1PF_PIN, OUTPUT);
-    pinMode(CAPACITANCE_10PF_PIN, OUTPUT);
-    pinMode(CAPACITANCE_100PF_PIN, OUTPUT);
     // XXX De-activate all on-board calibration capacitors first to avoid
     // accidentally activating multiple capacitors at the same time while
     // switching.
-    digitalWriteFast(CAPACITANCE_1PF_PIN, HIGH);
-    digitalWriteFast(CAPACITANCE_10PF_PIN, HIGH);
-    digitalWriteFast(CAPACITANCE_100PF_PIN, HIGH);
-
-    if (fabs(capacitance - 1e-12) < 100e-13) {
-      // Activate 1 pF on-board capacitor.
-      digitalWriteFast(CAPACITANCE_1PF_PIN, LOW);
-    } else if (fabs(capacitance - 10e-12) < 100e-13) {
-      // Activate 10 pF on-board capacitor.
-      digitalWriteFast(CAPACITANCE_10PF_PIN, LOW);
-    } else if (fabs(capacitance - 100e-12) < 100e-13) {
-      // Activate 100 pF on-board capacitor.
-      digitalWriteFast(CAPACITANCE_100PF_PIN, LOW);
-    } else if (fabs(capacitance) < 100e-13) {
-      // XXX Leave all on-board capacitors de-activated.
+    for (uint i = 0; i < 3; i++) {
+      digitalWriteFast(i, HIGH);
+    }
+    if (index >= 0 && index < 3) {
+      digitalWriteFast(index, LOW);
     }
     return on_board_capacitance();
   }
@@ -1046,13 +1029,13 @@ public:
      * float
      *     Currently activated on-board capacitance.
      */
-    // Read state of on-capacitor switch.
+    // Read state of on-capacitor switches.
     // XXX The following pins are **active LOW**.
-    const float CAPACITANCE_1PF = digitalRead(CAPACITANCE_1PF_PIN) ? 0 : 1e-12;
-    const float CAPACITANCE_10PF = digitalRead(CAPACITANCE_10PF_PIN) ? 0 : 10e-12;
-    const float CAPACITANCE_100PF = digitalRead(CAPACITANCE_100PF_PIN) ? 0 : 100e-12;
+    const float CAPACITOR_0 = digitalRead(0) ? 0 : 1e-12;
+    const float CAPACITOR_1 = digitalRead(1) ? 0 : 10e-12;
+    const float CAPACITOR_2 = digitalRead(2) ? 0 : 100e-12;
 
-    return CAPACITANCE_1PF + CAPACITANCE_10PF + CAPACITANCE_100PF;
+    return CAPACITOR_0 + CAPACITOR_1 + CAPACITOR_2;
   }
 
 };
