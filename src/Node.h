@@ -293,15 +293,22 @@ public:
   }
 
   bool _set_voltage(float voltage) {
-    float value = R6 / ( 2 * voltage / 1.5 - 1 ) - config_._.R7;
-    if ( voltage <= config_._.max_voltage && value <= config_._.pot_max && value >= 0 ) {
+    float pot_value = R6 / ( 2 * voltage / 1.5 - 1 ) - config_._.R7;
+    uint8_t wiper_value = (uint8_t)(pot_value / config_._.pot_max * 255);
+    if ( voltage <= config_._.max_voltage && \
+         pot_value <= config_._.pot_max && pot_value >= 0 ) {
       // This method is triggered whenever a voltage is included in a state
       // update.
       i2c.beginTransmission(44);
       i2c.write(0);
-      i2c.write((uint8_t)(value / config_._.pot_max * 255));
+      i2c.write(wiper_value);
       i2c.endTransmission();
-      return true;
+
+      // verify that we wrote the correct value to the pot
+      i2c.requestFrom(44, 1);
+      if (i2c.read() == wiper_value) {
+        return true;
+      }
     }
     return false;
   }
