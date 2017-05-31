@@ -4,6 +4,8 @@ from importlib import import_module
 
 from paver.easy import path, options
 from paver.setuputils import install_distutils_tasks
+import platformio_helpers as pioh
+import platformio_helpers.develop
 try:
     from base_node_rpc.pavement_base import *
 except ImportError:
@@ -62,6 +64,20 @@ options(
                install_requires=['teensy-minimal-rpc>=0.3.0'],
                include_package_data=True,
                packages=[str(PROJECT_PREFIX)]))
+
+
+@task
+def develop_link():
+    import logging; logging.basicConfig(level=logging.INFO)
+    pioh.develop.link(working_dir=path('.').realpath(),
+                      package_name=package_name)
+
+
+@task
+def develop_unlink():
+    import logging; logging.basicConfig(level=logging.INFO)
+    pioh.develop.unlink(working_dir=path('.').realpath(),
+                        package_name=package_name)
 
 
 @task
