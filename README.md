@@ -1,39 +1,57 @@
 # dropbot #
 
-Template package for remote procedure call (RPC) project, utilizing
-[`base-node-rpc`][3].
+Firmware for the [DropBot digital microfluidics control system][1] and a Python
+module for communicating with it over a serial connection.
 
-## Overview ##
+-------------------------------------------------------------------------------
 
-This package contains:
+Install
+-------
 
- - Firmware compatible with Arduino Uno or Mega2560.
- - Installable Python package for interfacing with Arduino firmware through
-   serial port or i2c (through a serial-to-i2c proxy).
+The latest [`dropbot` release][3] is available as a [Conda][2] package from the
+[`wheeler-microfluidics`][4] channel.
 
-## Install ##
+To install `dropbot` in an **activated Conda environment**, run:
 
-The Python package can be installed through `pip` using the following command:
+    conda install -c wheeler-microfluidics -c conda-forge dropbot
 
-    pip install dropbot
+-------------------------------------------------------------------------------
 
 ## Upload firmware ##
 
-To upload the pre-compiled firmware included in the Python package, run the
-following command:
+To upload the pre-compiled firmware included in the Python package, from an
+**activated Conda environment** run the following command:
 
-    python -m dropbot.bin.upload <board type>
+    python -m dropbot.bin.upload
 
-replacing `<board type>` with either `uno` or `mega2560`, depending on the
-model of the board.
+-------------------------------------------------------------------------------
 
-This will attempt to upload the firmware by automatically discovering the
-serial port.  On systems with multiple serial ports, use the `-p` command line
-argument to specify the serial port to use.  For example:
+Conda package contents
+----------------------
 
-    python -m dropbot.bin.upload -p COM3 uno
+The `dropbot` Conda package includes:
 
---------------------------------------------------
+ - `dropbot.SerialProxy` **Python class** providing a high-level interface to
+   the DropBot hardware.
+ - **Compiled firmware binary** for the DropBot hardware.
+
+The installed components (relative to the root of the Conda environment) are
+shown below:
+
+    ├───Lib
+    │   └───site-packages
+    │       └───dropbot (Python package)
+    │
+    └───Library
+        └───bin
+            └───platformio
+                └───dropbot (compiled firmware binaries)
+                    │   platformio.ini   (PlatformIO environment information)
+                    │
+                    └───teensy31
+                        firmware.hex
+
+-------------------------------------------------------------------------------
 
 ## Usage ##
 
@@ -44,16 +62,11 @@ See the session log below for example usage.
 
 ### Example interactive session ###
 
-    >>> from serial import Serial
-    >>> from dropbot import Proxy
+    >>> import dropbot
 
-Connect to serial device.
+Connect to DropBot:
 
-    >>> serial_device = Serial('/dev/ttyUSB0', baudrate=115200)
-
-Initialize a device proxy using existing serial connection.
-
-    >>> proxy = Proxy(serial_device)
+    >>> proxy = dropbot.SerialProxy()
 
 Query the number of bytes free in device RAM.
 
@@ -62,11 +75,11 @@ Query the number of bytes free in device RAM.
 
 Query descriptive properties of device.
 
-    >>> proxy.properties()
+    >>> proxy.properties
     base_node_software_version                               0.9.post8.dev141722557
-    name                                                                  dropbot
-    manufacturer                                                        Wheeler Lab
-    url                           http://github.com/wheeler-microfluidics/rpc-p...
+    name                                                                    dropbot
+    manufacturer                                                           Sci-Bots
+    url                                                                  http://...
     software_version                                                            0.1
     dtype: object
 
@@ -79,88 +92,91 @@ Use Arduino API methods interactively.
     >>> # Turn led off
     >>> proxy.digital_write(13, 0)
 
+Query number of available channels.
 
-### Configuration and state ###
+    >>> proxy.number_of_channels()
+    120
 
-The device stores a *configuration* and a *state*.  The configuration is
-serialized and stored in EEPROM, allowing settings to persist across device
-resets.  The state is stored in device memory and is reinitialized each time
-the device starts up.
+Query state of all actuation channels.
 
-Print (non-default) configuration values.
+    >>> proxy.state_of_channels
 
-    >>> print proxy.config
-    serial_number: 2
-    baud_rate: 115200
-    i2c_address: 17
 
-Configuration settings can be set by updating the configuration.
+-------------------------------------------------------------------------------
 
-    >>> result_code = proxy.update_config(serial_number=1234)
-    >>> result_code = proxy.update_config(i2c_address=32)
+Develop
+-------
 
-To persist changes to *configuration* across device reset - *not* state - use
-`save_config` method.
+**The firmware C++ code** is located in the `src` directory.  The **key
+functionality** is **defined in the `dropbot::Node` class in the file
+`Node.h`**.
 
-    >>> proxy.save_config()
-
-### Other methods ###
-
-Below is a list of the attributes of the `dropbot.Proxy` Python class.  Note
-that many of the [Arduino API][1] functions (e.g., `pin_mode`, `digital_write`,
-etc.) are exposed through the RPC API.
-
-    >>> proxy.
-    proxy.analog_read                      proxy.microseconds
-    proxy.analog_write                     proxy.milliseconds
-    proxy.array_length                     proxy.name
-    proxy.base_node_software_version       proxy.on_config_baud_rate_changed
-    proxy.begin                            proxy.on_config_i2c_address_changed
-    proxy.buffer_size                      proxy.on_config_serial_number_changed
-    proxy.channel_count                    proxy.on_state_frequency_changed
-    proxy.config                           proxy.on_state_voltage_changed
-    proxy.delay_ms                         proxy.pin_mode
-    proxy.delay_us                         proxy.properties
-    proxy.digital_read                     proxy.ram_free
-    proxy.digital_write                    proxy.read_eeprom_block
-    proxy.echo_array                       proxy.reset_config
-    proxy.get_buffer                       proxy.reset_state
-    proxy.i2c_address                      proxy.save_config
-    proxy.i2c_available                    proxy.serialize_config
-    proxy.i2c_buffer_size                  proxy.serialize_state
-    proxy.i2c_read                         proxy.set_i2c_address
-    proxy.i2c_read_byte                    proxy.set_state_of_channels
-    proxy.i2c_request                      proxy.software_version
-    proxy.i2c_request_from                 proxy.state
-    proxy.i2c_scan                         proxy.state_of_channels
-    proxy.i2c_write                        proxy.str_echo
-    proxy.load_config                      proxy.update_config
-    proxy.manufacturer                     proxy.update_eeprom_block
-    proxy.max_i2c_payload_size             proxy.update_state
-    proxy.max_serial_payload_size          proxy.url
-
---------------------------------------------------
-
-## Firmware development ##
-
-The Arduino firmware/sketch is located in the `dropbot/Arduino/dropbot`
-directory.  The key functionality is defined in the `dropbot::Node` class in
-the file `Node.h`.
-
-Running the following command will build the firmware using [SCons][2] for
-Arduino Uno and Arduino Mega2560, and will package the resulting firmware in a
-Python package, ready for distribution.
-
-    paver sdist
 
 ### Adding new remote procedure call (RPC) methods ###
 
-New methods may be added to the RPC API by adding new methods to the
-`dropbot::Node` class in the file `Node.h`.
+New methods may be added to the Python API by adding new methods to the
+`dropbot::Node` C++ class in the file `Node.h`.
 
-# Author #
 
-Copyright 2015 Christian Fobel <christian@fobel.net>
+### Set up development environment (within a Conda environment) ###
+
+ 1. **Clone `dropbot`** source code from [GitHub repository][5].
+ 2. Run the following command within the root of the cloned repository to
+    **install run-time dependencies** and link working copy of firmware
+    binaries and Python package for run-time use:
+
+        paver develop_link
+
+ 4. **Restart terminal and reactivate Conda environment (e.g., `activate` if
+    Conda was installed with default settings).**
+
+Step **4** is necessary since at least one of the installed dependencies sets
+environment variables, which are only initialized on subsequent activations of
+the Conda environment (i.e., they do not take effect immediately within the
+running environment).
+
+
+### Build firmware ###
+
+Run the following command within the root of the cloned repository to **build
+the firmware**:
+
+    paver build_firmware
+
+The compiled firmware binary is available under the `.pioenvs` directory, as
+shown below:
+
+    └───.pioenvs
+        └───teensy31
+                firmware.hex
+
+
+### Flash/upload firmware ###
+
+To flash/upload a compiled firmware to a DropBot v3, run the following command
+from the root of the repository:
+
+    pio run --target upload --target nobuild
+
+
+### Unlink development working copy ###
+
+Run the following command within the root of the cloned repository to unlink
+working copy of firmware binaries and Python package:
+
+    paver develop_unlink
+
+This will allow, for example, installation of a main-line release of the
+`dropbot` Conda package.
+
+-------------------------------------------------------------------------------
+
+Contributors
+------------
+
+ - Christian Fobel ([@cfobel](https://github.com/cfobel))
+ - Ryan Fobel ([@ryanfobel](https://github.com/ryanfobel))
+
 
 
 [1]: https://www.arduino.cc/en/Reference/HomePage
