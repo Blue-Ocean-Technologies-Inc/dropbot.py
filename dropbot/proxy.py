@@ -1,3 +1,4 @@
+import math
 import time
 import uuid
 
@@ -62,6 +63,64 @@ try:
             #
             # # embeded version isn't working with teensy. Use this for now:
             # #self.initialize_switching_boards()
+
+        def i2c_eeprom_write(self, i2c_address, eeprom_address, data):
+            '''
+            Write data to specified address in I2C EEPROM chip.
+
+            If the number of bytes exceeds the maximum I2C packet size,
+            multiple requests will be made automatically.
+
+            Parameters
+            ----------
+            i2c_address : int
+                Address of ``CAT24Cxx`` EEPROM.
+
+                See: http://www.onsemi.com/pub/Collateral/CAT24C01-D.PDF
+            eeprom_address : int
+                Address to write data to in EEPROM.
+            data : list-like
+                Bytes to write to :data:`eeprom_address`
+            '''
+            i2c_packet_size = 16
+            for i in range(int(math.ceil(len(data) / float(i2c_packet_size)))):
+                start = i * i2c_packet_size
+                end = min((i + 1) * i2c_packet_size, len(data))
+                self.i2c_write(i2c_address,
+                            [eeprom_address + start] + (end - start) * [255])
+                self.i2c_write(i2c_address,
+                            [eeprom_address + start] + data[start:end])
+
+        def i2c_eeprom_read(self, i2c_address, eeprom_address, length):
+            '''
+            Read specified number of bytes from I2C EEPROM chip starting at the
+            address given.
+
+            If the number of requested bytes exceeds the maximum I2C packet
+            size, multiple requests will be made automatically.
+
+            Parameters
+            ----------
+            i2c_address : int
+                Address of ``CAT24Cxx`` EEPROM.
+
+                See: http://www.onsemi.com/pub/Collateral/CAT24C01-D.PDF
+            eeprom_address : int
+                Address to write data to in EEPROM.
+            length : int
+                Number of bytes to read.
+            '''
+            i2c_packet_size = 16
+
+            data = []
+            for i in range(int(math.ceil(length / float(i2c_packet_size)))):
+                start = i * i2c_packet_size
+                end = min((i + 1) * i2c_packet_size, length)
+                count = end - start
+                self.i2c_write(i2c_address, eeprom_address + start)
+                data_i = self.i2c_read(i2c_address, count)
+                data.append(data_i)
+            return np.concatenate(data)
 
         def __del__(self):
             try:
