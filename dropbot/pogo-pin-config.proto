@@ -1,0 +1,13 @@
+syntax="proto2";
+package pogo_pin_board;
+
+message PogoPinBoard {
+  /* # Identity structure #
+   *
+   * This structure contains fields are stored in
+   * persistent memory (i.e., EEPROM) on each pogo pin board.
+   */
+  optional bytes uuid = 1;
+  optional string version = 2;
+  optional string name = 3;
+}
