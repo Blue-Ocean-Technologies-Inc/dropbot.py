@@ -130,10 +130,10 @@ try:
                 pass
             super(ProxyMixin, self).__del__()
 
-	def i2c_send_command(self, address, cmd, data):
-    		self.i2c_write(address, [cmd] + data)
-    		n = self.i2c_read(address, 1)
-    		return self.i2c_read(address, n)
+        def i2c_send_command(self, address, cmd, data):
+            self.i2c_write(address, [cmd] + data)
+            n = self.i2c_read(address, 1)
+            return self.i2c_read(address, n)
 
         def get_environment_state(self, i2c_address=0x27):
             '''
