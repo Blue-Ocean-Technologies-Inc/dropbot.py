@@ -27,7 +27,7 @@ VERSION = version.getVersion()
 URL='http://github.com/wheeler-microfluidics/%s.git' % package_name
 PROPERTIES = OrderedDict([('package_name', package_name),
                           ('display_name', 'DropBot'),
-                          ('manufacturer', 'Wheeler Lab'),
+                          ('manufacturer', 'Sci-Bots Inc.'),
                           ('software_version', VERSION),
                           ('url', URL)])
 LIB_PROPERTIES = PROPERTIES.copy()
