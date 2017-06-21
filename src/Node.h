@@ -98,11 +98,9 @@ inline void __watchdog_disable__() {
   __asm__ volatile ("nop");
   __asm__ volatile ("nop");
 
-  WDOG_TOVALH = 0xFFFF;
   WDOG_TMROUTH = 0;
   WDOG_TMROUTL = 0;
   WDOG_STCTRLH = WDOG_STCTRLH_ALLOWUPDATE;
-  WDOG_TOVALH = 0xFFFF;
   WDOG_TMROUTH = 0;
   WDOG_TMROUTL = 0;
   interrupts();
