@@ -26,22 +26,6 @@ def restore_watchdog_time_out(proxy):
         time.sleep(.1)
 
 
-def _reset_proxy(proxy):
-    # Reboot to put device in known state.
-    try:
-        proxy.reboot()
-    except serial.SerialException:
-        pass
-    finally:
-        proxy.terminate()
-
-    # Wait for serial port to settle after reboot.
-    time.sleep(.5)
-
-    # Reestablish serial connection to device.
-    proxy._connect()
-
-
 @pytest.fixture(scope='module')
 def proxy():
     import dropbot
@@ -53,7 +37,9 @@ def proxy():
 
 @pytest.mark.parametrize('retry_count', [1, 5])
 def test_disable(proxy, retry_count):
-    _reset_proxy(proxy)
+    # Reboot to reach known state.
+    proxy.reboot()
+
     # XXX Executing `watchdog_disable` method results in undefined behaviour.
     # XXX Rebooting and retrying to disable the watchdog seems to help.
     # Empirically, disable test seems to pass on attempt 1-3.
@@ -68,7 +54,8 @@ def test_disable(proxy, retry_count):
             print 'Disabled on attempt', i + 1
             break
         else:
-            _reset_proxy(proxy)
+            # Disabling watchdog was not successful.  Reboot and try again.
+            proxy.reboot()
     else:
         assert timer_output == 0
 
