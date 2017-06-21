@@ -36,6 +36,9 @@
 #include "Dropbot/config_pb.h"
 #include "Dropbot/state_pb.h"
 
+extern uint8_t watchdog_status_;
+extern bool watchdog_refresh_;
+
 const uint32_t ADC_BUFFER_SIZE = 4096;
 
 extern void dma_ch0_isr(void);
@@ -1045,6 +1048,22 @@ public:
     return CAPACITOR_0 + CAPACITOR_1 + CAPACITOR_2;
   }
 
+  uint32_t watchdog_timer_output() const {
+    noInterrupts();
+    uint32_t result = WDOG_TMROUTH << 16;
+    result |= WDOG_TMROUTL;
+    interrupts();
+    return result;
+  }
+
+  uint16_t watchdog_reset_count() const { return WDOG_RSTCNT; }
+  void watchdog_reset_count_clear(uint16_t mask) { WDOG_RSTCNT = mask; }
+
+  uint8_t watchdog_status() const { return watchdog_status_; }
+  bool watchdog_refresh(bool value) {
+    watchdog_refresh_ = value;
+    return watchdog_refresh_;
+  }
 };
 }  // namespace dropbot
 
