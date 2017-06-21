@@ -4,6 +4,27 @@ import time
 import pytest
 import serial
 
+# Watchdog enable bit mask
+WDOG_STCTRLH_WDOGEN = 0x01
+
+
+@pytest.yield_fixture(autouse=True)
+def restore_watchdog_time_out(proxy):
+    WDOG_STCTRLH = proxy.R_WDOG_STCTRLH()
+    watchdog_enabled = (WDOG_STCTRLH & WDOG_STCTRLH_WDOGEN)
+
+    if watchdog_enabled:
+        # Save initial watchdog time out.
+        initial_time_out = proxy.watchdog_time_out_value()
+        print 'Initial watchdog time out:', initial_time_out
+
+    yield
+
+    if watchdog_enabled:
+        # Restore initial watchdog time out.
+        proxy.watchdog_enable(0, initial_time_out)
+        time.sleep(.1)
+
 
 def _reset_proxy(proxy):
     # Reboot to put device in known state.
@@ -40,8 +61,6 @@ def test_disable(proxy, retry_count):
     # See [issue 4][i4].
     #
     # [i4]: https://gitlab.com/sci-bots/dropbot.py/issues/4
-    WDOG_STCTRLH_WDOGEN = 0x01
-
     for i in xrange(retry_count):
         proxy.watchdog_disable()
         timer_output = proxy.watchdog_timer_output()
