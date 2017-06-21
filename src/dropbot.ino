@@ -17,8 +17,8 @@
 #include "ADC.h"
 #include "Node.h"
 
-uint8_t watchdog_status_ = 0;
-bool watchdog_refresh_ = true;
+bool watchdog_refresh_ = false;
+uint16_t STARTUP_WDOG_STCTRLH_VALUE = WDOG_STCTRLH;
 
 dropbot::Node node_obj;
 dropbot::CommandProcessor<dropbot::Node> command_processor(node_obj);
@@ -33,39 +33,18 @@ void adc0_isr() {
 void serialEvent() { node_obj.serial_handler_.receiver()(Serial.available()); }
 
 
-void configure_watchdog() {
-    WDOG_UNLOCK = WDOG_UNLOCK_SEQ1;
-    WDOG_UNLOCK = WDOG_UNLOCK_SEQ2;
-    __asm__ volatile ("nop");
-    __asm__ volatile ("nop");
-    WDOG_PRESC = 0;  // Set watchdog timer frequency to 1kHz
-    WDOG_TOVALL = 2000;  // Set watchdog timeout period to 1 second.
-    WDOG_TOVALH = 0;
-    WDOG_STCTRLH = (WDOG_STCTRLH_ALLOWUPDATE |
-                    WDOG_STCTRLH_WDOGEN);
-    watchdog_status_ |= 0x01;
-}
-
-
-void refresh_watchdog() {
-  while(WDOG_TMROUTL < 2) {}
-  noInterrupts();
-  WDOG_REFRESH = 0xA602;
-  WDOG_REFRESH = 0xB480;
-  interrupts();
-  while(WDOG_TMROUTL >= 2) {}
-}
-
-
 void setup() {
-  configure_watchdog();
-  refresh_watchdog();
   node_obj.begin();
-  watchdog_status_ |= 0x10;
+
+  // Restart if loop takes longer than 10s
+  node_obj.watchdog_enable(0, 10000);
+  node_obj.watchdog_auto_refresh(true);
 }
 
 
 void loop() {
+  if (watchdog_refresh_) { node_obj.watchdog_refresh(); }
+
   /* Parse all new bytes that are available.  If the parsed bytes result in a
    * completed packet, pass the complete packet to the command-processor to
    * process the request. */
@@ -74,8 +53,6 @@ void loop() {
   }
 
   node_obj.loop();
-
-  if (watchdog_refresh_) { refresh_watchdog(); }
 }
 
 void dma_ch0_isr(void) {
