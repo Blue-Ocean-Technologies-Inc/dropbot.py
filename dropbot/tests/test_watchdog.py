@@ -76,6 +76,25 @@ def test_disable(proxy, retry_count):
     assert not (WDOG_STCTRLH & WDOG_STCTRLH_WDOGEN)
 
 
+@pytest.mark.parametrize('time_out', [2000, 5000])
+def test_enable(proxy, time_out):
+    # Set watchdog time out.
+    proxy.watchdog_enable(0, time_out)
+
+    # Disable watchdog refresh to trigger time out.
+    proxy.watchdog_auto_refresh(False)
+
+    output_count = (time_out - 100) / 10
+    print 'Testing %s times' % output_count
+    for i in xrange(output_count):
+        timer_output_i = proxy.watchdog_timer_output()
+        assert timer_output_i <= time_out
+        assert timer_output_i >= 0
+    print 'Timer output:', timer_output_i
+
+    proxy.watchdog_auto_refresh(True)
+
+
 def test_time_out(proxy):
     start_reset_count = proxy.watchdog_reset_count()
 
