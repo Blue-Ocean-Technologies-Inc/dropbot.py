@@ -59,7 +59,9 @@ void Node::begin() {
   // attach timer_callback() as a timer overflow interrupt
   Timer1.attachInterrupt(timer_callback);
 
-  //_initialize_switching_boards();
+  /* Scan for connected switching boards and determine the number of actuation
+   * channels available. */
+  _initialize_switching_boards();
 
   adc_ = new ADC();
 }
@@ -125,8 +127,10 @@ uint16_t Node::_initialize_switching_boards() {
       }
     }
   }
-  number_of_channels_ = number_of_channels;
-  return number_of_channels_;
+  // Update channel count according to the number of discovered channels.
+  state_._.channel_count = number_of_channels;
+  state_._.has_channel_count = true;
+  return state_._.channel_count;
 }
 
 void Node::timer_callback() {

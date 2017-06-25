@@ -168,7 +168,6 @@ public:
 
   uint8_t buffer_[BUFFER_SIZE];
   uint8_t state_of_channels_[MAX_NUMBER_OF_CHANNELS / 8];
-  uint16_t number_of_channels_;
 
   ADC *adc_;
   uint32_t adc_period_us_;
@@ -258,8 +257,7 @@ public:
     output.length = count;
     return output;
   }
-  uint16_t number_of_channels() const { return number_of_channels_; }
-  void set_number_of_channels(uint16_t number_of_channels) { number_of_channels_ = number_of_channels; }
+  uint16_t number_of_channels() const { return state_._.channel_count; }
   UInt8Array hardware_version() { return UInt8Array_init(strlen(HARDWARE_VERSION_),
                       (uint8_t *)&HARDWARE_VERSION_[0]); }
   UInt8Array _uuid() {
@@ -271,7 +269,7 @@ public:
   }
 
   UInt8Array state_of_channels() {
-    for (uint8_t chip = 0; chip < number_of_channels_ / 40; chip++) {
+    for (uint8_t chip = 0; chip < state_._.channel_count / 40; chip++) {
       for (uint8_t port = 0; port < 5; port++) {
         Wire.beginTransmission((uint8_t)config_._.switching_board_i2c_address + chip);
         Wire.write(PCA9505_OUTPUT_PORT_REGISTER + port);
@@ -287,8 +285,8 @@ public:
         }
       }
     }
-    return UInt8Array_init(number_of_channels_ / 8,
-                      (uint8_t *)&state_of_channels_[0]);
+    return UInt8Array_init(state_._.channel_count / 8,
+                           (uint8_t *)&state_of_channels_[0]);
   }
 
   bool set_id(UInt8Array id) {
@@ -303,7 +301,7 @@ public:
   }
 
   bool set_state_of_channels(UInt8Array channel_states) {
-    if (channel_states.length == number_of_channels_ / 8) {
+    if (channel_states.length == state_._.channel_count / 8) {
       for (uint16_t i = 0; i < channel_states.length; i++) {
         state_of_channels_[i] = channel_states.data[i];
       }
@@ -313,7 +311,7 @@ public:
       //   Each register represent 8 channels (i.e. the first register on the
       // first PCA9505 chip stores the state of channels 0-7, the second register
       // represents channels 8-15, etc.).
-      for (uint8_t chip = 0; chip < number_of_channels_ / 40; chip++) {
+      for (uint8_t chip = 0; chip < state_._.channel_count / 40; chip++) {
         for (uint8_t port = 0; port < 5; port++) {
           buffer_[0] = PCA9505_OUTPUT_PORT_REGISTER + port;
           buffer_[1] = ~state_of_channels_[chip*5 + port];
@@ -404,6 +402,11 @@ public:
   bool on_state_hv_output_selected_changed(bool value) {
     digitalWrite(HV_OUTPUT_SELECT_PIN, !value);
     return true;
+  }
+
+  bool on_state_channel_count_changed(int32_t value) {
+      // XXX This value is ready-only.
+      return false;
   }
 
   void on_tick() {
