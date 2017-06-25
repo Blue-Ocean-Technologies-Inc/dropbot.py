@@ -1,3 +1,4 @@
+import logging
 import math
 import time
 import uuid
@@ -8,6 +9,8 @@ from teensy_minimal_rpc.adc_sampler import AdcDmaMixin
 import numpy as np
 import serial
 import serial_device as sd
+
+logger = logging.getLogger(__name__)
 
 
 def serial_ports():
@@ -325,7 +328,6 @@ try:
         def min_waveform_voltage(self):
             return float(super(ProxyMixin, self).min_waveform_voltage())
 
-
         def initialize_switching_boards(self):
             """
             Embeded version of this function is not detecting switching boards properly. Use this for now...
@@ -337,36 +339,66 @@ try:
             # address must equal the previous boards address +1 to be valid.
             number_of_channels = 0
 
+            logger.info('Initializing switching boards.')
             try:
-                for chip in range(8):
-                    # set IO ports as inputs
+                # Fetch configuration from device and cache local copy.
+                config = self.config
+                logger.debug('Cached device configuration.')
+                base_i2c_address = config['switching_board_i2c_address']
+
+                for chip_i in range(8):
+                    # Set IO ports as inputs.
                     buffer = [PCA9505_CONFIG_IO_REGISTER, 0xFF]
-                    self.i2c_write(self.config['switching_board_i2c_address'] + chip, buffer)
+                    address_i = base_i2c_address + chip_i
 
-                    # read back the register value
-                    # if it matches what we previously set, this might be a PCA9505 chip
-                    if self.i2c_read(self.config['switching_board_i2c_address'] + chip, 1)[0] == 0xFF:
-                        # try setting all ports in output mode and initialize to ground
-                        port = 0
-                        for port in range(5):
-                            buffer = [PCA9505_CONFIG_IO_REGISTER + port, 0x00]
-                            self.i2c_write(self.config['switching_board_i2c_address'] + chip, buffer)
+                    logger.debug('Set IO ports as inputs on chip: `%s` (i2c '
+                                 'address: `%s`)', chip_i, address_i)
+                    self.i2c_write(address_i, buffer)
 
-                            # check that we successfully set the IO config register to 0x00
-                            if self.i2c_read(self.config['switching_board_i2c_address'] + chip, 1)[0] != 0x00:
+                    # Read back the register value
+                    register_response_i = self.i2c_read(address_i, 1)
+                    if not register_response_i.size:
+                        logger.debug('No switching board found at address: '
+                                     '`%s`', address_i)
+                        continue
+                    elif register_response_i.size and register_response_i[0] == 0xFF:
+                        # Read value matches what we previously set.
+                        # This might be a PCA9505 chip.
+                        logger.debug('Verified test IO port configuration.')
+
+                        # Try setting all ports in output mode and initialize
+                        # to ground.
+                        for port_ij in range(5):
+                            buffer = [PCA9505_CONFIG_IO_REGISTER + port_ij,
+                                      0x00]
+                            self.i2c_write(address_i, buffer)
+
+                            # Check that the IO config register was
+                            # successfully set to 0x00.
+                            if self.i2c_read(address_i, 1)[0] != 0x00:
+                                logger.error('Error setting IO port %s pins as'
+                                             ' output.')
                                 return
+                            else:
+                                logger.debug('Verified all IO port %s pins set'
+                                             ' as output.', port_ij)
 
-                            buffer = [PCA9505_OUTPUT_PORT_REGISTER + port, 0xFF]
-                            self.i2c_write(self.config['switching_board_i2c_address'] + chip, buffer)
+                            buffer = [PCA9505_OUTPUT_PORT_REGISTER + port_ij,
+                                      0xFF]
+                            self.i2c_write(address_i, buffer)
 
-                            # if port=4, it means that we successfully initialized all IO config
-                            # registers to 0x00, and this is probably a PCA9505 chip
-                            if port == 4:
-                                if number_of_channels == 40 * chip:
-                                    number_of_channels = 40 * (chip + 1)
-                    self.number_of_channels = number_of_channels
+                        if port_ij == 4:
+                            # Successfully initialized all IO config registers
+                            # to 0x00.
+                            # Assume this is a PCA9505 chip.
+                            if number_of_channels == 40 * chip_i:
+                                number_of_channels = 40 * (chip_i + 1)
             except:
-                pass
+                logger.error('Error while initializing switching boards.',
+                             exc_info=True)
+            finally:
+                # Update the channel count on the embedded device.
+                self.number_of_channels = number_of_channels
 
 
     class Proxy(ProxyMixin, _Proxy):
