@@ -64,56 +64,69 @@ void Node::begin() {
   adc_ = new ADC();
 }
 
-void Node::_initialize_switching_boards() {
-  // Check how many switching boards are connected.  Each additional board's
-  // address must equal the previous boards address +1 to be valid.
-  number_of_channels_ = 0;
+uint16_t Node::_initialize_switching_boards() {
+  /*
+   * Scan for connected switching boards and determine the number of actuation
+   * channels available.
+   *
+   * Returns
+   * -------
+   * uint16_t
+   *     Number of available actuation channels.
+   */
+  // Each additional board's address must equal the previous boards address +1
+  // to be valid.
+  uint16_t  number_of_channels = 0;
+  const uint8_t base_address = config_._.switching_board_i2c_address;
 
   uint8_t I2C_DELAY_US = 200;
 
-  for (uint8_t chip = 0; chip < 8; chip++) {
-    // set IO ports as inputs
+  for (uint8_t chip_i = 0; chip_i < 8; chip_i++) {
+    const uint8_t address_i = base_address + chip_i;
+
+    // Set IO ports as inputs.
     buffer_[0] = PCA9505_CONFIG_IO_REGISTER;
     buffer_[1] = 0xFF;
-    i2c_write((uint8_t)config_._.switching_board_i2c_address + chip,
-              UInt8Array_init(2, (uint8_t *)&buffer_[0]));
+    i2c_write(address_i, UInt8Array_init(2, (uint8_t *)&buffer_[0]));
     // XXX Delay required when operating with a 400kbps i2c clock.
     delayMicroseconds(I2C_DELAY_US);
 
-    // read back the register value
+    // Read back the register value
     // if it matches what we previously set, this might be a PCA9505 chip
-    if (i2c_read((uint8_t)config_._.switching_board_i2c_address + chip, 1).data[0] == 0xFF) {
-      // try setting all ports in output mode and initialize to ground
-      uint8_t port=0;
-      for (; port<5; port++) {
-        buffer_[0] = PCA9505_CONFIG_IO_REGISTER + port;
+    if (i2c_read(address_i, 1).data[0] != 0xFF) {
+        // No switching board found at I2C `address_i`.
+        break;
+    } else {
+      // Assume the device at I2C `address_i` is a PCA9505 chip.
+      // Try setting all ports in output mode and initialize to ground.
+      for (uint8_t port_ij = 0; port_ij < 5; port_ij++) {
+        buffer_[0] = PCA9505_CONFIG_IO_REGISTER + port_ij;
         buffer_[1] = 0x00;
-        i2c_write((uint8_t)config_._.switching_board_i2c_address + chip,
-                  UInt8Array_init(2, (uint8_t *)&buffer_[0]));
+        i2c_write(address_i, UInt8Array_init(2, (uint8_t *)&buffer_[0]));
         // XXX Delay required when operating with a 400kbps i2c clock.
         delayMicroseconds(I2C_DELAY_US);
 
-        // check that we successfully set the IO config register to 0x00
-        if (i2c_read((uint8_t)config_._.switching_board_i2c_address + chip, 1).data[0] != 0x00) {
-          return;
-        }
-        buffer_[0] = PCA9505_OUTPUT_PORT_REGISTER + port;
-        buffer_[1] = 0xFF;
-        i2c_write((uint8_t)config_._.switching_board_i2c_address + chip,
-                  UInt8Array_init(2, (uint8_t *)&buffer_[0]));
-        // XXX Delay required when operating with a 400kbps i2c clock.
-        delayMicroseconds(I2C_DELAY_US);
-      }
+        // Check that we successfully set the IO config register to 0x00.
+        if (i2c_read(address_i, 1).data[0] != 0x00) {
+            // Error setting IO port pins as output.
+            break;
+        } else {
+            // Verified all IO port pins set as output.
+            // Set output pins to ground.  **N.B.** `PCA9505` outputs are
+            // **active low**.
+            buffer_[0] = PCA9505_OUTPUT_PORT_REGISTER + port_ij;
+            buffer_[1] = 0xFF;
+            i2c_write(address_i, UInt8Array_init(2, (uint8_t *)&buffer_[0]));
+            // XXX Delay required when operating with a 400kbps i2c clock.
+            delayMicroseconds(I2C_DELAY_US);
 
-      // if port=5, it means that we successfully initialized all IO config
-      // registers to 0x00, and this is probably a PCA9505 chip
-      if (port==5) {
-        if (number_of_channels_ == 40 * chip) {
-          number_of_channels_ = 40 * (chip + 1);
+            number_of_channels += 8;
         }
       }
     }
   }
+  number_of_channels_ = number_of_channels;
+  return number_of_channels_;
 }
 
 void Node::timer_callback() {
