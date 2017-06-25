@@ -289,11 +289,7 @@ try:
 
         @property
         def port(self):
-            return self._stream.serial_device.port
-
-        @port.setter
-        def port(self, port):
-            return self.update_config(port=port)
+            return self.serial_thread.protocol.port
 
         def _number_of_channels(self):
             return super(ProxyMixin, self).number_of_channels()
