@@ -61,12 +61,12 @@ void Node::begin() {
 
   /* Scan for connected switching boards and determine the number of actuation
    * channels available. */
-  _initialize_switching_boards();
+  initialize_switching_boards();
 
   adc_ = new ADC();
 }
 
-uint16_t Node::_initialize_switching_boards() {
+uint16_t Node::initialize_switching_boards() {
   /*
    * Scan for connected switching boards and determine the number of actuation
    * channels available.

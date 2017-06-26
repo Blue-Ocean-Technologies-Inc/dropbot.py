@@ -352,10 +352,7 @@ public:
     return false;
   }
 
-  // Local methods
-  // TODO: Should likely be private, but need to add private handling to code
-  // scraper/generator.
-  uint16_t _initialize_switching_boards();
+  uint16_t initialize_switching_boards();
 
   // # Callback methods
   bool on_state_frequency_changed(float frequency) {
