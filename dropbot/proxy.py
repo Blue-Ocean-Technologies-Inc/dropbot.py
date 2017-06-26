@@ -61,6 +61,9 @@ try:
 
         def __init__(self, *args, **kwargs):
             super(ProxyMixin, self).__init__(*args, **kwargs)
+            # XXX TODO Need to initialize DMA in embedded C++ code.
+            # XXX Otherwise, initialization will not be performed on device
+            # reset.
             self.init_dma()
 
         def i2c_eeprom_write(self, i2c_address, eeprom_address, data):
