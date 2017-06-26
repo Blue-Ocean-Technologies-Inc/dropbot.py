@@ -319,7 +319,9 @@ public:
           buffer_[1] = ~state_of_channels_[chip*5 + port];
           i2c_write(config_._.switching_board_i2c_address + chip,
                     UInt8Array_init(2, (uint8_t *)&buffer_[0]));
-          delayMicroseconds(200); // this delay is necessary if we are operating with a 400kbps i2c clock
+          // XXX Need the following delay if we are operating with a 400kbps
+          // i2c clock.
+          delayMicroseconds(200);
         }
       }
       return true;
