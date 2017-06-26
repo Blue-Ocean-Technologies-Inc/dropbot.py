@@ -14,7 +14,7 @@ void Node::begin() {
   pinMode(HV_OUTPUT_SELECT_PIN, OUTPUT);
   pinMode(SSDA_PIN, OUTPUT);
   pinMode(SSCL_PIN, OUTPUT);
-    
+
   // Set D0-D2 high (these are used to select test capacitors for
   // on-board calibration).
   for (uint8_t i = 0; i <= 3; i++) {
@@ -69,12 +69,16 @@ void Node::_initialize_switching_boards() {
   // address must equal the previous boards address +1 to be valid.
   number_of_channels_ = 0;
 
+  uint8_t I2C_DELAY_US = 200;
+
   for (uint8_t chip = 0; chip < 8; chip++) {
     // set IO ports as inputs
     buffer_[0] = PCA9505_CONFIG_IO_REGISTER;
     buffer_[1] = 0xFF;
     i2c_write((uint8_t)config_._.switching_board_i2c_address + chip,
               UInt8Array_init(2, (uint8_t *)&buffer_[0]));
+    // XXX Delay required when operating with a 400kbps i2c clock.
+    delayMicroseconds(I2C_DELAY_US);
 
     // read back the register value
     // if it matches what we previously set, this might be a PCA9505 chip
@@ -86,6 +90,8 @@ void Node::_initialize_switching_boards() {
         buffer_[1] = 0x00;
         i2c_write((uint8_t)config_._.switching_board_i2c_address + chip,
                   UInt8Array_init(2, (uint8_t *)&buffer_[0]));
+        // XXX Delay required when operating with a 400kbps i2c clock.
+        delayMicroseconds(I2C_DELAY_US);
 
         // check that we successfully set the IO config register to 0x00
         if (i2c_read((uint8_t)config_._.switching_board_i2c_address + chip, 1).data[0] != 0x00) {
@@ -95,6 +101,8 @@ void Node::_initialize_switching_boards() {
         buffer_[1] = 0xFF;
         i2c_write((uint8_t)config_._.switching_board_i2c_address + chip,
                   UInt8Array_init(2, (uint8_t *)&buffer_[0]));
+        // XXX Delay required when operating with a 400kbps i2c clock.
+        delayMicroseconds(I2C_DELAY_US);
       }
 
       // if port=5, it means that we successfully initialized all IO config
