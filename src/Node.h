@@ -36,6 +36,14 @@
 #include "Dropbot/config_pb.h"
 #include "Dropbot/state_pb.h"
 
+#define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
+#define CPU_RESTART_VAL 0x5FA0004
+#define CPU_RESTART (*CPU_RESTART_ADDR = CPU_RESTART_VAL);
+
+extern uint8_t watchdog_status_;
+extern bool watchdog_refresh_;
+extern uint16_t STARTUP_WDOG_STCTRLH_VALUE;
+
 const uint32_t ADC_BUFFER_SIZE = 4096;
 
 extern void dma_ch0_isr(void);
@@ -68,6 +76,36 @@ const size_t FRAME_SIZE = (3 * sizeof(uint8_t)  // Frame boundary
                            - sizeof(uint16_t)  // UUID
                            - sizeof(uint16_t)  // Payload length
                            - sizeof(uint16_t));  // CRC
+
+
+inline void __watchdog_refresh__() {
+  while(WDOG_TMROUTL < 2) {}
+  noInterrupts();
+  WDOG_REFRESH = 0xA602;
+  WDOG_REFRESH = 0xB480;
+  interrupts();
+  while(WDOG_TMROUTL >= 2) {}
+}
+
+inline void __watchdog_disable__() {
+  bool enabled = WDOG_STCTRLH & WDOG_STCTRLH_WDOGEN;
+  if (!enabled) { return; }
+  noInterrupts();
+  WDOG_REFRESH = 0xA602;
+  WDOG_REFRESH = 0xB480;
+  WDOG_UNLOCK = WDOG_UNLOCK_SEQ1;
+  WDOG_UNLOCK = WDOG_UNLOCK_SEQ2;
+  __asm__ volatile ("nop");
+  __asm__ volatile ("nop");
+
+  WDOG_TMROUTH = 0;
+  WDOG_TMROUTL = 0;
+  WDOG_STCTRLH = WDOG_STCTRLH_ALLOWUPDATE;
+  WDOG_TMROUTH = 0;
+  WDOG_TMROUTL = 0;
+  interrupts();
+}
+
 
 class Node;
 const char HARDWARE_VERSION_[] = "0.3";
@@ -149,6 +187,7 @@ public:
   LinkedList<uint32_t> aligned_allocations_;
   UInt8Array dma_data_;
   uint16_t dma_stream_id_;
+  bool watchdog_disable_request_;
 
   Node() : BaseNode(),
            BaseNodeConfig<config_t>(dropbot_Config_fields),
@@ -156,7 +195,7 @@ public:
            adc_period_us_(0), adc_timestamp_us_(0), adc_tick_tock_(false),
            adc_count_(0), dma_adc_active_(false), dma_channel_done_(-1),
            last_dma_channel_done_(-1), adc_read_active_(false),
-           dma_stream_id_(0) {
+           dma_stream_id_(0), watchdog_disable_request_(false) {
     pinMode(LED_BUILTIN, OUTPUT);
     dma_data_ = UInt8Array_init_default();
   }
@@ -390,6 +429,11 @@ public:
 
   /** Called periodically from the main program loop. */
   void loop() {
+    if (watchdog_disable_request_) {
+      watchdog_disable_request_ = false;
+      watchdog_auto_refresh(false);
+      __watchdog_disable__();
+    }
     if (dma_channel_done_ >= 0) {
       // DMA channel has completed.
       last_dma_channel_done_ = dma_channel_done_;
@@ -1043,6 +1087,69 @@ public:
     const float CAPACITOR_2 = digitalRead(2) ? 0 : 100e-12;
 
     return CAPACITOR_0 + CAPACITOR_1 + CAPACITOR_2;
+  }
+
+  uint32_t watchdog_time_out_value() const {
+    uint32_t result = WDOG_TOVALH << 16;
+    result |= WDOG_TOVALL;
+    return result;
+  }
+
+  uint32_t watchdog_timer_output() const {
+    uint32_t result = WDOG_TMROUTH << 16;
+    result |= WDOG_TMROUTL;
+    return result;
+  }
+
+  uint16_t watchdog_reset_count() const { return WDOG_RSTCNT; }
+  void watchdog_reset_count_clear(uint16_t mask) { WDOG_RSTCNT = mask; }
+
+  bool watchdog_auto_refresh(bool value) {
+    if (value != watchdog_refresh_) {
+        watchdog_refresh_ = value;
+        return true;
+    }
+    return false;
+  }
+
+  uint16_t C_STARTUP_WDOG_STCTRLH_VALUE() const {
+      return STARTUP_WDOG_STCTRLH_VALUE;
+  }
+
+  uint16_t R_WDOG_STCTRLH() const { return WDOG_STCTRLH; }
+
+  int8_t watchdog_enable(uint8_t prescaler, uint32_t timeout) {
+    noInterrupts();
+    WDOG_UNLOCK = WDOG_UNLOCK_SEQ1;
+    WDOG_UNLOCK = WDOG_UNLOCK_SEQ2;
+    __asm__ volatile ("nop");
+    __asm__ volatile ("nop");
+
+    if (prescaler > 15) { return -1; }
+    WDOG_PRESC = prescaler;  // Set watchdog timer frequency to 1kHz
+    WDOG_TOVALL = timeout & 0x0FFFF;  // Set watchdog timeout period to 1 second.
+    WDOG_TOVALH = timeout >> 16;
+    WDOG_STCTRLH = (WDOG_STCTRLH_ALLOWUPDATE |
+                    WDOG_STCTRLH_WDOGEN);
+    interrupts();
+    // Enable automatic watchdog refresh by default.
+    watchdog_auto_refresh(true);
+    return 0;
+  }
+
+  void watchdog_disable() {
+      watchdog_auto_refresh(false);
+      __watchdog_disable__();
+  }
+
+  void watchdog_refresh() {
+    if (WDOG_TMROUTL >= 2) {
+      __watchdog_refresh__();
+    }
+  }
+
+  void reboot() {
+      CPU_RESTART
   }
 
 };

@@ -17,6 +17,9 @@
 #include "ADC.h"
 #include "Node.h"
 
+bool watchdog_refresh_ = false;
+uint16_t STARTUP_WDOG_STCTRLH_VALUE = WDOG_STCTRLH;
+
 dropbot::Node node_obj;
 dropbot::CommandProcessor<dropbot::Node> command_processor(node_obj);
 
@@ -32,16 +35,23 @@ void serialEvent() { node_obj.serial_handler_.receiver()(Serial.available()); }
 
 void setup() {
   node_obj.begin();
+
+  // Restart if loop takes longer than 10s
+  node_obj.watchdog_enable(0, 10000);
+  node_obj.watchdog_auto_refresh(true);
 }
 
 
 void loop() {
+  if (watchdog_refresh_) { node_obj.watchdog_refresh(); }
+
   /* Parse all new bytes that are available.  If the parsed bytes result in a
    * completed packet, pass the complete packet to the command-processor to
    * process the request. */
   if (node_obj.serial_handler_.packet_ready()) {
     node_obj.serial_handler_.process_packet(command_processor);
   }
+
   node_obj.loop();
 }
 

@@ -6,6 +6,7 @@ from base_node_rpc.proxy import ConfigMixinBase, StateMixinBase
 from path_helpers import path
 from teensy_minimal_rpc.adc_sampler import AdcDmaMixin
 import numpy as np
+import serial
 import serial_device as sd
 
 
@@ -389,6 +390,22 @@ try:
                 if port:
                     kwargs['port'] = port
             super(SerialProxy, self).__init__(**kwargs)
+
+        def reboot(self):
+            # Reboot to put device in known state.
+            try:
+                super(SerialProxy, self).reboot()
+            except serial.SerialException:
+                pass
+            finally:
+                self.terminate()
+
+            # Wait for serial port to settle after reboot.
+            time.sleep(.5)
+
+            # Reestablish serial connection to device.
+            self._connect()
+
 
 except (ImportError, TypeError):
     Proxy = None
