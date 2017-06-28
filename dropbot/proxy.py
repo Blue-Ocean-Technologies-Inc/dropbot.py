@@ -1,3 +1,4 @@
+import logging
 import math
 import time
 import uuid
@@ -8,6 +9,8 @@ from teensy_minimal_rpc.adc_sampler import AdcDmaMixin
 import numpy as np
 import serial
 import serial_device as sd
+
+logger = logging.getLogger(__name__)
 
 
 def serial_ports():
@@ -58,12 +61,10 @@ try:
 
         def __init__(self, *args, **kwargs):
             super(ProxyMixin, self).__init__(*args, **kwargs)
+            # XXX TODO Need to initialize DMA in embedded C++ code.
+            # XXX Otherwise, initialization will not be performed on device
+            # reset.
             self.init_dma()
-            # can't access i2c bus if the control board is connected, so for now, need to explicitly initialize
-            # switching boards (e.g., from the dropbot plugin)
-            #
-            # # embeded version isn't working with teensy. Use this for now:
-            # #self.initialize_switching_boards()
 
         def i2c_eeprom_write(self, i2c_address, eeprom_address, data):
             '''
@@ -289,11 +290,7 @@ try:
 
         @property
         def port(self):
-            return self._stream.serial_device.port
-
-        @port.setter
-        def port(self, port):
-            return self.update_config(port=port)
+            return self.serial_thread.protocol.port
 
         def _number_of_channels(self):
             return super(ProxyMixin, self).number_of_channels()
@@ -301,10 +298,6 @@ try:
         @property
         def number_of_channels(self):
             return self._number_of_channels()
-
-        @number_of_channels.setter
-        def number_of_channels(self, number_of_channels):
-            return self.set_number_of_channels(number_of_channels)
 
         def _hardware_version(self):
             return super(ProxyMixin, self).hardware_version()
@@ -328,49 +321,6 @@ try:
         @property
         def min_waveform_voltage(self):
             return float(super(ProxyMixin, self).min_waveform_voltage())
-
-
-        def initialize_switching_boards(self):
-            """
-            Embeded version of this function is not detecting switching boards properly. Use this for now...
-            """
-            PCA9505_CONFIG_IO_REGISTER = 0x18
-            PCA9505_OUTPUT_PORT_REGISTER = 0x08
-
-            # Check how many switching boards are connected.  Each additional board's
-            # address must equal the previous boards address +1 to be valid.
-            number_of_channels = 0
-
-            try:
-                for chip in range(8):
-                    # set IO ports as inputs
-                    buffer = [PCA9505_CONFIG_IO_REGISTER, 0xFF]
-                    self.i2c_write(self.config['switching_board_i2c_address'] + chip, buffer)
-
-                    # read back the register value
-                    # if it matches what we previously set, this might be a PCA9505 chip
-                    if self.i2c_read(self.config['switching_board_i2c_address'] + chip, 1)[0] == 0xFF:
-                        # try setting all ports in output mode and initialize to ground
-                        port = 0
-                        for port in range(5):
-                            buffer = [PCA9505_CONFIG_IO_REGISTER + port, 0x00]
-                            self.i2c_write(self.config['switching_board_i2c_address'] + chip, buffer)
-
-                            # check that we successfully set the IO config register to 0x00
-                            if self.i2c_read(self.config['switching_board_i2c_address'] + chip, 1)[0] != 0x00:
-                                return
-
-                            buffer = [PCA9505_OUTPUT_PORT_REGISTER + port, 0xFF]
-                            self.i2c_write(self.config['switching_board_i2c_address'] + chip, buffer)
-
-                            # if port=4, it means that we successfully initialized all IO config
-                            # registers to 0x00, and this is probably a PCA9505 chip
-                            if port == 4:
-                                if number_of_channels == 40 * chip:
-                                    number_of_channels = 40 * (chip + 1)
-                    self.number_of_channels = number_of_channels
-            except:
-                pass
 
 
     class Proxy(ProxyMixin, _Proxy):
