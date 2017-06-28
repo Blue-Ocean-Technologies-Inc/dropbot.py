@@ -27,6 +27,7 @@ requirements:
     - platformio-toolchain-gccarmnoneeabi
     - pytables
     - python 2.7*
+    - serial-device >=0.7
     - teensy-minimal-rpc >=0.4
 
   run:
@@ -38,6 +39,7 @@ requirements:
     - platformio-tool-teensy
     - pytables
     - python 2.7*
+    - serial-device >=0.7
     - teensy-minimal-rpc >=0.4
 
 test:
