@@ -6,6 +6,8 @@ const float Node::R6 = 2e6;
 SlowSoftWire Node::i2c = SlowSoftWire(Node::SSDA_PIN, Node::SSCL_PIN);
 
 void Node::begin() {
+  analogReadResolution(16);
+
   pinMode(DRIVER_HIGH_PIN, OUTPUT);
   pinMode(DRIVER_LOW_PIN, OUTPUT);
   pinMode(SHDN_PIN, OUTPUT);

@@ -184,7 +184,7 @@ try:
         @property
         def measured_voltage(self):
             # divide by 2 to convert from peak-to-peak to rms
-            return self.analog_read(1) / 1024.0 * 3.3 * 2e6 / 20e3 / 2.0
+            return self.analog_read(1) / 2.0**16 * 3.3 * 2e6 / 20e3 / 2.0
 
         @property
         def voltage(self):

@@ -226,6 +226,11 @@ public:
     i2c.write(data.data, data.length);
     i2c.endTransmission();
   }
+
+  void analog_read_resolution(uint8_t bits) {
+    analogReadResolution(bits);
+  }
+
   UInt8Array soft_i2c_read(uint8_t address, uint8_t n_bytes_to_read) {
     UInt8Array output = get_buffer();
     i2c.requestFrom(address, n_bytes_to_read);
