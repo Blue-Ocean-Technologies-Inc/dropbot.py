@@ -37,6 +37,7 @@ requirements:
     - platformio-helpers >=0.2
     - platformio-tool-scons
     - platformio-tool-teensy
+    - protobuf
     - pytables
     - python 2.7*
     - serial-device >=0.7
