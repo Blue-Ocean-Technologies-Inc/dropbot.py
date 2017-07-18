@@ -47,10 +47,14 @@ void Node::begin() {
 
   Serial.begin(115200);
 
-  // only set the i2c clock if we have a valid i2c address (i.e., if
-  // Wire.begin() was called
+  // If we have a valid i2c address (i.e., if Wire.begin() was called)
   if (config_._.i2c_address > 0) {
+    // set the i2c clock
     Wire.setClock(400000);
+
+    /* Scan for connected switching boards and determine the number of actuation
+     * channels available. */
+    initialize_switching_boards();
   }
 
   Timer1.initialize(50); // initialize timer1, and set a 0.05 ms period
@@ -58,10 +62,6 @@ void Node::begin() {
 
   // attach timer_callback() as a timer overflow interrupt
   Timer1.attachInterrupt(timer_callback);
-
-  /* Scan for connected switching boards and determine the number of actuation
-   * channels available. */
-  initialize_switching_boards();
 
   adc_ = new ADC();
 }
