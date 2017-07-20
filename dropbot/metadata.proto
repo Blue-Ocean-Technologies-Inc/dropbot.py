@@ -1,11 +1,12 @@
 syntax="proto2";
-package pogo_pin_board;
+package metadata;
 
-message PogoPinBoard {
+message Hardware {
   /* # Identity structure #
    *
    * This structure contains fields are stored in
-   * persistent memory (i.e., EEPROM) on each pogo pin board.
+   * persistent memory (i.e., EEPROM) on each piece of hardware/
+   * circuit board..
    */
   optional bytes uuid = 1;
   optional string version = 2;

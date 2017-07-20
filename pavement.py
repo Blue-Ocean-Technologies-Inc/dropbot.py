@@ -82,6 +82,7 @@ def develop_unlink():
 
 @task
 @needs('generate_all_code')
+@needs('compile_protobufs')
 def build_firmware():
     sh('pio run')
 
@@ -89,3 +90,14 @@ def build_firmware():
 @task
 def upload():
     sh('pio run --target upload --target nobuild')
+
+
+@task
+def compile_protobufs():
+    import nanopb_helpers as pbh
+
+    code = pbh.compile_pb(path('.').joinpath('dropbot',
+                          'metadata.proto').realpath())
+    with (path('.').joinpath('dropbot',
+              'metadata.py').realpath().open('wb')) as output:
+        output.write(code['python'])

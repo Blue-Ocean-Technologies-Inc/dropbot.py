@@ -31,3 +31,4 @@ lib/
 .idea
 .pioenvs/
 src/NodeCommandProcessor.h
+*/metadata.py
