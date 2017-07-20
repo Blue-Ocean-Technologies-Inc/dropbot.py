@@ -231,6 +231,18 @@ public:
     analogReadResolution(bits);
   }
 
+  UInt16Array analog_reads_simple(uint8_t pin, uint16_t n_samples) {
+    UInt8Array byte_buffer = get_buffer();
+    UInt16Array output;
+    output.data = reinterpret_cast<uint16_t *>(byte_buffer.data);
+
+    for (uint16_t i=0; i < n_samples; i++) {
+      output.data[i] = analogRead(pin);
+    }
+    output.length = n_samples;
+    return output;
+  }
+
   UInt8Array soft_i2c_read(uint8_t address, uint8_t n_bytes_to_read) {
     UInt8Array output = get_buffer();
     i2c.requestFrom(address, n_bytes_to_read);
@@ -284,7 +296,7 @@ public:
     return true;
   }
 
-  UInt8Array detect_shorts(uint16_t delay_us) {
+  UInt8Array detect_shorts() {
     // Deselect the HV output
     on_state_hv_output_selected_changed(false);
 
@@ -868,7 +880,7 @@ public:
 
   // ##########################################################################
   // # Teensy library mutator methods
-  int analogRead(uint8_t pin, int8_t adc_num) {
+  int _analogRead(uint8_t pin, int8_t adc_num) {
   //! Returns the analog value of the pin.
   /** It waits until the value is read and then returns the result.
   * If a comparison has been set up and fails, it will return ADC_ERROR_VALUE.

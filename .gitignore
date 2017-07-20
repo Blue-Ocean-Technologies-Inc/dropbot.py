@@ -32,3 +32,4 @@ lib/
 .pioenvs/
 src/NodeCommandProcessor.h
 */metadata.py
+dropbot/notebooks/.results
