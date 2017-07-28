@@ -273,6 +273,64 @@ public:
     return result;
   }
 
+  bool set_id(UInt8Array id) {
+    if (id.length > sizeof(config_._.id) - 1) {
+      return false;
+    }
+    memcpy(config_._.id, &id.data[0], id.length);
+    config_._.id[id.length] = 0;
+    config_._.has_id = true;
+    config_.save();
+    return true;
+  }
+
+  UInt8Array detect_shorts(uint16_t delay_us) {
+    // Deselect the HV output
+    on_state_hv_output_selected_changed(false);
+
+    // Eight channels per port
+    const uint8_t port_count = state_._.channel_count / 8;
+    uint8_t old_state[port_count];
+    memcpy(old_state, state_of_channels_, port_count);
+    
+    UInt8Array shorts = get_buffer();
+    shorts.length = 0;
+    for (uint8_t i = 0; i < state_._.channel_count; i++) {
+      // Initialize all channels in off state
+      memset(state_of_channels_, 0, port_count);
+
+      // Set bit to actuate channel i
+      state_of_channels_[i / 8] = 1 << i % 8;
+
+      // Apply channel states
+      _update_channels();
+
+      // Empirically tested a board with >10 confirmed shorts. A delay
+      // of 1 ms was necessary to correctly detect one of the pairs of
+      // shorted channels. Without the delay, a short was reported
+      // between electrodes 35-36. With the delay, the short was
+      // correctly detected between channels 34-35.
+      delay(1);
+
+      // If we read less than half of Vcc, append this channel to the
+      // list of shorts
+      if (analog_read(0) < 65535 / 2) {
+        shorts.data[shorts.length++] = i;
+      }
+    }
+
+    // Restore the previous channel state
+    memcpy(state_of_channels_, old_state, port_count);
+
+    // Apply channel states
+    _update_channels();
+
+    // Restore the HV output selection
+    on_state_hv_output_selected_changed(state_._.hv_output_selected);
+
+    return shorts;
+  }
+
   UInt8Array state_of_channels() {
     for (uint8_t chip = 0; chip < state_._.channel_count / 40; chip++) {
       for (uint8_t port = 0; port < 5; port++) {
@@ -294,42 +352,36 @@ public:
                            (uint8_t *)&state_of_channels_[0]);
   }
 
-  bool set_id(UInt8Array id) {
-    if (id.length > sizeof(config_._.id) - 1) {
-      return false;
-    }
-    memcpy(config_._.id, &id.data[0], id.length);
-    config_._.id[id.length] = 0;
-    config_._.has_id = true;
-    config_.save();
-    return true;
-  }
-
   bool set_state_of_channels(UInt8Array channel_states) {
     if (channel_states.length == state_._.channel_count / 8) {
       for (uint16_t i = 0; i < channel_states.length; i++) {
         state_of_channels_[i] = channel_states.data[i];
       }
-      // Each PCA9505 chip has 5 8-bit output registers for a total of 40 outputs
-      // per chip. We can have up to 8 of these chips on an I2C bus, which means
-      // we can control up to 320 channels.
-      //   Each register represent 8 channels (i.e. the first register on the
-      // first PCA9505 chip stores the state of channels 0-7, the second register
-      // represents channels 8-15, etc.).
-      for (uint8_t chip = 0; chip < state_._.channel_count / 40; chip++) {
-        for (uint8_t port = 0; port < 5; port++) {
-          buffer_[0] = PCA9505_OUTPUT_PORT_REGISTER + port;
-          buffer_[1] = ~state_of_channels_[chip*5 + port];
-          i2c_write(config_._.switching_board_i2c_address + chip,
-                    UInt8Array_init(2, (uint8_t *)&buffer_[0]));
-          // XXX Need the following delay if we are operating with a 400kbps
-          // i2c clock.
-          delayMicroseconds(200);
-        }
-      }
+      _update_channels();
       return true;
     }
     return false;
+  }
+
+  void _update_channels() {
+    uint8_t data[2];
+    // Each PCA9505 chip has 5 8-bit output registers for a total of 40 outputs
+    // per chip. We can have up to 8 of these chips on an I2C bus, which means
+    // we can control up to 320 channels.
+    //   Each register represent 8 channels (i.e. the first register on the
+    // first PCA9505 chip stores the state of channels 0-7, the second register
+    // represents channels 8-15, etc.).
+    for (uint8_t chip = 0; chip < state_._.channel_count / 40; chip++) {
+      for (uint8_t port = 0; port < 5; port++) {
+        data[0] = PCA9505_OUTPUT_PORT_REGISTER + port;
+        data[1] = ~state_of_channels_[chip*5 + port];
+        i2c_write(config_._.switching_board_i2c_address + chip,
+                  UInt8Array_init(2, (uint8_t *)&data[0]));
+        // XXX Need the following delay if we are operating with a 400kbps
+        // i2c clock.
+        delayMicroseconds(200);
+      }
+    }
   }
 
   float min_waveform_voltage() {
