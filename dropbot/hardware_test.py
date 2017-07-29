@@ -23,7 +23,7 @@ def high_voltage_source_rms_error(proxy, n=10):
     '''
     # Save current state of high-voltage output.
     hv_output_enabled = proxy.hv_output_enabled
-    voltage = proxy.voltage
+    original_voltage = proxy.voltage
 
     try:
         proxy.voltage = proxy.min_waveform_voltage
@@ -47,7 +47,7 @@ def high_voltage_source_rms_error(proxy, n=10):
     finally:
         # Save current state of high-voltage output.
         proxy.hv_output_enabled = hv_output_enabled
-        proxy.voltage = voltage
+        proxy.voltage = original_voltage
 
 
 def detect_shorted_channels(proxy):
