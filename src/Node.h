@@ -108,7 +108,7 @@ inline void __watchdog_disable__() {
 
 
 class Node;
-const char HARDWARE_VERSION_[] = "0.3";
+const char HARDWARE_VERSION_[] = "3.6";
 
 typedef nanopb::EepromMessage<dropbot_Config,
                               config_validate::Validator<Node> > config_t;
