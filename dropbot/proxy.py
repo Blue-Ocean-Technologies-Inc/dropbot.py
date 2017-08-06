@@ -9,6 +9,7 @@ from teensy_minimal_rpc.adc_sampler import AdcDmaMixin
 import numpy as np
 import serial
 import serial_device as sd
+from .bin.upload import upload
 
 logger = logging.getLogger(__name__)
 
@@ -343,6 +344,12 @@ try:
                 if port:
                     kwargs['port'] = port
             super(SerialProxy, self).__init__(**kwargs)
+
+        def flash_firmware(self):
+            self.terminate()
+            upload()
+            time.sleep(0.5)
+            self._connect()
 
         def reboot(self):
             # Reboot to put device in known state.
