@@ -9,6 +9,8 @@ from teensy_minimal_rpc.adc_sampler import AdcDmaMixin
 import numpy as np
 import serial
 import serial_device as sd
+from .bin.upload import upload
+from . import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +60,7 @@ try:
         `node.Proxy` class.
         '''
         host_package_name = str(path(__file__).parent.name.replace('_', '-'))
+        __host_software_version__ = __version__
 
         def __init__(self, *args, **kwargs):
             super(ProxyMixin, self).__init__(*args, **kwargs)
@@ -343,6 +346,14 @@ try:
                 if port:
                     kwargs['port'] = port
             super(SerialProxy, self).__init__(**kwargs)
+
+        def flash_firmware(self):
+            # currently, we're ignoring the hardware version, but eventually,
+            # we will want to pass it to upload()
+            self.terminate()
+            upload()
+            time.sleep(0.5)
+            self._connect()
 
         def reboot(self):
             # Reboot to put device in known state.
