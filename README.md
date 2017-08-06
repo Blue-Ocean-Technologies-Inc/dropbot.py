@@ -9,7 +9,7 @@ Install
 -------
 
 The latest [`dropbot` release][3] is available as a [Conda][2] package from the
-[`wheeler-microfluidics`][4] channel.
+[`sci-bots`][4] channel.
 
 To install `dropbot` in an **activated Conda environment**, run:
 
@@ -179,6 +179,8 @@ Contributors
 
 
 
-[1]: https://www.arduino.cc/en/Reference/HomePage
-[2]: http://www.scons.org/
-[3]: https://github.com/wheeler-microfluidics/base_node_rpc
+[1]: http://sci-bots.com/dropbot
+[2]: https://conda.io/
+[3]: https://anaconda.org/sci-bots/dropbot
+[4]: https://anaconda.org/sci-bots
+[5]: https://gitlab.com/sci-bots/dropbot.py/
