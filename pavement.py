@@ -7,6 +7,7 @@ from paver.setuputils import install_distutils_tasks
 import platformio_helpers as pioh
 import platformio_helpers.develop
 try:
+    import base_node_rpc
     from base_node_rpc.pavement_base import *
 except ImportError:
     import warnings
@@ -14,8 +15,7 @@ except ImportError:
     warnings.warn('Could not import `base_node_rpc` (expected during '
                   'install).')
 
-sys.path.insert(0, '.')
-import version
+from dropbot.version import getVersion
 install_distutils_tasks()
 
 DEFAULT_ARDUINO_BOARDS = []  #['mega2560']
@@ -23,9 +23,11 @@ PROJECT_PREFIX = 'dropbot'
 module_name = PROJECT_PREFIX
 package_name = module_name.replace('_', '-')
 rpc_module = import_module(PROJECT_PREFIX)
-VERSION = version.getVersion()
+VERSION = getVersion()
 URL='http://gitlab.com/sci-bots/%s.git' % package_name
-PROPERTIES = OrderedDict([('package_name', package_name),
+PROPERTIES = OrderedDict([('base_node_software_version',
+                           base_node_rpc.__version__),
+                          ('package_name', package_name),
                           ('display_name', 'DropBot'),
                           ('manufacturer', 'Sci-Bots Inc.'),
                           ('software_version', VERSION),

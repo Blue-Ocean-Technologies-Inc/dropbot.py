@@ -2,11 +2,11 @@ from collections import OrderedDict
 import warnings
 
 from path_helpers import path
-try:
-    __version__ = (path(__file__).abspath().parent.parent /
-                   'RELEASE-VERSION').bytes().rstrip()
-except:
-    __version__ = None
+
+from .version import getVersion
+
+__version__ = getVersion()
+
 try:
     from .proxy import Proxy, I2cProxy, SerialProxy, serial_ports
     from .config import Config

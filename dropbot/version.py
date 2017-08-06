@@ -48,9 +48,10 @@ __all__ = ('getVersion')
 import re
 import subprocess
 import sys
+import os
 
-
-RELEASE_VERSION_FILE = 'RELEASE-VERSION'
+RELEASE_VERSION_FILE = os.path.abspath(os.path.join(__file__,
+    '..', 'RELEASE-VERSION'))
 
 # http://www.python.org/dev/peps/pep-0386/
 _PEP386_SHORT_VERSION_RE = r'\d+(?:\.\d+)+(?:(?:[abc]|rc)\d+(?:\.\d+)*)?'
