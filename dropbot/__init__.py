@@ -3,6 +3,11 @@ import warnings
 
 from path_helpers import path
 try:
+    __version__ = (path(__file__).abspath().parent.parent /
+                   'RELEASE-VERSION').bytes().rstrip()
+except:
+    __version__ = None
+try:
     from .proxy import Proxy, I2cProxy, SerialProxy, serial_ports
     from .config import Config
     from .state import State
