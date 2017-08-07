@@ -24,7 +24,7 @@ module_name = PROJECT_PREFIX
 package_name = module_name.replace('_', '-')
 rpc_module = import_module(PROJECT_PREFIX)
 VERSION = getVersion()
-URL='http://gitlab.com/sci-bots/%s.git' % package_name
+URL='http://gitlab.com/sci-bots/%s.py.git' % package_name
 PROPERTIES = OrderedDict([('base_node_software_version',
                            base_node_rpc.__version__),
                           ('package_name', package_name),
