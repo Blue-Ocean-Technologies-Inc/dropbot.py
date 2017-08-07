@@ -3,6 +3,7 @@ import math
 import time
 import uuid
 
+import pandas as pd
 from base_node_rpc.proxy import ConfigMixinBase, StateMixinBase
 from path_helpers import path
 from teensy_minimal_rpc.adc_sampler import AdcDmaMixin
@@ -140,6 +141,17 @@ try:
             n = self.i2c_read(address, 1)
             return self.i2c_read(address, n)
 
+        def measure_capacitance(self, n_samples=50):
+            df_volts = pd.DataFrame({'volts': 
+                self.analog_reads_simple(11, n_samples) * 3.3 / 2**16})
+            v_gnd = np.mean(df_volts)
+            v_rms = np.sqrt(np.mean((df_volts - v_gnd)**2))
+            v_abs = np.abs(df_volts - v_gnd)
+            v_abs_mean = np.mean(v_abs)
+            filter_th = v_abs_mean * 1.5
+            v_filtered_mean = np.mean(v_abs[v_abs < filter_th])
+            return v_filtered_mean.values[0] / self.measure_voltage() * 0.15e-6
+
         def get_environment_state(self, i2c_address=0x27):
             '''
             Acquire temperature and humidity from Honeywell HIH6000 series
@@ -184,8 +196,7 @@ try:
         def frequency(self, value):
             return self.update_state(frequency=value)
 
-        @property
-        def measured_voltage(self):
+        def measure_voltage(self):
             # divide by 2 to convert from peak-to-peak to rms
             return self.analog_read(1) / 2.0**16 * 3.3 * 2e6 / 20e3 / 2.0
 
