@@ -296,7 +296,7 @@ public:
     return true;
   }
 
-  UInt8Array detect_shorts() {
+  UInt8Array detect_shorts(uint8_t delay_ms) {
     // Deselect the HV output
     on_state_hv_output_selected_changed(false);
 
@@ -322,7 +322,7 @@ public:
       // shorted channels. Without the delay, a short was reported
       // between electrodes 35-36. With the delay, the short was
       // correctly detected between channels 34-35.
-      delay(1);
+      delay(delay_ms);
 
       // If we read less than half of Vcc, append this channel to the
       // list of shorts

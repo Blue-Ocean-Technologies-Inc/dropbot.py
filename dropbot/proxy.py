@@ -313,8 +313,8 @@ try:
         def number_of_channels(self):
             return self._number_of_channels()
 
-        def detect_shorts(self):
-            return super(ProxyMixin, self).detect_shorts().tolist()
+        def detect_shorts(self, delay_ms=2):
+            return super(ProxyMixin, self).detect_shorts(delay_ms).tolist()
 
         def _hardware_version(self):
             return super(ProxyMixin, self).hardware_version()

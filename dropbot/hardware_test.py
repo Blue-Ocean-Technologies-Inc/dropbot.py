@@ -145,6 +145,10 @@ def test_voltage(proxy, n=5, delay=0):
     proxy.hv_output_selected = True
     measured_voltage = []
 
+    # need to wait for the voltage to stabilize
+    proxy.voltage = proxy.min_waveform_voltage + 5
+    time.sleep(0.5)
+
     target_voltage = np.linspace(proxy.min_waveform_voltage,
                                  proxy.max_waveform_voltage, n + 2)[1:-1]
     for v in target_voltage:
