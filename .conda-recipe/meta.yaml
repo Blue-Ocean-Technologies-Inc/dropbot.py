@@ -20,10 +20,10 @@ requirements:
     - paver
     - pip
     - platformio-framework-arduinoteensy >=1.136.0
-    - platformio-helpers >=0.2
+    - platformio-helpers >=0.3
     - platformio-platform-teensy >=2.0.0
     - platformio-tool-scons
-    - platformio-tool-teensy
+    - platformio-tool-teensy >=1.21.0
     - platformio-toolchain-gccarmnoneeabi
     - pytables
     - python 2.7*
@@ -35,9 +35,9 @@ requirements:
     - arduino-linked-list >=1.2.3
     - arduino-slow-soft-wire
     - nanopb-helpers >=0.6
-    - platformio-helpers >=0.2
+    - platformio-helpers >=0.3
     - platformio-tool-scons
-    - platformio-tool-teensy
+    - platformio-tool-teensy >=1.21.0
     - protobuf
     - pytables
     - python 2.7*
