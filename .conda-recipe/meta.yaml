@@ -23,7 +23,7 @@ requirements:
     - platformio-helpers >=0.3
     - platformio-platform-teensy >=2.0.0
     - platformio-tool-scons
-    - platformio-tool-teensy
+    - platformio-tool-teensy >=1.21.0
     - platformio-toolchain-gccarmnoneeabi
     - pytables
     - python 2.7*
@@ -37,7 +37,7 @@ requirements:
     - nanopb-helpers >=0.6
     - platformio-helpers >=0.3
     - platformio-tool-scons
-    - platformio-tool-teensy
+    - platformio-tool-teensy >=1.21.0
     - protobuf
     - pytables
     - python 2.7*
