@@ -71,6 +71,8 @@ def readGitVersion():
                                  '--match', 'v[0-9]*.*'),
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         data, _ = proc.communicate()
+        # XXX Required for Python 3 support.
+        data = data.decode('utf-8')
         if proc.returncode:
             os.chdir(previous_dir)
             return None
@@ -78,6 +80,8 @@ def readGitVersion():
         proc = subprocess.Popen(('git', 'rev-parse', '--abbrev-ref', 'HEAD'),
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         branch, _ = proc.communicate()
+        # XXX Required for Python 3 support.
+        branch = branch.decode('utf-8')
         os.chdir(previous_dir)
         if proc.returncode:
             return None
@@ -138,5 +142,5 @@ def getVersion():
 
 
 if __name__ == '__main__':
-    print getVersion()
+    print(getVersion())
 
