@@ -61,7 +61,6 @@ try:
         `node.Proxy` class.
         '''
         host_package_name = str(path(__file__).parent.name.replace('_', '-'))
-        __host_software_version__ = __version__
 
         def __init__(self, *args, **kwargs):
             super(ProxyMixin, self).__init__(*args, **kwargs)
@@ -132,9 +131,9 @@ try:
             try:
                 # turn off the high voltage when we disconnect
                 self.hv_output_enabled = False
+                super(ProxyMixin, self).__del__()
             except: # ignore any exceptions (e.g., if we can't communicate with the board)
                 pass
-            super(ProxyMixin, self).__del__()
 
         def i2c_send_command(self, address, cmd, data):
             self.i2c_write(address, [cmd] + data)
