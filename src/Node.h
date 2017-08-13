@@ -31,6 +31,7 @@
 #include <LinkedList.h>
 #include <TimerOne.h>
 #include <SlowSoftWire.h>
+#include "FastAnalogWrite.h"
 #include "dropbot_config_validate.h"
 #include "dropbot_state_validate.h"
 #include "Dropbot/config_pb.h"
@@ -187,6 +188,7 @@ public:
   UInt8Array dma_data_;
   uint16_t dma_stream_id_;
   bool watchdog_disable_request_;
+  base_node_rpc::FastAnalogWrite fast_analog_;
 
   Node() : BaseNode(),
            BaseNodeConfig<config_t>(dropbot_Config_fields),
@@ -304,7 +306,7 @@ public:
     const uint8_t port_count = state_._.channel_count / 8;
     uint8_t old_state[port_count];
     memcpy(old_state, state_of_channels_, port_count);
-    
+
     UInt8Array shorts = get_buffer();
     shorts.length = 0;
     for (uint8_t i = 0; i < state_._.channel_count; i++) {
@@ -500,6 +502,7 @@ public:
 
   /** Called periodically from the main program loop. */
   void loop() {
+    fast_analog_.update();
     if (watchdog_disable_request_) {
       watchdog_disable_request_ = false;
       watchdog_auto_refresh(false);
@@ -1223,6 +1226,19 @@ public:
       CPU_RESTART
   }
 
+  void fast_analog_write(uint8_t pin, uint8_t duty_cycle, uint32_t period_us) {
+    /* Parameters
+     * ----------
+     * pin : uint8_t
+     *     Pin to toggle.
+     * duty_cycle : uint8_t
+     *     Waveform duty cycle, 0-255, where 0 is 0% and 255 is 100%.
+     * period_us : uint32_t
+     *     Waveform period in microseconds.
+     */
+    fast_analog_.set_pin(pin);
+    fast_analog_.configure(duty_cycle, period_us);
+  }
 };
 }  // namespace dropbot
 
