@@ -2,17 +2,19 @@ import time
 import uuid
 import pprint
 import datetime as dt
+from functools import wraps
 
 import numpy as np
 from base_node import BaseNode
 from dropbot import SerialProxy, metadata
 
 
-def restore_state(function):
+def restore_state(f):
     """
     Wrapper for restoring state after a test has completed..
     """
-    def wrapper(*args, **kwargs):
+    @wraps(f)
+    def _decorator(*args, **kwargs):
         proxy = args[0]
         # Save state of attributes that we will be modifying.
         state = {attr_i: getattr(proxy, attr_i)
@@ -20,27 +22,28 @@ def restore_state(function):
                                 'state_of_channels', 'voltage',
                                 'frequency')}
         try:
-            result = function(*args, **kwargs)
+            result = f(*args, **kwargs)
         finally:
             # Restore state of attributes that we were modified.
             for attr_i, value_i in state.iteritems():
                 setattr(proxy, attr_i, value_i)
         return result
-    return wrapper
+    return _decorator
 
-def time_it(function):
+def time_it(f):
     """
     Wrapper for timing each test and adding the duration and a
     utc timestamp.
     """
-    def wrapper(*args, **kwargs):
+    @wraps(f)
+    def _decorator(*args, **kwargs):
         proxy = args[0]
         start_time = time.time()
-        result = function(*args, **kwargs)
+        result = f(*args, **kwargs)
         result['duration'] = time.time() - start_time
         result['utc_timestamp'] = dt.datetime.utcnow().isoformat()
         return result
-    return wrapper
+    return _decorator
 
 
 @time_it
