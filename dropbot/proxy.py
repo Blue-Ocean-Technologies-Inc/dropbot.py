@@ -312,7 +312,7 @@ try:
         def number_of_channels(self):
             return self._number_of_channels()
 
-        def detect_shorts(self, delay_ms=2):
+        def detect_shorts(self, delay_ms=5):
             return super(ProxyMixin, self).detect_shorts(delay_ms).tolist()
 
         def _hardware_version(self):
