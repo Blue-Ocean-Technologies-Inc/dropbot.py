@@ -303,7 +303,11 @@ try:
 
         @property
         def port(self):
-            return self.serial_thread.protocol.port
+            try:
+                port = self.serial_thread.protocol.port
+            except:
+                port = None
+            return port
 
         def _number_of_channels(self):
             return super(ProxyMixin, self).number_of_channels()
