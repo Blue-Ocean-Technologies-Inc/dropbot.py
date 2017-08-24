@@ -1,5 +1,6 @@
 from collections import OrderedDict
 import sys
+import os
 from importlib import import_module
 
 from paver.easy import path, options
@@ -15,6 +16,8 @@ except ImportError:
     warnings.warn('Could not import `base_node_rpc` (expected during '
                   'install).')
 
+# Add current directory to Python path
+sys.path.append(os.path.dirname(__file__))
 from dropbot.version import getVersion
 install_distutils_tasks()
 
