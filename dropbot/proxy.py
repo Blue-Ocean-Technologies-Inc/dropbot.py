@@ -68,6 +68,7 @@ try:
             # XXX Otherwise, initialization will not be performed on device
             # reset.
             self.init_dma()
+            self.initialize_switching_boards()
 
         def i2c_eeprom_write(self, i2c_address, eeprom_address, data):
             '''
