@@ -16,6 +16,14 @@ from . import __version__
 logger = logging.getLogger(__name__)
 
 
+class I2cAddressNotSet(Exception):
+    pass
+
+
+class NoPower(Exception):
+    pass
+
+
 def serial_ports():
     '''
     Returns
@@ -63,11 +71,24 @@ try:
         host_package_name = str(path(__file__).parent.name.replace('_', '-'))
 
         def __init__(self, *args, **kwargs):
-            super(ProxyMixin, self).__init__(*args, **kwargs)
-            # XXX TODO Need to initialize DMA in embedded C++ code.
-            # XXX Otherwise, initialization will not be performed on device
-            # reset.
-            self.init_dma()
+            try:
+                super(ProxyMixin, self).__init__(*args, **kwargs)
+                # XXX TODO Need to initialize DMA in embedded C++ code.
+                # XXX Otherwise, initialization will not be performed on
+                # device reset.
+                self.init_dma()
+
+                # Check that we have power
+                if self.measure_voltage() < 5:
+                    raise NoPower()
+
+                # Check that the i2c address has been set
+                if self.config.i2c_address == 0:
+                    raise I2cAddressNotSet()
+            except:
+                self.terminate()
+                raise
+
             self.initialize_switching_boards()
 
         def i2c_eeprom_write(self, i2c_address, eeprom_address, data):
@@ -200,6 +221,16 @@ try:
             # divide by 2 to convert from peak-to-peak to rms
             return self.analog_read(1) / 2.0**16 * 3.3 * 2e6 / 20e3 / 2.0
 
+        def measure_input_current(self, n=2000):
+            i = self.analog_reads_simple(3, n) / 2.0**16 * 3.3 / 0.03
+            results = dict(rms=np.mean(i), max=np.max(i))
+            return results
+
+        def measure_output_current(self, n=2000):
+            i = self.analog_reads_simple(2, n) / 2.0**16 * 3.3 / (51e3 / 5.1e3 * 1)
+            results = dict(rms=np.mean(i), max=np.max(i))
+            return results
+
         @property
         def voltage(self):
             return self.state['voltage']
@@ -249,8 +280,6 @@ try:
             stored in bytes, where each byte corresponds to the state of eight
             channels.
             '''
-            import numpy as np
-
             return np.unpackbits(super(ProxyMixin, self).state_of_channels()[::-1])[::-1]
 
         @state_of_channels.setter
@@ -264,8 +293,6 @@ try:
 
             See also: `state_of_channels` (get)
             '''
-            import numpy as np
-
             ok = (super(ProxyMixin, self)
                     .set_state_of_channels(np.packbits(states.astype(int)[::-1])[::-1]))
             if not ok:
