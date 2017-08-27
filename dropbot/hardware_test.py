@@ -119,7 +119,7 @@ def test_i2c(proxy):
 
 @time_it
 @restore_state
-def test_voltage(proxy, n=5, delay=0):
+def test_voltage(proxy, n=5, delay=0.1):
     '''
     Test the measured voltage for a range of target voltages.
 
