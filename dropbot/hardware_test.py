@@ -147,6 +147,8 @@ def test_voltage(proxy, n=5, delay=0.1):
     proxy.hv_output_enabled = True
     proxy.hv_output_selected = True
     measured_voltage = []
+    input_current = []
+    output_current = []
 
     # need to wait for the voltage to stabilize
     proxy.voltage = proxy.min_waveform_voltage + 5
@@ -158,10 +160,16 @@ def test_voltage(proxy, n=5, delay=0.1):
         proxy.voltage = v
         time.sleep(delay)
         measured_voltage.append(proxy.measure_voltage())
+        results = proxy.measure_input_current()
+        input_current.append(results['rms'])
+        results = proxy.measure_output_current()
+        output_current.append(results['rms'])
 
     measured_voltage = np.array(measured_voltage)
     return {'target_voltage': target_voltage,
             'measured_voltage': measured_voltage,
+            'input_current': input_current,
+            'output_current': output_current,
             'delay': delay}
 
 
@@ -205,7 +213,7 @@ def test_on_board_feedback_calibration(proxy):
     proxy.voltage = 100
     proxy.hv_output_enabled = True
     proxy.hv_output_selected = True
-    proxy.state_of_all_channels = np.zeros(proxy.number_of_channels)
+    proxy.state_of_channels = np.zeros(proxy.number_of_channels)
 
     c = []
     for i in [-1, 0, 1, 2]:
