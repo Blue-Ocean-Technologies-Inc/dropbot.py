@@ -24,6 +24,10 @@ class NoPower(Exception):
     pass
 
 
+class CommunicationError(Exception):
+    pass
+
+
 def serial_ports():
     '''
     Returns
@@ -298,6 +302,13 @@ try:
             if not ok:
                 raise ValueError('Error setting state of channels.  Check '
                                  'number of states matches channel count.')
+
+            # Verify that the state we set matches the current state
+            current_state = self.state_of_channels
+            try:
+                assert(np.all(np.equal(current_state, states)) is False)    
+            except:
+                raise CommunicationError('Error setting the state of channels')
 
         @property
         def baud_rate(self):
