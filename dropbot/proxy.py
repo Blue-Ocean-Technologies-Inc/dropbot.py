@@ -306,7 +306,7 @@ try:
             # Verify that the state we set matches the current state
             current_state = self.state_of_channels
             try:
-                assert(np.all(np.equal(current_state, states)) is False)    
+                assert(np.all(np.equal(current_state, states)))
             except:
                 raise CommunicationError('Error setting the state of channels')
 
