@@ -237,23 +237,23 @@ try:
 
         def measure_input_voltage(self):
             # save the state of the the output voltage
-            hv_output_enabled = proxy.hv_output_enabled
-            voltage = proxy.voltage
+            hv_output_enabled = self.hv_output_enabled
+            voltage = self.voltage
                     
             # set the voltage to the minimum and wait for it to settle
-            proxy.voltage = proxy.min_waveform_voltage
+            self.voltage = self.min_waveform_voltage
             time.sleep(1)
             
             # disable the boost converter and wait for it to settle
-            proxy.hv_output_enabled = False
+            self.hv_output_enabled = False
             time.sleep(5)
 
             # take a measurement
             v = self.analog_reads_simple(1, 2000) / 2.0**16 * 3.3 * 2e6 / 20e3
             
             # restore the output voltage and let it settle
-            proxy.hv_output_enabled = hv_output_enabled
-            proxy.voltage = voltage
+            self.hv_output_enabled = hv_output_enabled
+            self.voltage = voltage
             time.sleep(1)
             return np.sqrt(np.mean(v**2))
 
