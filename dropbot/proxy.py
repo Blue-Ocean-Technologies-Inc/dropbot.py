@@ -319,12 +319,13 @@ try:
 
             See also: `state_of_channels` (get)
             '''
+            if len(states) != self.number_of_channels:
+                raise ValueError('Error setting state of channels.  Check '
+                                 'number of states matches channel count.')
+
             for retry in range(3):
-                ok = (super(ProxyMixin, self).set_state_of_channels(
-                      np.packbits(states.astype(int)[::-1])[::-1]))
-                if not ok:
-                    raise ValueError('Error setting state of channels.  Check '
-                                     'number of states matches channel count.')
+                super(ProxyMixin, self).set_state_of_channels(
+                      np.packbits(states.astype(int)[::-1])[::-1])
 
                 # Verify that the state we set matches the current state
                 current_state = self.state_of_channels
@@ -350,7 +351,7 @@ try:
             # Wait long enough for the boards to reset and become addressable
             # again on the i2c bus (seems to take ~2.5 s based on empirical
             # testing)
-            time.sleep(3)
+            time.sleep(5)
             self.initialize_switching_boards()
 
         @property
