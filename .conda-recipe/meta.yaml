@@ -15,6 +15,8 @@ build:
   entry_points:
     # .. versionadded:: 1.28
     - dropbot-self-test = dropbot.bin.self_test:main
+    # .. versionadded:: 1.29
+    - dropbot-upload = dropbot.bin.upload:upload
 
 requirements:
   build:
