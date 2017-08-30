@@ -10,8 +10,16 @@ import json_tricks
 import numpy as np
 import path_helpers as ph
 
-
 logger = logging.getLogger(name=__name__)
+
+
+__all__ = ['system_info', 'self_test', 'test_i2c', 'test_voltage',
+           'test_shorts', 'test_on_board_feedback_calibration',
+           'test_channels']
+
+
+ALL_TESTS = ['system_info', 'test_i2c', 'test_voltage', 'test_shorts',
+             'test_on_board_feedback_calibration', 'test_channels']
 
 
 def restore_state(f):
@@ -337,12 +345,7 @@ def self_test(proxy, tests=None):
     total_time = 0
 
     if tests is None:
-        tests = ['system_info',
-                 'test_i2c',
-                 'test_voltage',
-                 'test_shorts',
-                 'test_on_board_feedback_calibration',
-                 'test_channels']
+        tests = ALL_TESTS
     results = {}
 
     for test_name_i in tests:

@@ -11,6 +11,11 @@ package:
   version: {{ GIT_DESCRIBE_TAG[1:] }}.0
 {% endif %}
 
+build:
+  entry_points:
+    # .. versionadded:: 1.28
+    - dropbot-self-test = dropbot.bin.self_test:main
+
 requirements:
   build:
     - arduino-linked-list >=1.2.3
