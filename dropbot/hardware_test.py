@@ -10,12 +10,9 @@ import json_tricks
 import numpy as np
 import path_helpers as ph
 
-logger = logging.getLogger(name=__name__)
 
-
-__all__ = ['system_info', 'self_test', 'test_i2c', 'test_voltage',
-           'test_shorts', 'test_on_board_feedback_calibration',
-           'test_channels']
+__all__ = ['system_info', 'test_i2c', 'test_voltage', 'test_shorts',
+           'test_on_board_feedback_calibration', 'test_channels']
 
 
 ALL_TESTS = ['system_info', 'test_i2c', 'test_voltage', 'test_shorts',
@@ -322,43 +319,3 @@ def test_channels(proxy, n_reps=1, test_channels=None, shorts=None):
     return {'test_channels': test_channels,
             'shorts': shorts,
             'c': c}
-
-
-def self_test(proxy, tests=None):
-    '''
-    Perform quality control tests.
-
-    Parameters
-    ----------
-    proxy : dropbot.SerialProxy
-        DropBot control board reference.
-    tests : list, optional
-        List of names of test functions to run.
-
-        By default, run all tests.
-
-    Returns
-    -------
-    dict
-        Results from all tests.
-    '''
-    total_time = 0
-
-    if tests is None:
-        tests = ALL_TESTS
-    results = {}
-
-    for test_name_i in tests:
-        start_time_i = time.time()
-        test_func_i = eval(test_name_i)
-        results[test_name_i] = test_func_i(proxy)
-        results[test_name_i]['utc_timestamp'] = (dt.datetime.utcnow()
-                                                 .isoformat())
-        duration_i = time.time() - start_time_i
-        results[test_name_i]['test_duration'] = duration_i
-        logger.info('%s: %.1f s', test_name_i, duration_i)
-        total_time += duration_i
-
-    logger.info('**Total time: %.1f s**', total_time)
-
-    return results
