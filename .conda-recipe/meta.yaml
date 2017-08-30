@@ -17,6 +17,7 @@ requirements:
     - arduino-fast-digital
     - arduino-slow-soft-wire
     - future
+    - json-tricks
     - nanopb-helpers >=0.6
     - paver
     - pip
@@ -36,6 +37,7 @@ requirements:
     - arduino-linked-list >=1.2.3
     - arduino-fast-digital
     - arduino-slow-soft-wire
+    - json-tricks
     - nanopb-helpers >=0.6
     - platformio-helpers >=0.3
     - platformio-tool-scons
