@@ -3,6 +3,9 @@ import uuid
 import pprint
 import datetime as dt
 from functools import wraps
+import json
+import os
+import os.path
 
 import numpy as np
 from base_node import BaseNode
@@ -44,6 +47,31 @@ def time_it(f):
         result['utc_timestamp'] = dt.datetime.utcnow().isoformat()
         return result
     return _decorator
+
+
+def log_results(results, output_dir):
+    # need to create a custom encoder to serialize numpy datatypes
+    class MyEncoder(json.JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, np.integer):
+                return int(obj)
+            elif isinstance(obj, np.uint8):
+                return float(obj)
+            elif isinstance(obj, np.floating):
+                return float(obj)
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            else:
+                return super(MyEncoder, self).default(obj)
+    
+    # write the results to a file
+    filepath = os.path.join(output_dir, 'results-%s.json' % (
+        dt.datetime.utcnow().isoformat().replace(':', '.')))
+
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+    with open(filepath, 'w') as output:
+        json.dump(results, output, cls=MyEncoder)
 
 
 @time_it
