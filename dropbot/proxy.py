@@ -497,10 +497,16 @@ try:
         def reboot(self):
             # Reboot to put device in known state.
             try:
+                # XXX Temporarily disable timeout to avoid waiting for a
+                # response after reboot command has been sent.
+                original_timeout_s = self._timeout_s
+                self._timeout_s = 0
                 super(SerialProxy, self).reboot()
-            except serial.SerialException:
+            except (serial.SerialException, IOError):
                 pass
             finally:
+                # Restore original timeout duration.
+                self._timeout_s = original_timeout_s
                 self.terminate()
 
             # Wait for serial port to settle after reboot.
