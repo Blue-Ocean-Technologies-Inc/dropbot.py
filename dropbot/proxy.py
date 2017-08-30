@@ -75,7 +75,47 @@ try:
         host_package_name = str(path(__file__).parent.name.replace('_', '-'))
 
         def __init__(self, *args, **kwargs):
+            '''
+            .. versionchanged:: 1.27
+                Add ``ignore`` parameter.
+
+            Parameters
+            ----------
+            ignore : bool or list, optional
+                List of non-critical exception types to ignore during
+                initialization.
+
+                This allows, for example:
+
+                 - Testing connection to a DropBot control board that is not
+                   connected to a power source.
+                 - Connecting to a DropBot without a configured I2C address to
+                   set an I2C address.
+
+                If set to ``True``, all optional exception types to ignore
+                during initialization.
+
+                Default is to raise all exceptions encountered during
+                initialization.
+            '''
             try:
+                # Get list of exception types to ignore.
+                #
+                # XXX This allows, for example:
+                #  - Testing connection to a DropBot control board that is not
+                #    connected to a power source.
+                #  - Connecting to a DropBot without a configured I2C address
+                #    to set an I2C address.
+                ignore = kwargs.pop('ignore', [])
+
+                if isinstance(ignore, bool):
+                    if ignore:
+                        # If `ignore` is set to `True`, ignore all optional
+                        # exceptions.
+                        ignore = [NoPower, I2cAddressNotSet]
+                    else:
+                        ignore = []
+
                 super(ProxyMixin, self).__init__(*args, **kwargs)
                 # XXX TODO Need to initialize DMA in embedded C++ code.
                 # XXX Otherwise, initialization will not be performed on
@@ -83,17 +123,19 @@ try:
                 self.init_dma()
 
                 # Check that we have power
-                if self.measure_voltage() < 5:
+                if NoPower not in ignore and self.measure_voltage() < 5:
                     raise NoPower()
 
-                # Check that the i2c address has been set
-                if self.config.i2c_address == 0:
+                # Only initialize switching boards if the control board has
+                # been assigned an i2c address.
+                if self.config.i2c_address != 0:
+                    self.initialize_switching_boards()
+                elif I2cAddressNotSet not in ignore:
                     raise I2cAddressNotSet()
-            except:
+            except Exception, exception:
+                logger.debug('Error connecting to device.', exc_info=True)
                 self.terminate()
                 raise
-
-            self.initialize_switching_boards()
 
         def i2c_eeprom_write(self, i2c_address, eeprom_address, data):
             '''
@@ -167,7 +209,7 @@ try:
             return self.i2c_read(address, n)
 
         def measure_capacitance(self, n_samples=50):
-            df_volts = pd.DataFrame({'volts': 
+            df_volts = pd.DataFrame({'volts':
                 self.analog_reads_simple(11, n_samples) * 3.3 / 2**16})
             v_gnd = np.mean(df_volts)
             v_rms = np.sqrt(np.mean((df_volts - v_gnd)**2))
@@ -239,18 +281,18 @@ try:
             # save the state of the the output voltage
             hv_output_enabled = self.hv_output_enabled
             voltage = self.voltage
-                    
+
             # set the voltage to the minimum and wait for it to settle
             self.voltage = self.min_waveform_voltage
             time.sleep(1)
-            
+
             # disable the boost converter and wait for it to settle
             self.hv_output_enabled = False
             time.sleep(5)
 
             # take a measurement
             v = self.analog_reads_simple(1, 2000) / 2.0**16 * 3.3 * 2e6 / 20e3
-            
+
             # restore the output voltage and let it settle
             self.hv_output_enabled = hv_output_enabled
             self.voltage = voltage
