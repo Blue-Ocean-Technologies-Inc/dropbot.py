@@ -28,12 +28,16 @@ def restore_watchdog_time_out(proxy):
 
 @pytest.fixture(scope='module')
 def proxy():
+    '''
+    .. versionchanged:: 1.27.1
+        Ignore non-critical exceptions during initialization to allow tests to
+        run on standalone control board hardware (i.e., not connected to power
+        or I2C bus).
+    '''
     import dropbot as db
     import dropbot.proxy
 
-    # XXX Ignore non-critical exceptions during initialization to allow tests
-    # to run on standalone control board hardware (i.e., not connected to power
-    # or I2C bus).
+    # XXX Ignore non-critical exceptions during initialization.
     proxy_ = db.SerialProxy(ignore=[db.proxy.NoPower,
                                     db.proxy.I2cAddressNotSet])
     yield proxy_

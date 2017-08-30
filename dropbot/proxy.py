@@ -495,6 +495,11 @@ try:
             self._connect()
 
         def reboot(self):
+            '''
+            .. versionchanged:: 1.27.1
+                Temporarily disable timeout to avoid waiting for a response
+                after reboot command has been sent.
+            '''
             # Reboot to put device in known state.
             try:
                 # XXX Temporarily disable timeout to avoid waiting for a
