@@ -235,6 +235,28 @@ try:
             results = dict(rms=np.mean(i), max=np.max(i))
             return results
 
+        def measure_input_voltage(self):
+            # save the state of the the output voltage
+            hv_output_enabled = proxy.hv_output_enabled
+            voltage = proxy.voltage
+                    
+            # set the voltage to the minimum and wait for it to settle
+            proxy.voltage = proxy.min_waveform_voltage
+            time.sleep(1)
+            
+            # disable the boost converter and wait for it to settle
+            proxy.hv_output_enabled = False
+            time.sleep(5)
+
+            # take a measurement
+            v = self.analog_reads_simple(1, 2000) / 2.0**16 * 3.3 * 2e6 / 20e3
+            
+            # restore the output voltage and let it settle
+            proxy.hv_output_enabled = hv_output_enabled
+            proxy.voltage = voltage
+            time.sleep(1)
+            return np.sqrt(np.mean(v**2))
+
         @property
         def voltage(self):
             return self.state['voltage']
@@ -297,18 +319,39 @@ try:
 
             See also: `state_of_channels` (get)
             '''
-            ok = (super(ProxyMixin, self)
-                    .set_state_of_channels(np.packbits(states.astype(int)[::-1])[::-1]))
-            if not ok:
-                raise ValueError('Error setting state of channels.  Check '
-                                 'number of states matches channel count.')
+            for retry in range(3):
+                ok = (super(ProxyMixin, self).set_state_of_channels(
+                      np.packbits(states.astype(int)[::-1])[::-1]))
+                if not ok:
+                    raise ValueError('Error setting state of channels.  Check '
+                                     'number of states matches channel count.')
 
-            # Verify that the state we set matches the current state
-            current_state = self.state_of_channels
-            try:
-                assert(np.all(np.equal(current_state, states)))
-            except:
-                raise CommunicationError('Error setting the state of channels')
+                # Verify that the state we set matches the current state
+                current_state = self.state_of_channels
+                try:
+                    assert(np.all(np.equal(current_state, states)))
+                    return
+                except:
+                    if retry < 3:
+                        # if not, reset the switching boards and try again
+                        self.reset_switching_boards()
+                        continue
+                    else:
+                        raise CommunicationError('Error setting the state of channels')
+        def reset_switching_boards(self):
+            '''
+            If pin A9 (D23) is jumpered to the reset pins of the switching boards,
+            this method provides a software reset.
+            '''
+            self.pin_mode(23, 1)
+            self.digital_write(23, 0)
+            self.digital_write(23, 1)
+
+            # Wait long enough for the boards to reset and become addressable
+            # again on the i2c bus (seems to take ~2.5 s based on empirical
+            # testing)
+            time.sleep(3)
+            self.initialize_switching_boards()
 
         @property
         def baud_rate(self):
