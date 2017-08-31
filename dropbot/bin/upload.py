@@ -6,6 +6,11 @@ import conda_helpers as ch
 
 
 def upload():
+    '''
+    .. versionchanged:: 1.29
+        Add ``dropbot-upload`` entry point (i.e., make script callable as
+        ``dropbot-upload`` from system command shell).
+    '''
     if platform.system() == 'Windows':
         # Upload using Teensy GUI to allow auto-reboot on Windows.
         #
