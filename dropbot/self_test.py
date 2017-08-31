@@ -534,6 +534,14 @@ def generate_report(results, output_path=None, force=False):
     '''
     .. versionadded:: 1.28
 
+    .. versionchanged:: 1.29.1
+        Only try to format results for tests that have data in the
+        :data:`results` dictionary.
+
+        Prior to version ``1.29.1``, this function would fail unless the
+        :data:`results` dictionary contained data existed for **all tests** in
+        :data:`ALL_TESTS` .
+
     Generate summary report of :func:`self_test` results either as Markdown or
     a Word document.
 
@@ -595,7 +603,8 @@ def generate_report(results, output_path=None, force=False):
         # Execute `format_<test name>_results` for each test to generate each
         # respective Markdown report.
         md_results_cmds = ['format_{test_name}_results(results["{test_name}"])'
-                           .format(test_name=name_i) for name_i in ALL_TESTS]
+                           .format(test_name=name_i) for name_i in ALL_TESTS
+                           if name_i in results]
         md_results = map(eval, md_results_cmds)
 
         # Join Markdown reports, separated by horizontal bars.
@@ -622,7 +631,7 @@ def generate_report(results, output_path=None, force=False):
                       (results[name_i],
                        **({'figure_path': parent_dir.joinpath(name_i + '.png')}
                           if name_i in tests_with_figure else {}))
-                      for name_i in ALL_TESTS]
+                      for name_i in ALL_TESTS if name_i in results]
 
         # Join Markdown reports, separated by horizontal bars.
         md_report = (2 * '\n' + (72 * '-') + 2 * '\n').join(header +
