@@ -43,9 +43,7 @@ def format_system_info_results(info):
         Summary of :func:`system_info` results in Markdown format.
     '''
     template = jinja2.Template(r'''
-# Control board: #
-
- - UUID: {{ info['control board']['uuid'] }}
+# Control board (UUID: `{{ info['control board']['uuid'] }}`) #
 
 ## Properties ##
 {% for name_i, property_i in info['control board']['properties'].iteritems() %}
