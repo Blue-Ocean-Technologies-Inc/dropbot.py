@@ -2,6 +2,7 @@ from collections import OrderedDict
 import warnings
 
 from path_helpers import path
+import pandas as pd
 
 from .version import getVersion
 
@@ -13,6 +14,13 @@ try:
     from .state import State
 except (ImportError, TypeError), exception:
     warnings.warn(str(exception))
+
+'''
+.. versionadded:: 1.30
+'''
+NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS = pd.Series([0, 10e-12, 100e-12,
+                                                     470e-12],
+                                                    name='Capacitance (F)')
 
 
 def package_path():
@@ -77,4 +85,3 @@ def get_firmwares():
                                           board_dir.walkfiles('*.hex')])
                         for board_dir in
                         package_path().joinpath('firmware').dirs()])
-
