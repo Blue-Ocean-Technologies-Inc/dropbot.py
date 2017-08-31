@@ -67,6 +67,8 @@ def parse_args(args=None):
         if parsed_args.output_path.exists() and not parsed_args.force:
             parser.error('Output path `%s` exists.  Use `--force` to '
                          'overwrite.' % parsed_args.output_path)
+        if parsed_args.output_path.ext.lower() == '.json':
+            parsed_args.json = True
     elif parsed_args.launch:
         parser.error('Launch output only makes sense when output path is '
                      'specified.')
