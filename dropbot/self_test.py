@@ -380,7 +380,7 @@ The following channels failed ({{ bad_channels_count }} of {{ n_channels }} / **
 {%- endif %}
 {%- endif %}
 {%- else %}
-**All channels passed.**
+**All {{ n_channels }} channels passed.**
 {%- endif %}
 {%- if figure_path %}
    ![Channel capacitance summary]({{ figure_path }})
