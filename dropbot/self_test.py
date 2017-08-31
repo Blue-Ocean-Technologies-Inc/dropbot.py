@@ -350,9 +350,10 @@ def format_test_channels_results(results, figure_path=None):
         fig.tight_layout()
         fig.savefig(figure_path, bbox_inches='tight')
 
-    context = dict(c=c, c_threshold=c_threshold, test_channels=test_channels_,
-                   shorts=shorts, n_channels=n_channels, n_reps=n_reps,
-                   no_connection=no_connection, figure_path=figure_path)
+    context = dict(c=c, c_threshold=c_threshold, figure_path=figure_path,
+                   n_channels=n_channels, n_reps=n_reps,
+                   no_connection=no_connection, shorts=shorts,
+                   test_channels=test_channels_)
 
     template = jinja2.Template(r'''
 # Test channels results: #
@@ -582,6 +583,14 @@ def generate_report(results, output_path=None, force=False):
     tests_with_figure = set(['test_channels', 'test_voltage',
                              'test_on_board_feedback_calibration'])
 
+    # Find starting time of earliest test (or current date and time if no
+    # timestamp is available).
+    min_timestamp = min([result_i['utc_timestamp']
+                         for result_i in results.itervalues()
+                         if 'utc_timestamp' in result_i] +
+                        [dt.datetime.utcnow().isoformat()])
+    header = ['# DropBot self test (*{}*)'.format(min_timestamp.split('.')[0])]
+
     if output_path is None:
         # Execute `format_<test name>_results` for each test to generate each
         # respective Markdown report.
@@ -590,7 +599,8 @@ def generate_report(results, output_path=None, force=False):
         md_results = map(eval, md_results_cmds)
 
         # Join Markdown reports, separated by horizontal bars.
-        md_report = (2 * '\n' + (72 * '-') + 2 * '\n').join(md_results)
+        md_report = (2 * '\n' + (72 * '-') + 2 * '\n').join(header +
+                                                            md_results)
 
         # No output path was specified.  Return text-only Markdown report.
         return md_report
@@ -615,7 +625,8 @@ def generate_report(results, output_path=None, force=False):
                       for name_i in ALL_TESTS]
 
         # Join Markdown reports, separated by horizontal bars.
-        md_report = (2 * '\n' + (72 * '-') + 2 * '\n').join(md_results)
+        md_report = (2 * '\n' + (72 * '-') + 2 * '\n').join(header +
+                                                            md_results)
 
         with markdown_path.open('w') as output:
             output.write(md_report)
