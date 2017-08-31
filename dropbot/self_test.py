@@ -12,6 +12,7 @@ import numpy as np
 import path_helpers as ph
 import si_prefix as si
 
+from . import NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS
 # Import test functions used by `self_test`.
 from .hardware_test import (ALL_TESTS, system_info, test_i2c, test_voltage,
                             test_shorts, test_on_board_feedback_calibration,
@@ -262,9 +263,7 @@ def plot_test_on_board_feedback_calibration_results(results, axis=None):
         fig, axis = mpl.pyplot.subplots(figsize=(3, 3))
         axis.set_aspect(True)
 
-    # TODO These nominal capacitance values should be added somewhere more
-    # general (perhaps in `dropbot/__init__.py`)?
-    C_nominal = np.array([0, 10e-12, 100e-12, 470e-12])
+    C_nominal = NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS.values
 
     axis.plot(C_nominal, results['c_measured'], 'o')
     axis.plot(C_nominal, C_nominal, 'k--')

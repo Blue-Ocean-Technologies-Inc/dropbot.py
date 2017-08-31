@@ -2,6 +2,7 @@ from collections import OrderedDict
 import warnings
 
 from path_helpers import path
+import pandas as pd
 
 from .version import getVersion
 
@@ -14,6 +15,9 @@ try:
 except (ImportError, TypeError), exception:
     warnings.warn(str(exception))
 
+NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS = pd.Series([0, 10e-12, 100e-12,
+                                                     470e-12],
+                                                    name='Capacitance (F)')
 
 def package_path():
     return path(__file__).parent
