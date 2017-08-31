@@ -107,6 +107,9 @@ def format_test_voltage_results(results, figure_path=None):
     '''
     .. versionadded:: 1.28
 
+    .. versionchanged:: 1.30
+        Format measured/target voltages as a table.
+
     Parameters
     ----------
     results : dict
@@ -199,6 +202,9 @@ def format_test_on_board_feedback_calibration_results(results,
     '''
     .. versionadded:: 1.28
 
+    .. versionchanged:: 1.30
+        Format measured/nominal voltages as a table.
+
     Parameters
     ----------
     results : dict
@@ -251,6 +257,10 @@ def format_test_on_board_feedback_calibration_results(results,
 def plot_test_on_board_feedback_calibration_results(results, axis=None):
     '''
     .. versionadded:: 1.28
+
+    .. versionchanged:: 1.30
+        Use :data:`NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS` from
+        :module:`__init__`.
 
     Plot summary of results from :func:`test_on_board_feedback_calibration`.
 
@@ -314,6 +324,11 @@ def format_test_shorts_results(results):
 def format_test_channels_results(results, figure_path=None):
     '''
     .. versionadded:: 1.28
+
+    .. versionchanged:: 1.30
+        Align plot to left.
+
+        Include channel count in message when all channels pass.
 
     Parameters
     ----------

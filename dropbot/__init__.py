@@ -15,9 +15,13 @@ try:
 except (ImportError, TypeError), exception:
     warnings.warn(str(exception))
 
+'''
+.. versionadded:: 1.30
+'''
 NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS = pd.Series([0, 10e-12, 100e-12,
                                                      470e-12],
                                                     name='Capacitance (F)')
+
 
 def package_path():
     return path(__file__).parent
@@ -81,4 +85,3 @@ def get_firmwares():
                                           board_dir.walkfiles('*.hex')])
                         for board_dir in
                         package_path().joinpath('firmware').dirs()])
-
