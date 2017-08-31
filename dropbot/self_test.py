@@ -66,6 +66,12 @@ def format_test_i2c_results(results):
     '''
     .. versionadded:: 1.28
 
+    .. versionchanged:: 1.29.2
+        Fix new lines between list items.
+
+        Prior to version *1.29.2*, the output did not have new lines separating
+        list items.
+
     Parameters
     ----------
     results : dict
@@ -78,10 +84,9 @@ def format_test_i2c_results(results):
     '''
     template = jinja2.Template(r'''
 # I2C scan: #
-
 {% if results['i2c_scan'] %}
 {%- for address in results['i2c_scan']|sort %}
-{%- set data = results['i2c_scan'][address] -%}
+{%- set data = results['i2c_scan'][address] %}
  - **`{{ address }}`**:
 {%- if 'name' in data %} {{ data['name'] }}{% endif %}
 {%- if 'hardware_version' in data %} v{{ data['hardware_version'] }}{% endif %}
@@ -89,9 +94,9 @@ def format_test_i2c_results(results):
 {%- endif %}
 {%- if 'uuid' in data %}, uuid: `{{ data['uuid'] }}`{% endif -%}
 {% endfor -%}
-{% else -%}
+{% else %}
 No devices found on I2C bus.
-{% endif -%}'''.strip())
+{%- endif -%}'''.strip())
 
     return template.render(results=results).strip()
 
