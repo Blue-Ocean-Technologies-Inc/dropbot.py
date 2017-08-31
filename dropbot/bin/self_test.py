@@ -3,6 +3,7 @@ import logging
 import sys
 
 import json_tricks
+import path_helpers as ph
 
 from .. import SerialProxy
 from ..hardware_test import ALL_TESTS
@@ -10,7 +11,8 @@ from ..self_test import (format_system_info_results, format_test_i2c_results,
                          format_test_voltage_results,
                          format_test_shorts_results,
                          format_test_on_board_feedback_calibration_results,
-                         format_test_channels_results, self_test)
+                         format_test_channels_results, generate_report,
+                         self_test)
 
 json_tricks.NumpyEncoder.SHOW_SCALAR_WARNING = False
 
@@ -24,16 +26,47 @@ def parse_args(args=None):
 
     parser = argparse.ArgumentParser(description='Execute DropBot self-tests.')
 
-    parser.add_argument('test', nargs='*', choices=ALL_TESTS + ['all'],
-                        help='Test(s) to run.  Default: %(default)s',
-                        default='all')
-    parser.add_argument('--json', help='Output in JSON format.',
-                        action='store_true')
+    subparsers = parser.add_subparsers(help='Commands', dest='command')
+
+    parser_test = subparsers.add_parser('test')
+    parser_test.add_argument('test', nargs='*', choices=ALL_TESTS + ['all'],
+                             help='Test(s) to run.  Default: %(default)s',
+                             default='all')
+    parser_test.add_argument('--json', help='Output in JSON format.',
+                             action='store_true')
+    parser_test.add_argument('-o', '--output-path', help='Output path',
+                             required=False)
+    parser_test.add_argument('-f', '--force', action='store_true',
+                             help='Force overwrite of existing file.',
+                             required=False)
+
+    parser_report = subparsers.add_parser('report')
+    parser_report.add_argument('input_path', help='Input JSON results file')
+    parser_report.add_argument('output_path', nargs='?', help='Output path '
+                               '(filepath with `.docx` extension or directory '
+                               'for Markdown output with figure images)')
+    parser_report.add_argument('-f', '--force', action='store_true',
+                               help='Force overwrite of existing output path.',
+                               required=False)
+
+    for subparser_i in (parser_test, parser_report):
+        subparser_i.add_argument('--launch', action='store_true',
+                                help='Launch output path after creation.',
+                                required=False)
 
     parsed_args = parser.parse_args(args)
 
-    if 'all' in parsed_args.test:
+    if parsed_args.command == 'test' and 'all' in parsed_args.test:
         parsed_args.test = None
+
+    if parsed_args.output_path:
+        parsed_args.output_path = ph.path(parsed_args.output_path)
+        if parsed_args.output_path.exists() and not parsed_args.force:
+            parser.error('Output path `%s` exists.  Use `--force` to '
+                         'overwrite.' % parsed_args.output_path)
+    elif parsed_args.launch:
+        parser.error('Launch output only makes sense when output path is '
+                     'specified.')
 
     return parsed_args
 
@@ -45,20 +78,34 @@ def main(argv=None):
     logging.basicConfig(format='%(message)s', level=logging.INFO)
     args = parse_args(args=argv)
 
-    proxy = SerialProxy(ignore=True)
-    results = self_test(proxy, tests=args.test)
+    if args.command == 'test':
+        proxy = SerialProxy(ignore=True)
+        results = self_test(proxy, tests=args.test)
 
-    if args.json:
-        # XXX Dump using `json_tricks` rather than `json` to add support for
-        # serializing `numpy` array and scalar types.
-        print json_tricks.dumps(results, indent=4)
+        if args.json:
+            # XXX Dump using `json_tricks` rather than `json` to add support for
+            # serializing `numpy` array and scalar types.
+            json_results = json_tricks.dumps(results, indent=4)
+            if args.output_path:
+                with args.output_path.open('w') as output:
+                    output.write(json_results)
+            else:
+                print json_results
+            return
+    elif args.command == 'report':
+        # XXX Load using `json_tricks` rather than `json` to add support for
+        # deserializing `numpy` array and scalar types.
+        with open(args.input_path, 'r') as input_:
+            results = json_tricks.loads(input_.read(), preserve_order=False)
+
+    if args.output_path:
+        generate_report(results, output_path=args.output_path,
+                        force=args.force)
+        if args.launch:
+            # Launch output path (either directory or Word document).
+            args.output_path.launch()
     else:
-        for test_name_i in (args.test if args.test is not None else ALL_TESTS):
-            format_func_i = eval('format_%s_results' % test_name_i)
-            results_i = results[test_name_i]
-            if results_i:
-                print format_func_i(results_i)
-                print 72 * '-'
+        print generate_report(results)
 
 
 if __name__ == '__main__':

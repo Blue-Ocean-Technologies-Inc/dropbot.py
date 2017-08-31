@@ -343,7 +343,7 @@ def format_test_channels_results(results, figure_path=None):
         except ValueError:
             pass
 
-    if figure_path:
+    if len(c) and figure_path:
         figure_path = ph.path(figure_path).realpath()
         # Make parent directories if they don't exist.
         figure_path.parent.makedirs_p()
