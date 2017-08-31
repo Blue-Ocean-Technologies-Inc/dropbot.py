@@ -1,12 +1,15 @@
 import argparse
+import datetime as dt
 import logging
 import sys
 
+import jinja2
 import json_tricks
 import path_helpers as ph
 
 from .. import SerialProxy
 from ..hardware_test import ALL_TESTS
+# Import format functions functions used by `main`.
 from ..self_test import (format_system_info_results, format_test_i2c_results,
                          format_test_voltage_results,
                          format_test_shorts_results,
@@ -51,8 +54,8 @@ def parse_args(args=None):
 
     for subparser_i in (parser_test, parser_report):
         subparser_i.add_argument('--launch', action='store_true',
-                                help='Launch output path after creation.',
-                                required=False)
+                                 help='Launch output path after creation.',
+                                 required=False)
 
     parsed_args = parser.parse_args(args)
 
@@ -78,6 +81,23 @@ def main(argv=None):
     logging.basicConfig(format='%(message)s', level=logging.INFO)
     args = parse_args(args=argv)
 
+    def _render_output_path(output_path):
+        # Find starting time of earliest test (or current date and time if no
+        # timestamp is available).
+        min_timestamp = min([result_i['utc_timestamp']
+                             for result_i in results.itervalues()
+                             if 'utc_timestamp' in result_i] +
+                            [dt.datetime.utcnow().isoformat()])
+        # Get control board UUID from system info.
+        uuid = (results.get('system_info', {}).get('control board', {})
+                .get('uuid'))
+        # Perform string substitution for timestamp and UUID in output path.
+        template = jinja2.Template(output_path)
+        return ph.path(template.render(full_timestamp=min_timestamp,
+                                       timestamp=min_timestamp
+                                       .replace(':', '_').replace('-', '_')
+                                       .split('.')[0], uuid=uuid))
+
     if args.command == 'test':
         proxy = SerialProxy(ignore=True)
         results = self_test(proxy, tests=args.test)
@@ -87,8 +107,12 @@ def main(argv=None):
             # serializing `numpy` array and scalar types.
             json_results = json_tricks.dumps(results, indent=4)
             if args.output_path:
-                with args.output_path.open('w') as output:
+                # Perform string substitution for timestamp and UUID in output
+                # path.
+                output_path = _render_output_path(args.output_path)
+                with output_path.open('w') as output:
                     output.write(json_results)
+                print output_path
             else:
                 print json_results
             return
@@ -99,11 +123,12 @@ def main(argv=None):
             results = json_tricks.loads(input_.read(), preserve_order=False)
 
     if args.output_path:
-        generate_report(results, output_path=args.output_path,
-                        force=args.force)
+        # Perform string substitution for timestamp and UUID in output path.
+        output_path = _render_output_path(args.output_path)
+        generate_report(results, output_path=output_path, force=args.force)
         if args.launch:
             # Launch output path (either directory or Word document).
-            args.output_path.launch()
+            output_path.launch()
     else:
         print generate_report(results)
 
