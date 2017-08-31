@@ -11,14 +11,21 @@ package:
   version: {{ GIT_DESCRIBE_TAG[1:] }}.0
 {% endif %}
 
+build:
+  entry_points:
+    # .. versionadded:: 1.28
+    - dropbot-self-test = dropbot.bin.self_test:main
+
 requirements:
   build:
     - arduino-linked-list >=1.2.3
     - arduino-fast-digital
     - arduino-slow-soft-wire
     - future
+    - json-tricks
     - nanopb-helpers >=0.6
     - paver
+    - pandoc
     - pip
     - platformio-framework-arduinoteensy >=1.136.0
     - platformio-helpers >=0.3
@@ -36,7 +43,9 @@ requirements:
     - arduino-linked-list >=1.2.3
     - arduino-fast-digital
     - arduino-slow-soft-wire
+    - json-tricks
     - nanopb-helpers >=0.6
+    - pandoc
     - platformio-helpers >=0.3
     - platformio-tool-scons
     - platformio-tool-teensy >=1.21.0

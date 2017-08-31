@@ -1,15 +1,22 @@
+from functools import wraps
+import datetime as dt
+import logging
 import time
 import uuid
-import pprint
-import datetime as dt
-from functools import wraps
-import json
-import os
-import os.path
 
-import numpy as np
 from base_node import BaseNode
-from dropbot import SerialProxy, metadata
+from dropbot import metadata
+import json_tricks
+import numpy as np
+import path_helpers as ph
+
+
+__all__ = ['system_info', 'test_i2c', 'test_voltage', 'test_shorts',
+           'test_on_board_feedback_calibration', 'test_channels']
+
+
+ALL_TESTS = ['system_info', 'test_i2c', 'test_voltage', 'test_shorts',
+             'test_on_board_feedback_calibration', 'test_channels']
 
 
 def restore_state(f):
@@ -33,6 +40,7 @@ def restore_state(f):
         return result
     return _decorator
 
+
 def time_it(f):
     """
     Wrapper for timing each test and adding the duration and a
@@ -40,7 +48,6 @@ def time_it(f):
     """
     @wraps(f)
     def _decorator(*args, **kwargs):
-        proxy = args[0]
         start_time = time.time()
         result = f(*args, **kwargs)
         result['duration'] = time.time() - start_time
@@ -50,28 +57,32 @@ def time_it(f):
 
 
 def log_results(results, output_dir):
-    # need to create a custom encoder to serialize numpy datatypes
-    class MyEncoder(json.JSONEncoder):
-        def default(self, obj):
-            if isinstance(obj, np.integer):
-                return int(obj)
-            elif isinstance(obj, np.uint8):
-                return float(obj)
-            elif isinstance(obj, np.floating):
-                return float(obj)
-            elif isinstance(obj, np.ndarray):
-                return obj.tolist()
-            else:
-                return super(MyEncoder, self).default(obj)
-    
-    # write the results to a file
-    filepath = os.path.join(output_dir, 'results-%s.json' % (
-        dt.datetime.utcnow().isoformat().replace(':', '.')))
+    '''
+    .. versionchanged:: 1.28
+        Use ` `json_tricks.dumps``
+        <http://json-tricks.readthedocs.io/en/latest/#dumps>`_ to dump results.
 
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
-    with open(filepath, 'w') as output:
-        json.dump(results, output, cls=MyEncoder)
+    Parameters
+    ----------
+    results : dict
+        Test results.
+    output_dir : str
+        Path to output directory.
+    '''
+    output_dir = ph.path(output_dir)
+
+    # Make output directory if it doesn't exist.
+    output_dir.makedirs_p()
+
+    # Construct filename based on current UTC date and time.
+    filepath = output_dir.joinpath('results-%s.json' % dt.datetime.utcnow()
+                                   .isoformat().replace(':', '.'))
+
+    # write the results to a file
+    with filepath.open('w') as output:
+        # Use `json_tricks` to serialize `numpy` array **and** scalar data
+        # types.
+        json_tricks.dump(results, output)
 
 
 @time_it
@@ -87,11 +98,11 @@ def system_info(proxy):
 
     Returns
     -------
-    dictionary
+    dict
         Nested dictionary containing system info.
     '''
     results = {}
-    
+
     results['control board'] = {}
     results['control board']['uuid'] = str(proxy.uuid)
     results['control board']['properties'] = proxy.properties.to_dict()
@@ -113,7 +124,7 @@ def test_i2c(proxy):
 
     Returns
     -------
-    dictionary
+    dict
         Nested dictionary (keyed by i2c address) containing metadata
         (e.g., uuid, name, software version, hardwar version) for each of the
         devices on the i2c bus.
@@ -124,10 +135,11 @@ def test_i2c(proxy):
         if address in [32, 33, 34]:
             node = BaseNode(proxy, int(address))
             info = {'name': node.name().split('\0', 1)[0],
-                    'hardware_version': node.hardware_version().split('\0', 1)[0],
-                    'software_version': node.software_version().split('\0', 1)[0],
-                    'uuid': str(node.uuid)
-                   }
+                    'hardware_version':
+                    node.hardware_version().split('\0', 1)[0],
+                    'software_version':
+                    node.software_version().split('\0', 1)[0],
+                    'uuid': str(node.uuid)}
             results['i2c_scan'].update({int(address): info})
         elif address == 80:
             n_bytes = proxy.i2c_eeprom_read(80, 0, 1)
@@ -135,8 +147,7 @@ def test_i2c(proxy):
             board = metadata.Hardware.FromString(data.tobytes())
             info = {'name': board.name,
                     'hardware_version': board.version,
-                    'uuid': str(uuid.UUID(bytes=board.uuid))
-                   }
+                    'uuid': str(uuid.UUID(bytes=board.uuid))}
             results['i2c_scan'].update({int(address): info})
         elif address == proxy.config.i2c_address:
             pass
@@ -164,7 +175,7 @@ def test_voltage(proxy, n=5, delay=0.1):
 
     Returns
     -------
-    dictionary   
+    dict
         target_voltage: list
             List of target voltages.
         measured_voltage: list
@@ -216,7 +227,7 @@ def test_shorts(proxy):
 
     Returns
     -------
-    dictionary
+    dict
         shorts : list
             List of shorted channels.
 
@@ -236,7 +247,7 @@ def test_on_board_feedback_calibration(proxy):
 
     Returns
     -------
-    dictionary
+    dict
         c : list
             List of measured capacitance values for each of the
             test capacitors.
@@ -274,7 +285,7 @@ def test_channels(proxy, n_reps=1, test_channels=None, shorts=None):
 
     Returns
     -------
-    dictionary
+    dict
         test_channels : list
             List of channels tested.
         shorts : list
@@ -289,12 +300,11 @@ def test_channels(proxy, n_reps=1, test_channels=None, shorts=None):
         shorts = proxy.detect_shorts()
     if not test_channels:
         test_channels = np.arange(0, n_channels)
-    
+
     proxy.voltage = 100
     proxy.hv_output_enabled = True
     proxy.hv_output_selected = True
 
-    threshold = 5e-12
     c = np.zeros([n_channels, n_reps])
 
     for i, channel_i in enumerate(test_channels):
