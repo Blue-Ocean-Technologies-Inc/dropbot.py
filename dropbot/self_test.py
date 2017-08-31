@@ -9,6 +9,7 @@ import matplotlib as mpl
 import matplotlib.pyplot
 import matplotlib.ticker
 import numpy as np
+import pandas as pd
 import path_helpers as ph
 import si_prefix as si
 
@@ -125,11 +126,12 @@ def format_test_voltage_results(results, figure_path=None):
         If :data:`figure_path` was specified, summary figure is written to the
         specified path.
     '''
-    measured_voltage = np.array(results['measured_voltage'])
-    target_voltage = np.array(results['target_voltage'])
+    voltages = pd.DataFrame(np.column_stack([results['target_voltage'],
+                                             results['measured_voltage']]),
+                            columns=['target', 'measured'])
     # Calculate the average rms error
-    error = measured_voltage - target_voltage
-    rms_error = 100 * np.sqrt(np.mean((error / target_voltage)**2))
+    error = voltages['measured'] - voltages['target']
+    rms_error = 100 * np.sqrt(np.mean((error / voltages['target'])**2))
 
     if figure_path:
         figure_path = ph.path(figure_path).realpath()
@@ -143,16 +145,17 @@ def format_test_voltage_results(results, figure_path=None):
     template = jinja2.Template(r'''
 # Test voltage results: #
 
- - **Target voltage**:   `{{ target_voltage }}`
- - **Measured voltage**: `{{ measured_voltage }}`
+ - **Output voltages**:
+
+{{ voltages.T|string|indent(8, True) }}
  - **Root-mean-squared (RMS) error**: {{ '{:.1f}'.format(rms_error) }}%
 {%- if figure_path %}
    ![Measured vs target voltage]({{ figure_path }})
 {%- endif %}
     '''.strip())
 
-    return template.render(results=results, target_voltage=target_voltage,
-                           measured_voltage=measured_voltage,
+    return template.render(results=results, voltages=voltages
+                           .applymap(lambda x: '%sV' % si.si_format(x)),
                            rms_error=rms_error,
                            figure_path=figure_path).strip()
 
@@ -216,7 +219,12 @@ def format_test_on_board_feedback_calibration_results(results,
         If :data:`figure_path` was specified, summary figure is written to the
         specified path.
     '''
-    c_measured = np.array(results['c_measured'])
+    C_nominal = NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS
+    capacitances = (pd.DataFrame(np.column_stack([C_nominal.values,
+                                                  results['c_measured']]),
+                                 columns=['nominal',
+                                          'measured']).T
+                    .applymap(lambda x: '%sF' % si.si_format(x)))
 
     if figure_path:
         figure_path = ph.path(figure_path).realpath()
@@ -230,11 +238,13 @@ def format_test_on_board_feedback_calibration_results(results,
     template = jinja2.Template(r'''
 # Test on-board feedback calibration results: #
 
- - **Measured capacitance**: `{{ c_measured }}`
+ - **Measured capacitance**:
+
+{{ capacitances|string|indent(8, True) }}
 {%- if figure_path %}
    ![On-board feedback calibration capacitors]({{ figure_path }})
 {%- endif %}'''.strip())
-    return template.render(results=results, c_measured=c_measured,
+    return template.render(results=results, capacitances=capacitances,
                            figure_path=figure_path)
 
 
