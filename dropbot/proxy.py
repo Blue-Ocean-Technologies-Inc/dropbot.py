@@ -329,6 +329,50 @@ try:
         def hv_output_selected(self, value):
             return self.update_state(hv_output_selected=value)
 
+        def _disabled_channels_mask(self):
+            '''
+            Prepend underscore to the auto-generated disabled_channels_mask accessor
+            '''
+            return super(ProxyMixin, self).disabled_channels_mask()
+
+        def _set_disabled_channels_mask(self, mask):
+            '''
+            Prepend underscore to the auto-generated disabled_channels_mask setter
+            '''
+            return super(ProxyMixin, self).set_disabled_channels_mask(mask)
+
+        @property
+        def disabled_channels_mask(self):
+            '''
+            Retrieve the mask bytes from the device and unpack them into an
+            array with one entry per channel.  Return unpacked array.
+
+            Notes
+            -----
+
+            State of mask for each channel is binary, 0 or 1.  On device,
+            mask states are stored in bytes, where each byte corresponds to
+            the mask state for eight channels.
+            '''
+            return np.unpackbits(super(ProxyMixin, self).disabled_channels_mask()[::-1])[::-1]
+
+        @disabled_channels_mask.setter
+        def disabled_channels_mask(self, mask):
+            self.set_disabled_channels_mask(mask)
+
+        def set_disabled_channels_mask(self, mask):
+            '''
+            Pack array containing one entry per channel to bytes (8 channels
+            per byte).  Set disabled channels mask on device using mask bytes.
+
+            See also: `disabled_channels_mask` (get)
+            '''
+            if len(mask) != self.number_of_channels:
+                raise ValueError('Error setting disabled channels mask.  Check '
+                                 'size of mask matches channel count.')
+            super(ProxyMixin, self).set_disabled_channels_mask(
+                      np.packbits(mask.astype(int)[::-1])[::-1])
+
         def _state_of_channels(self):
             '''
             Prepend underscore to the auto-generated state_of_channels accessor
@@ -344,7 +388,7 @@ try:
         @property
         def state_of_channels(self):
             '''
-            Retrieve the state bytes from the device and unpacks them into an
+            Retrieve the state bytes from the device and unpack them into an
             array with one entry per channel.  Return unpacked array.
 
             Notes
