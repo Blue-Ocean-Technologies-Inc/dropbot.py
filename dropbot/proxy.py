@@ -420,9 +420,12 @@ try:
                       np.packbits(states.astype(int)[::-1])[::-1])
 
                 # Verify that the state we set matches the current state
+                # (don't include disabled channels)
                 current_state = self.state_of_channels
                 try:
-                    assert(np.all(np.equal(current_state, states)))
+                    assert(np.all(np.equal(np.logical_and(states,
+                        np.logical_not(self.disabled_channels_mask)),
+                        current_state)))
                     return
                 except:
                     if retry < 3:
