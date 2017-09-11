@@ -1,15 +1,17 @@
 from functools import wraps
 import datetime as dt
-import logging
 import time
 import uuid
 
 from base_node import BaseNode
 from dropbot import metadata
+# XXX Use `json_tricks` rather than standard `json` to support serializing
+# [Numpy arrays and scalars][1].
+#
+# [1]: http://json-tricks.readthedocs.io/en/latest/#numpy-arrays
 import json_tricks
 import numpy as np
 import path_helpers as ph
-
 
 __all__ = ['system_info', 'test_i2c', 'test_voltage', 'test_shorts',
            'test_on_board_feedback_calibration', 'test_channels']
@@ -17,6 +19,10 @@ __all__ = ['system_info', 'test_i2c', 'test_voltage', 'test_shorts',
 
 ALL_TESTS = ['system_info', 'test_i2c', 'test_voltage', 'test_shorts',
              'test_on_board_feedback_calibration', 'test_channels']
+
+# Prevent warning about potential future changes to Numpy scalar encoding
+# behaviour.
+json_tricks.NumpyEncoder.SHOW_SCALAR_WARNING = False
 
 
 def restore_state(f):
@@ -80,8 +86,10 @@ def log_results(results, output_dir):
 
     # write the results to a file
     with filepath.open('w') as output:
-        # Use `json_tricks` to serialize `numpy` array **and** scalar data
-        # types.
+        # XXX Use `json_tricks` rather than standard `json` to support
+        # serializing [Numpy arrays and scalars][1].
+        #
+        # [1]: http://json-tricks.readthedocs.io/en/latest/#numpy-arrays
         json_tricks.dump(results, output)
 
 
@@ -275,10 +283,10 @@ def test_channels(proxy, n_reps=1, test_channels=None, shorts=None):
     Parameters
     ----------
     proxy : Proxy
-    n : int
+    n_reps : int
         Number of reps per channel (default=1).
     test_channels : list
-        List of channels to test (default=all channesl).
+        List of channels to test (default=all channels).
     shorts : list
         List of channels with shorts (if this is not provided, the device will
         perform a scan for shorts).
