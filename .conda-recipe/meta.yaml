@@ -23,6 +23,8 @@ requirements:
     - arduino-linked-list >=1.2.3
     - arduino-fast-digital
     - arduino-slow-soft-wire
+    # ..versionadded:: 1.31
+    - base-node-rpc >=0.31
     - future
     - json-tricks
     - nanopb-helpers >=0.6
@@ -45,6 +47,8 @@ requirements:
     - arduino-linked-list >=1.2.3
     - arduino-fast-digital
     - arduino-slow-soft-wire
+    # ..versionadded:: 1.31
+    - base-node-rpc >=0.31
     - json-tricks
     - nanopb-helpers >=0.6
     - pandoc
