@@ -2,6 +2,7 @@
 setlocal enableextensions
 md "%PREFIX%"\Library\include\Arduino
 md "%PREFIX%"\Library\bin\platformio\dropbot\teensy31
+md "%PREFIX%\Menu"
 endlocal
 
 REM Generate Arduino/Python code
@@ -31,4 +32,11 @@ REM an `if` block to only execute during package installation.
 
 REM Install source directory as Python package.
 "%PYTHON%" -m pip install --no-cache .
+if errorlevel 1 exit 1
+
+copy "%RECIPE_DIR%\firmware-upload-icon.ico" "%PREFIX%\Menu"
+if errorlevel 1 exit 1
+copy "%RECIPE_DIR%\dropbot.json" "%PREFIX%\Menu"
+if errorlevel 1 exit 1
+copy "%RECIPE_DIR%\dropbot-info-icon.ico" "%PREFIX%\Menu"
 if errorlevel 1 exit 1
