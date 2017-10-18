@@ -3,13 +3,14 @@ import math
 import time
 import uuid
 
-import pandas as pd
 from base_node_rpc.proxy import ConfigMixinBase, StateMixinBase
 from path_helpers import path
 from teensy_minimal_rpc.adc_sampler import AdcDmaMixin
 import numpy as np
+import pandas as pd
 import serial
 import serial_device as sd
+
 from .bin.upload import upload
 from . import __version__
 
@@ -138,7 +139,7 @@ try:
                     self.initialize_switching_boards()
                 elif I2cAddressNotSet not in ignore:
                     raise I2cAddressNotSet()
-            except Exception, exception:
+            except Exception:
                 logger.debug('Error connecting to device.', exc_info=True)
                 self.terminate()
                 raise
@@ -165,10 +166,10 @@ try:
             for i in range(int(math.ceil(len(data) / float(i2c_packet_size)))):
                 start = i * i2c_packet_size
                 end = min((i + 1) * i2c_packet_size, len(data))
-                self.i2c_write(i2c_address,
-                            [eeprom_address + start] + (end - start) * [255])
-                self.i2c_write(i2c_address,
-                            [eeprom_address + start] + data[start:end])
+                self.i2c_write(i2c_address, [eeprom_address + start] +
+                               (end - start) * [255])
+                self.i2c_write(i2c_address, [eeprom_address + start] +
+                               data[start:end])
 
         def i2c_eeprom_read(self, i2c_address, eeprom_address, length):
             '''
@@ -206,7 +207,9 @@ try:
                 # turn off the high voltage when we disconnect
                 self.hv_output_enabled = False
                 super(ProxyMixin, self).__del__()
-            except: # ignore any exceptions (e.g., if we can't communicate with the board)
+            except Exception:
+                # ignore any exceptions (e.g., if we can't communicate with the
+                # board)
                 pass
 
         def i2c_send_command(self, address, cmd, data):
@@ -216,9 +219,9 @@ try:
 
         def measure_capacitance(self, n_samples=50):
             df_volts = pd.DataFrame({'volts':
-                self.analog_reads_simple(11, n_samples) * 3.3 / 2**16})
+                                     self.analog_reads_simple(11, n_samples) *
+                                     3.3 / 2**16})
             v_gnd = np.mean(df_volts)
-            v_rms = np.sqrt(np.mean((df_volts - v_gnd)**2))
             v_abs = np.abs(df_volts - v_gnd)
             v_abs_mean = np.mean(v_abs)
             filter_th = v_abs_mean * 1.5
@@ -279,8 +282,9 @@ try:
             return results
 
         def measure_output_current(self, n=2000):
-            i = self.analog_reads_simple(2, n) / 2.0**16 * 3.3 / (51e3 / 5.1e3 * 1)
-            results = dict(rms=np.mean(i), max=np.max(i))
+            current = (self.analog_reads_simple(2, n) / 2.0**16 * 3.3 /
+                       (51e3 / 5.1e3 * 1))
+            results = dict(rms=np.mean(current), max=np.max(current))
             return results
 
         def measure_input_voltage(self):
@@ -360,7 +364,8 @@ try:
 
             ..versionadded:: 1.34
             '''
-            return np.unpackbits(super(ProxyMixin, self).disabled_channels_mask()[::-1])[::-1]
+            return np.unpackbits(super(ProxyMixin, self)
+                                 .disabled_channels_mask()[::-1])[::-1]
 
         @disabled_channels_mask.setter
         def disabled_channels_mask(self, mask):
@@ -406,7 +411,8 @@ try:
             stored in bytes, where each byte corresponds to the state of eight
             channels.
             '''
-            return np.unpackbits(super(ProxyMixin, self).state_of_channels()[::-1])[::-1]
+            return np.unpackbits(super(ProxyMixin, self)
+                                 .state_of_channels()[::-1])[::-1]
 
         @state_of_channels.setter
         def state_of_channels(self, states):
@@ -435,17 +441,19 @@ try:
                         np.logical_not(self.disabled_channels_mask)),
                         current_state)))
                     return
-                except:
+                except Exception:
                     if retry < 3:
                         # if not, reset the switching boards and try again
                         self.reset_switching_boards()
                         continue
                     else:
-                        raise CommunicationError('Error setting the state of channels')
+                        raise CommunicationError('Error setting the state of '
+                                                 'channels')
+
         def reset_switching_boards(self):
             '''
-            If pin A9 (D23) is jumpered to the reset pins of the switching boards,
-            this method provides a software reset.
+            If pin A9 (D23) is jumpered to the reset pins of the switching
+            boards, this method provides a software reset.
             '''
             self.pin_mode(23, 1)
             self.digital_write(23, 0)
@@ -491,7 +499,7 @@ try:
         def port(self):
             try:
                 port = self.serial_thread.protocol.port
-            except:
+            except Exception:
                 port = None
             return port
 
