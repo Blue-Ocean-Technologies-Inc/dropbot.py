@@ -39,7 +39,8 @@ requirements:
     - platformio-toolchain-gccarmnoneeabi
     - pytables
     - python 2.7*
-    - serial-device >=0.7
+    # ..versionchanged:: 1.33
+    - serial-device >=0.9
     - teensy-minimal-rpc >=0.4
     - base-node-rpc >=0.27
 
@@ -58,7 +59,8 @@ requirements:
     - protobuf
     - pytables
     - python 2.7*
-    - serial-device >=0.7
+    # ..versionchanged:: 1.33
+    - serial-device >=0.9
     - teensy-minimal-rpc >=0.4
     - base-node
     - base-node-rpc >=0.27

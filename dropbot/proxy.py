@@ -37,8 +37,14 @@ def serial_ports():
         the `Teensy 3.2`_ board.
 
     .. Teensy 3.2: https://www.pjrc.com/store/teensy32.html
+
+    .. versionchanged:: 1.33
+        Only return serial ports that are available for access.  This, for
+        example, will not include ports that are already opened.
     '''
-    df_comports = sd.comports()
+    # Get list of ports that are available for connecting to (do not include
+    # ports that are not available).
+    df_comports = sd.comports(only_available=True)
     # Match COM ports with USB vendor ID and product IDs for [Teensy 3.2
     # device][1].
     #
@@ -477,10 +483,7 @@ try:
     class SerialProxy(ProxyMixin, _SerialProxy):
         def __init__(self, **kwargs):
             if 'port' not in kwargs:
-                # No port was explicitly set.  Only try connecting to ports
-                # that correspond to a [Teensy 3.2 device][1].
-                #
-                # [1]: https://www.pjrc.com/store/teensy32.html
+                # No port was explicitly set.  Use default list of ports.
                 port = serial_ports().index.tolist()
                 if port:
                     kwargs['port'] = port
