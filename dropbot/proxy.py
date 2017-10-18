@@ -545,6 +545,18 @@ try:
 
     class SerialProxy(ProxyMixin, _SerialProxy):
         def __init__(self, **kwargs):
+            '''
+            Parameters
+            ----------
+            port : str or list
+                Serial port to attempt connection to.
+
+                If specified as a :class:`list`, try each port, in order, until
+                a successful connection is established.
+            **kwargs
+                Extra keyword arguments to pass on to
+                :class:`base_node_rpc.proxy.SerialProxyMixin`.
+            '''
             if 'port' not in kwargs:
                 # No port was explicitly set.  Use default list of ports.
                 port = serial_ports().index.tolist()
