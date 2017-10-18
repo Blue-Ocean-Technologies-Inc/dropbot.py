@@ -332,12 +332,16 @@ try:
         def _disabled_channels_mask(self):
             '''
             Prepend underscore to the auto-generated disabled_channels_mask accessor
+
+            ..versionadded:: 1.34
             '''
             return super(ProxyMixin, self).disabled_channels_mask()
 
         def _set_disabled_channels_mask(self, mask):
             '''
             Prepend underscore to the auto-generated disabled_channels_mask setter
+
+            ..versionadded:: 1.34
             '''
             return super(ProxyMixin, self).set_disabled_channels_mask(mask)
 
@@ -353,6 +357,8 @@ try:
             State of mask for each channel is binary, 0 or 1.  On device,
             mask states are stored in bytes, where each byte corresponds to
             the mask state for eight channels.
+
+            ..versionadded:: 1.34
             '''
             return np.unpackbits(super(ProxyMixin, self).disabled_channels_mask()[::-1])[::-1]
 
@@ -366,6 +372,8 @@ try:
             per byte).  Set disabled channels mask on device using mask bytes.
 
             See also: `disabled_channels_mask` (get)
+
+            ..versionadded:: 1.34
             '''
             if len(mask) != self.number_of_channels:
                 raise ValueError('Error setting disabled channels mask.  Check '
