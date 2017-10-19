@@ -86,6 +86,9 @@ try:
             .. versionchanged:: 1.27
                 Add ``ignore`` parameter.
 
+            .. versionchanged:: 1.34.1
+                Add message to :class:`NoPower` exception.
+
             Parameters
             ----------
             ignore : bool or list, optional
@@ -131,7 +134,8 @@ try:
 
                 # Check that we have power
                 if NoPower not in ignore and self.measure_voltage() < 5:
-                    raise NoPower()
+                    raise NoPower('Please check that 12V power supply is '
+                                  'connected.')
 
                 # Only initialize switching boards if the control board has
                 # been assigned an i2c address.
