@@ -149,9 +149,9 @@ def test_i2c(proxy):
                     node.software_version().split('\0', 1)[0],
                     'uuid': str(node.uuid)}
             results['i2c_scan'].update({int(address): info})
-        elif address == 80:
-            n_bytes = proxy.i2c_eeprom_read(80, 0, 1)
-            data = proxy.i2c_eeprom_read(80, 1, n_bytes)
+        elif address in [80, 81]:
+            n_bytes = proxy.i2c_eeprom_read(address, 0, 1)
+            data = proxy.i2c_eeprom_read(address, 1, n_bytes)
             board = metadata.Hardware.FromString(data.tobytes())
             info = {'name': board.name,
                     'hardware_version': board.version,
