@@ -1,3 +1,4 @@
+#define TWI_BUFFER_LENGTH 160
 #include "Arduino.h"
 #include "EEPROM.h"
 #include "Wire.h"
