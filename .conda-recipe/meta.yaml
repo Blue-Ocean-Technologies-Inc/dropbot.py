@@ -26,7 +26,8 @@ requirements:
     - arduino-fast-digital
     - arduino-slow-soft-wire
     # ..versionadded:: 1.31
-    - base-node-rpc >=0.31
+    # ..versionchanged:: 1.37
+    - base-node-rpc >=0.34
     - future
     - json-tricks
     - nanopb-helpers >=0.6
@@ -51,7 +52,8 @@ requirements:
     - arduino-fast-digital
     - arduino-slow-soft-wire
     # ..versionadded:: 1.31
-    - base-node-rpc >=0.31
+    # ..versionchanged:: 1.37
+    - base-node-rpc >=0.34
     - json-tricks
     - nanopb-helpers >=0.6
     - pandoc
