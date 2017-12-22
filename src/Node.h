@@ -398,7 +398,7 @@ public:
 
         Wire.requestFrom(config_._.switching_board_i2c_address + chip, 1);
         if (Wire.available()) {
-          state_of_channels_[chip*5 + port] = ~Wire.read();
+          state_of_channels_[chip * 5 + port] = ~Wire.read();
         } else {
           return UInt8Array_init_default();
         }
@@ -411,7 +411,7 @@ public:
   UInt8Array disabled_channels_mask() {
     return UInt8Array_init(state_._.channel_count / 8,
                            (uint8_t *)&disabled_channels_mask_[0]);
-  }  
+  }
 
   bool set_disabled_channels_mask(UInt8Array disabled_channels_mask) {
     if (disabled_channels_mask.length == state_._.channel_count / 8) {
@@ -446,8 +446,8 @@ public:
     for (uint8_t chip = 0; chip < state_._.channel_count / 40; chip++) {
       for (uint8_t port = 0; port < 5; port++) {
         data[0] = PCA9505_OUTPUT_PORT_REGISTER + port;
-        data[1] = ~(state_of_channels_[chip*5 + port] & 
-                    ~disabled_channels_mask_[chip*5 + port]);
+        data[1] = ~(state_of_channels_[chip * 5 + port] &
+                    ~disabled_channels_mask_[chip * 5 + port]);
         i2c_write(config_._.switching_board_i2c_address + chip,
                   UInt8Array_init(2, (uint8_t *)&data[0]));
         // XXX Need the following delay if we are operating with a 400kbps
