@@ -20,6 +20,7 @@
 #include <ADC.h>
 #include <RingBufferDMA.h>
 #include <DMAChannel.h>
+#include <InputDebounce.h>
 #include <TeensyMinimalRpc/ADC.h>  // Analog to digital converter
 #include <TeensyMinimalRpc/DMA.h>  // Direct Memory Access
 #include <TeensyMinimalRpc/SIM.h>  // System integration module (clock gating)
@@ -36,6 +37,7 @@
 #include "dropbot_state_validate.h"
 #include "Dropbot/config_pb.h"
 #include "Dropbot/state_pb.h"
+#include "packet_stream.h"
 
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
 #define CPU_RESTART_VAL 0x5FA0004
@@ -116,6 +118,35 @@ typedef nanopb::EepromMessage<dropbot_Config,
 typedef nanopb::Message<dropbot_State,
                         state_validate::Validator<Node> > state_t;
 
+
+/* Class to detect chip insertion/removal and publish corresponding events to
+ * serial stream. */
+class OutputEnableDebounce : public InputDebounce {
+public:
+  OutputEnableDebounce(int8_t pinIn=-1, unsigned long
+                       debDelay=DEFAULT_INPUT_DEBOUNCE_DELAY,
+                       PinInMode pinInMode=PIM_INT_PULL_UP_RES,
+                       unsigned long pressedDuration=0)
+    : InputDebounce(pinIn, debDelay, pinInMode, pressedDuration) {}
+  virtual ~OutputEnableDebounce() {}
+protected:
+  virtual void pressed() {
+    PacketStream output;
+    stream_byte_type data[] = "{\"event\": \"output_enabled\"}";
+    output.start(Serial, sizeof(data) - 1);
+    output.write(Serial, data, sizeof(data) - 1);
+    output.end(Serial);
+  }
+  virtual void released() {
+    PacketStream output;
+    stream_byte_type data[] = "{\"event\": \"output_disabled\"}";
+    output.start(Serial, sizeof(data) - 1);
+    output.write(Serial, data, sizeof(data) - 1);
+    output.end(Serial);
+  }
+};
+
+
 // XXX For control-board hardware version v3.5
 class Node :
   public BaseNode,
@@ -158,6 +189,9 @@ public:
   static const uint8_t CAPACITANCE_10PF_PIN = 1;
   static const uint8_t CAPACITANCE_100PF_PIN = 2;
 
+  // High-voltage Output Enable pin
+  static const uint8_t OE_PIN = 22;
+
   // PCA9505 (gpio) chip/register addresses
   static const uint8_t PCA9505_CONFIG_IO_REGISTER = 0x18;
   static const uint8_t PCA9505_OUTPUT_PORT_REGISTER = 0x08;
@@ -191,15 +225,22 @@ public:
   bool watchdog_disable_request_;
   base_node_rpc::FastAnalogWrite fast_analog_;
 
+  // Detect chip insertion/removal.
+  OutputEnableDebounce output_enable_input;
+
   Node() : BaseNode(),
            BaseNodeConfig<config_t>(dropbot_Config_fields),
            BaseNodeState<state_t>(dropbot_State_fields), dmaBuffer_(NULL),
            adc_period_us_(0), adc_timestamp_us_(0), adc_tick_tock_(false),
            adc_count_(0), dma_adc_active_(false), dma_channel_done_(-1),
            last_dma_channel_done_(-1), adc_read_active_(false),
-           dma_stream_id_(0), watchdog_disable_request_(false) {
+           dma_stream_id_(0), watchdog_disable_request_(false),
+           output_enable_input(-1, DEFAULT_INPUT_DEBOUNCE_DELAY,
+                               InputDebounce::PinInMode::PIM_EXT_PULL_UP_RES,
+                               0) {
     pinMode(LED_BUILTIN, OUTPUT);
     dma_data_ = UInt8Array_init_default();
+    output_enable_input.setup(OE_PIN);
   }
 
   UInt8Array get_buffer() { return UInt8Array_init(sizeof(buffer_), buffer_); }
@@ -520,6 +561,11 @@ public:
 
   /** Called periodically from the main program loop. */
   void loop() {
+    unsigned long now = millis();
+
+    // poll button state
+    output_enable_input.process(now);
+
     fast_analog_.update();
     if (watchdog_disable_request_) {
       watchdog_disable_request_ = false;
