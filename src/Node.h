@@ -518,6 +518,23 @@ public:
 
   bool on_state_hv_output_selected_changed(bool value) {
     digitalWrite(HV_OUTPUT_SELECT_PIN, !value);
+    if (value && state_._.hv_output_enabled) {
+        // If high voltage output is selected (as opposed to low short
+        // detection voltage), and high voltage output is enabled (i.e., the
+        // hardware interlock `OE_PIN` is pulled LOW and the boost converter is
+        // on), the high voltage should be connected to the switching boards.
+        // However, this currently does not happen.
+        //
+        // XXX As a workaround, force the high voltage to be turned off and on,
+        // to ensure high voltage is actually connected to the switching
+        // boards.
+        //
+        // See [issue #23][i23] for more information.
+        //
+        // [i23]: https://gitlab.com/sci-bots/dropbot.py/issues/23
+        on_state_hv_output_enabled_changed(false);
+        on_state_hv_output_enabled_changed(true);
+    }
     return true;
   }
 

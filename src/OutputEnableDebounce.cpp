@@ -22,7 +22,9 @@ void OutputEnableDebounce::pressed() {
         // XXX As a workaround, force the high voltage to be turned off and on,
         // to ensure high voltage is actually turned on.
         //
-        // See issue #23 for more information.
+        // See [issue #23][i23] for more information.
+        //
+        // [i23]: https://gitlab.com/sci-bots/dropbot.py/issues/23
         parent_.on_state_hv_output_enabled_changed(false);
         parent_.on_state_hv_output_enabled_changed(true);
     }
