@@ -69,7 +69,6 @@ extern void dma_ch15_isr(void);
 namespace dropbot {
 
 // Define the array that holds the conversions here.
-// buffer_size must be a power of two.
 // The buffer is stored with the correct alignment in the DMAMEM section
 // the +0 in the aligned attribute is necessary b/c of a bug in gcc.
 DMAMEM static volatile int16_t __attribute__((aligned(ADC_BUFFER_SIZE+0))) adc_buffer[ADC_BUFFER_SIZE];
@@ -123,27 +122,18 @@ typedef nanopb::Message<dropbot_State,
  * serial stream. */
 class OutputEnableDebounce : public InputDebounce {
 public:
-  OutputEnableDebounce(int8_t pinIn=-1, unsigned long
+  OutputEnableDebounce(Node &parent, int8_t pinIn=-1, unsigned long
                        debDelay=DEFAULT_INPUT_DEBOUNCE_DELAY,
                        PinInMode pinInMode=PIM_INT_PULL_UP_RES,
                        unsigned long pressedDuration=0)
-    : InputDebounce(pinIn, debDelay, pinInMode, pressedDuration) {}
+    : InputDebounce(pinIn, debDelay, pinInMode, pressedDuration),
+      parent_(parent) {}
   virtual ~OutputEnableDebounce() {}
 protected:
-  virtual void pressed() {
-    PacketStream output;
-    stream_byte_type data[] = "{\"event\": \"output_enabled\"}";
-    output.start(Serial, sizeof(data) - 1);
-    output.write(Serial, data, sizeof(data) - 1);
-    output.end(Serial);
-  }
-  virtual void released() {
-    PacketStream output;
-    stream_byte_type data[] = "{\"event\": \"output_disabled\"}";
-    output.start(Serial, sizeof(data) - 1);
-    output.write(Serial, data, sizeof(data) - 1);
-    output.end(Serial);
-  }
+  virtual void pressed();
+  virtual void released();
+private:
+  Node &parent_;
 };
 
 
@@ -235,7 +225,7 @@ public:
            adc_count_(0), dma_adc_active_(false), dma_channel_done_(-1),
            last_dma_channel_done_(-1), adc_read_active_(false),
            dma_stream_id_(0), watchdog_disable_request_(false),
-           output_enable_input(-1, DEFAULT_INPUT_DEBOUNCE_DELAY,
+           output_enable_input(*this, -1, DEFAULT_INPUT_DEBOUNCE_DELAY,
                                InputDebounce::PinInMode::PIM_EXT_PULL_UP_RES,
                                0) {
     pinMode(LED_BUILTIN, OUTPUT);
