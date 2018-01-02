@@ -74,8 +74,15 @@ requirements:
 
 test:
   imports:
+    # .. versionchanged:: 1.37.2
     - dropbot
+    - dropbot.bin
+    - dropbot.config
+    - dropbot.hardware_test
+    - dropbot.metadata
     - dropbot.proxy
+    - dropbot.state
+    - dropbot.version
 
 about:
   home: https://github.com/wheeler-microfluidics/dropbot
