@@ -40,6 +40,8 @@ requirements:
     - platformio-tool-scons
     - platformio-tool-teensy >=1.21.0
     - platformio-toolchain-gccarmnoneeabi
+    # .. versionchanged:: 1.37.2
+    - protobuf >=3.5
     - pytables
     - python 2.7*
     # ..versionchanged:: 1.33
@@ -60,7 +62,8 @@ requirements:
     - platformio-helpers >=0.3
     - platformio-tool-scons
     - platformio-tool-teensy >=1.21.0
-    - protobuf
+    # .. versionchanged:: 1.37.2
+    - protobuf >=3.5
     - pytables
     - python 2.7*
     # ..versionchanged:: 1.33
