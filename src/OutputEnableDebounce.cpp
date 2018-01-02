@@ -1,8 +1,15 @@
+// .. versionadded:: 1.37.1
 #include "Node.h"
 
 namespace dropbot {
 
 void OutputEnableDebounce::pressed() {
+    /* .. versionchanged:: 1.37.1
+     *     Migrate to ``OutputEnableDebounce.cpp``.
+     *
+     *     Toggle HV output to address issue #23.
+     */
+
     // The **output enable** pin has been pulled LOW, i.e., a DMF chip has been
     // **inserted**.
     PacketStream output;
@@ -31,6 +38,10 @@ void OutputEnableDebounce::pressed() {
 }
 
 void OutputEnableDebounce::released() {
+    /* .. versionchanged:: 1.37.1
+     *     Migrate to ``OutputEnableDebounce.cpp``.
+     */
+
     // The **output enable** pin has been pulled HIGH, i.e., a DMF chip has been
     // **removed**.
     PacketStream output;

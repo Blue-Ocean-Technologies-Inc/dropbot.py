@@ -517,6 +517,10 @@ public:
   }
 
   bool on_state_hv_output_selected_changed(bool value) {
+    /* .. versionchanged:: 1.37.1
+     *     Toggle HV output to address issue #23.
+     */
+
     digitalWrite(HV_OUTPUT_SELECT_PIN, !value);
     if (value && state_._.hv_output_enabled) {
         // If high voltage output is selected (as opposed to low short
