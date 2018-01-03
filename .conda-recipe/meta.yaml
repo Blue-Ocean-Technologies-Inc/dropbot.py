@@ -46,7 +46,8 @@ requirements:
     - python 2.7*
     # ..versionchanged:: 1.33
     - serial-device >=0.9
-    - teensy-minimal-rpc >=0.4
+    # ..versionchanged:: 1.37.3
+    - teensy-minimal-rpc >=0.6.1
     - base-node-rpc >=0.27
 
   run:
@@ -68,7 +69,8 @@ requirements:
     - python 2.7*
     # ..versionchanged:: 1.33
     - serial-device >=0.9
-    - teensy-minimal-rpc >=0.4
+    # ..versionchanged:: 1.37.3
+    - teensy-minimal-rpc >=0.6.1
     - base-node
     - base-node-rpc >=0.27
 
