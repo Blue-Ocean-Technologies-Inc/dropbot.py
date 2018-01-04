@@ -261,10 +261,6 @@ public:
     i2c.endTransmission();
   }
 
-  void analog_read_resolution(uint8_t bits) {
-    analogReadResolution(bits);
-  }
-
   UInt16Array analog_reads_simple(uint8_t pin, uint16_t n_samples) {
     UInt8Array byte_buffer = get_buffer();
     UInt16Array output;
@@ -351,17 +347,16 @@ public:
       // Apply channel states
       _update_channels();
 
-      // Empirically tested a board with >10 confirmed shorts. A delay
-      // of 1 ms was necessary to correctly detect one of the pairs of
-      // shorted channels. Without the delay, a short was reported
-      // between electrodes 35-36. With the delay, the short was
-      // correctly detected between channels 34-35.
+      // A delay (e.g., 1-5 ms) may be necessary to detect some shorts
       delay(delay_ms);
 
       // If we read less than half of Vcc, append this channel to the
-      // list of shorts
+      // list of shorts and disable the channel
       if (analog_read(0) < 65535 / 2) {
         shorts.data[shorts.length++] = i;
+	disabled_channels_mask_[i / 8] |= 1 << i % 8;
+      } else { // enable the channel
+	disabled_channels_mask_[i / 8] &= ~(1 << i % 8);
       }
     }
 
