@@ -261,12 +261,45 @@ public:
     i2c.endTransmission();
   }
 
+ /*
+  * Measure the temperature (in degrees Celsius) of the MCU
+  * via it's internal sensor.
+  *
+  * More details available [here][1] and [here][2].
+  *
+  * [1]: https://forum.pjrc.com/threads/30480-Teensy-3-1-use-internal-Temp-Sensor
+  * [2]: https://github.com/LAtimes2/InternalTemperature
+  */
+  float measure_temperature() {
+    analogReference(INTERNAL);
+    uint32_t sum = 0;
+    for (uint8_t i = 0; i < 255; i++) {
+        sum += analogRead(38);
+    }
+    analogReference(DEFAULT);
+    float voltage = (float)sum / 255.0 / 65535.0 * 1.2;
+    return 25.0 + 583.0904 * (0.719 - voltage);
+  }
+
+  /*
+   * Measure the analog reference voltage by comparing it
+   * to the internal reference (1.195 V) accessible via
+   * analog pin 39.
+   */
+  float measure_aref() {
+    uint32_t sum = 0;
+    for (uint8_t i = 0; i < 255; i++) {
+        sum += analogRead(39);
+    }
+    return 1.195 * 65535.0 / (float)sum * 255.0;
+  }
+
   UInt16Array analog_reads_simple(uint8_t pin, uint16_t n_samples) {
     UInt8Array byte_buffer = get_buffer();
     UInt16Array output;
     output.data = reinterpret_cast<uint16_t *>(byte_buffer.data);
 
-    for (uint16_t i=0; i < n_samples; i++) {
+    for (uint16_t i = 0; i < n_samples; i++) {
       output.data[i] = analogRead(pin);
     }
     output.length = n_samples;
