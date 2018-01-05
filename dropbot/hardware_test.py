@@ -315,8 +315,8 @@ def test_channels(proxy, n_reps=1, test_channels=None, shorts=None):
 
     c = np.zeros([n_channels, n_reps])
 
-    for i, channel_i in enumerate(test_channels):
-        for j in range(n_reps):
+    for j in range(n_reps):
+        for i, channel_i in enumerate(test_channels):
             if channel_i in shorts:
                 continue
             state = np.zeros(n_channels)
