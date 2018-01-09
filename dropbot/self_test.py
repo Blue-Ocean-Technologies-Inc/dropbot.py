@@ -15,14 +15,16 @@ import si_prefix as si
 
 from . import NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS
 # Import test functions used by `self_test`.
-from .hardware_test import (ALL_TESTS, system_info, test_i2c, test_voltage,
-                            test_shorts, test_on_board_feedback_calibration,
+from .hardware_test import (ALL_TESTS, system_info, test_system_metrics,
+                            test_i2c, test_voltage, test_shorts,
+                            test_on_board_feedback_calibration,
                             test_channels)
 
 logger = logging.getLogger(name=__name__)
 
-__all__ = ['format_system_info_results', 'format_test_i2c_results',
-           'format_test_voltage_results', 'format_test_shorts_results',
+__all__ = ['format_system_info_results', 'format_test_system_metrics_results',
+           'format_test_i2c_results', 'format_test_voltage_results',
+           'format_test_shorts_results',
            'format_test_on_board_feedback_calibration_results',
            'format_test_channels_results']
 
@@ -62,6 +64,34 @@ def format_system_info_results(info):
 {% endfor -%}'''.strip())
 
     return template.render(info=info).strip()
+
+
+def format_test_system_metrics_results(results):
+    '''
+    .. versionadded:: 1.39
+
+    Parameters
+    ----------
+    results : dict
+        Results from :func:`test_system_metrics`.
+
+    Returns
+    -------
+    str
+        Summary of :func:`test_system_metrics` results in Markdown format.
+    '''
+    template = jinja2.Template(r'''
+# System Metrics: #
+
+{% for name_i, property_i in results.iteritems() %}
+ - **{{ name_i }}**: `{{ property_i }}`
+{%- endfor %}'''.strip())
+    
+    # remove utc_timestamp and test_duration from results dict
+    del results['utc_timestamp']
+    del results['duration']
+
+    return template.render(results=results).strip()
 
 
 def format_test_i2c_results(results):
@@ -492,13 +522,9 @@ def self_test(proxy, tests=None):
     results = {}
 
     for test_name_i in tests:
-        start_time_i = time.time()
         test_func_i = eval(test_name_i)
         results[test_name_i] = test_func_i(proxy)
-        results[test_name_i]['utc_timestamp'] = (dt.datetime.utcnow()
-                                                 .isoformat())
-        duration_i = time.time() - start_time_i
-        results[test_name_i]['test_duration'] = duration_i
+        duration_i = results[test_name_i]['duration']
         logger.info('%s: %.1f s', test_name_i, duration_i)
         total_time += duration_i
 

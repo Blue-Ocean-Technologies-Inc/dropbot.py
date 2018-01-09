@@ -13,12 +13,14 @@ import json_tricks
 import numpy as np
 import path_helpers as ph
 
-__all__ = ['system_info', 'test_i2c', 'test_voltage', 'test_shorts',
-           'test_on_board_feedback_calibration', 'test_channels']
+__all__ = ['system_info', 'test_system_metrics', 'test_i2c', 'test_voltage',
+           'test_shorts', 'test_on_board_feedback_calibration',
+           'test_channels']
 
 
-ALL_TESTS = ['system_info', 'test_i2c', 'test_voltage', 'test_shorts',
-             'test_on_board_feedback_calibration', 'test_channels']
+ALL_TESTS = ['system_info', 'test_system_metrics', 'test_i2c', 'test_voltage',
+             'test_shorts', 'test_on_board_feedback_calibration',
+             'test_channels']
 
 # Prevent warning about potential future changes to Numpy scalar encoding
 # behaviour.
@@ -330,7 +332,7 @@ def test_channels(proxy, n_reps=1, test_channels=None, shorts=None):
 @time_it
 def test_system_metrics(proxy):
     '''
-    Mesaure various system metrics.
+    Measure various system metrics.
 
     Parameters
     ----------
