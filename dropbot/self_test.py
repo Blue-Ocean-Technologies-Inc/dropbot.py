@@ -2,7 +2,6 @@ import datetime as dt
 import logging
 import subprocess as sp
 import tempfile
-import time
 
 import jinja2
 import matplotlib as mpl
@@ -22,11 +21,11 @@ from .hardware_test import (ALL_TESTS, system_info, test_system_metrics,
 
 logger = logging.getLogger(name=__name__)
 
-__all__ = ['format_system_info_results', 'format_test_system_metrics_results',
-           'format_test_i2c_results', 'format_test_voltage_results',
-           'format_test_shorts_results',
+__all__ = ['format_system_info_results', 'format_test_channels_results',
+           'format_test_i2c_results',
            'format_test_on_board_feedback_calibration_results',
-           'format_test_channels_results']
+           'format_test_shorts_results', 'format_test_system_metrics_results',
+           'format_test_voltage_results']
 
 CAPACITANCE_FORMATTER = mpl.ticker.FuncFormatter(lambda x, *args: '%sF' %
                                                  si.si_format(x))
@@ -173,7 +172,7 @@ def format_test_voltage_results(results, figure_path=None):
                             columns=['target', 'measured'])
     # Calculate the average rms error
     error = voltages['measured'] - voltages['target']
-    rms_error = 100 * np.sqrt(np.mean((error / voltages['target'])**2))
+    rms_error = 100 * np.sqrt(np.mean((error / voltages['target']) ** 2))
 
     if figure_path:
         figure_path = ph.path(figure_path).realpath()
