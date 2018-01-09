@@ -92,6 +92,14 @@ def format_test_system_metrics_results(results):
     del results['utc_timestamp']
     del results['duration']
 
+    # Specify SI units for recognized properties.
+    units = {'analog_reference': 'V',
+             'temperature': 'degrees C',
+             'voltage_limit': 'V'}
+    for property_i, unit_i in units.iteritems():
+        results[property_i] = '%s%s' % (si.si_format(results[property_i],
+                                                     precision=2), unit_i)
+
     return template.render(results=results).strip()
 
 
