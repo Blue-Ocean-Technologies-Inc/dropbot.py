@@ -327,3 +327,26 @@ def test_channels(proxy, n_reps=1, test_channels=None, shorts=None):
     return {'test_channels': test_channels,
             'shorts': shorts,
             'c': c}
+@time_it
+def test_system_metrics(proxy):
+    '''
+    Mesaure various system metrics.
+
+    Parameters
+    ----------
+    proxy : Proxy
+
+    Returns
+    -------
+    dict
+        temperature : float 
+            Internal temperature of the microcontroller in degrees C.
+        aref: float
+            Analog reference voltage.
+
+    '''
+    return {
+            'temperature': proxy.measure_temperature(),
+            'aref': proxy.measure_aref()
+            }
+
