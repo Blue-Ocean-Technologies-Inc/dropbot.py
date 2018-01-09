@@ -86,8 +86,9 @@ def format_test_system_metrics_results(results):
 {% for name_i, property_i in results.iteritems() %}
  - **{{ name_i }}**: `{{ property_i }}`
 {%- endfor %}'''.strip())
-    
-    # remove utc_timestamp and test_duration from results dict
+    # Remove utc_timestamp and test_duration from results dict before
+    # rendering.  Make a copy to avoid modifying the input dictionary.
+    results = results.copy()
     del results['utc_timestamp']
     del results['duration']
 
