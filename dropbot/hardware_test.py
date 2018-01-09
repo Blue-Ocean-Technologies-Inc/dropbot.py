@@ -341,12 +341,15 @@ def test_system_metrics(proxy):
     dict
         temperature : float 
             Internal temperature of the microcontroller in degrees C.
-        aref: float
+        analog_reference: float
             Analog reference voltage.
+        voltage_limit: float
+            Voltage of the microcontroller's analog reference.
 
     '''
     return {
             'temperature': proxy.measure_temperature(),
-            'aref': proxy.measure_aref()
+            'analog_reference': proxy.measure_aref(),
+            'voltage_limit': proxy.voltage_limit
             }
 
