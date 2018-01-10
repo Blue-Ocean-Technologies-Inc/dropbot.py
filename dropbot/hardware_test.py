@@ -349,6 +349,8 @@ def test_system_metrics(proxy):
             Analog reference voltage.
         voltage_limit: float
             Voltage of the microcontroller's analog reference.
+
+    .. versionadded:: 1.39
     '''
     return {'temperature': proxy.measure_temperature(),
             'analog_reference': proxy.measure_aref(),

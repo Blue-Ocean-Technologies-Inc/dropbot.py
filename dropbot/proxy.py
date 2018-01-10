@@ -278,6 +278,9 @@ try:
 
         @property
         def voltage_limit(self):
+            '''
+            .. versionadded:: 1.39
+            '''
             return 1.5 / 2.0 * (2e6 / self.config['R7'] + 1)
 
         def measure_voltage(self):
