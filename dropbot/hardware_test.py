@@ -13,12 +13,14 @@ import json_tricks
 import numpy as np
 import path_helpers as ph
 
-__all__ = ['system_info', 'test_i2c', 'test_voltage', 'test_shorts',
-           'test_on_board_feedback_calibration', 'test_channels']
+__all__ = ['system_info', 'test_system_metrics', 'test_i2c', 'test_voltage',
+           'test_shorts', 'test_on_board_feedback_calibration',
+           'test_channels']
 
 
-ALL_TESTS = ['system_info', 'test_i2c', 'test_voltage', 'test_shorts',
-             'test_on_board_feedback_calibration', 'test_channels']
+ALL_TESTS = ['system_info', 'test_system_metrics', 'test_i2c', 'test_voltage',
+             'test_shorts', 'test_on_board_feedback_calibration',
+             'test_channels']
 
 # Prevent warning about potential future changes to Numpy scalar encoding
 # behaviour.
@@ -327,3 +329,29 @@ def test_channels(proxy, n_reps=1, test_channels=None, shorts=None):
     return {'test_channels': test_channels,
             'shorts': shorts,
             'c': c}
+
+
+@time_it
+def test_system_metrics(proxy):
+    '''
+    Measure various system metrics.
+
+    Parameters
+    ----------
+    proxy : Proxy
+
+    Returns
+    -------
+    dict
+        temperature : float
+            Internal temperature of the microcontroller in degrees C.
+        analog_reference: float
+            Analog reference voltage.
+        voltage_limit: float
+            Voltage of the microcontroller's analog reference.
+
+    .. versionadded:: 1.39
+    '''
+    return {'temperature': proxy.measure_temperature(),
+            'analog_reference': proxy.measure_aref(),
+            'voltage_limit': proxy.voltage_limit}

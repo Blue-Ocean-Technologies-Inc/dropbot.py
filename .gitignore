@@ -33,3 +33,4 @@ lib/
 src/NodeCommandProcessor.h
 */metadata.py
 dropbot/notebooks/.results
+.piolibdeps

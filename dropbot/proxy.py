@@ -276,6 +276,13 @@ try:
         def frequency(self, value):
             return self.update_state(frequency=value)
 
+        @property
+        def voltage_limit(self):
+            '''
+            .. versionadded:: 1.39
+            '''
+            return 1.5 / 2.0 * (2e6 / self.config['R7'] + 1)
+
         def measure_voltage(self):
             # divide by 2 to convert from peak-to-peak to rms
             return self.analog_read(1) / 2.0**16 * 3.3 * 2e6 / 20e3 / 2.0
