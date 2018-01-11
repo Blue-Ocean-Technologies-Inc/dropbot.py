@@ -39,12 +39,10 @@ try:
         def config_class(self):
             return Config
 
-
     class StateMixin(StateMixinBase):
         @property
         def state_class(self):
             return State
-
 
     class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         '''
