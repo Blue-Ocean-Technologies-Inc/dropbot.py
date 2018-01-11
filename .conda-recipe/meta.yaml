@@ -86,5 +86,5 @@ test:
     - dropbot.version
 
 about:
-  home: https://github.com/wheeler-microfluidics/dropbot
+  home: https://gitlab.com/sci-bots/dropbot.py
   license: MIT
