@@ -408,6 +408,8 @@ try:
 
             See also: `state_of_channels` (get)
             '''
+            states = np.asarray(states)
+
             if len(states) != self.number_of_channels:
                 raise ValueError('Error setting state of channels.  Check '
                                  'number of states matches channel count.')
@@ -420,9 +422,8 @@ try:
                 # (don't include disabled channels)
                 current_state = self.state_of_channels
                 try:
-                    assert(np.all(np.equal(np.logical_and(states,
-                        np.logical_not(self.disabled_channels_mask)),
-                        current_state)))
+                    assert(np.all((states & ~self.disabled_channels_mask) ==
+                                  current_state))
                     return
                 except Exception:
                     if retry < 3:
