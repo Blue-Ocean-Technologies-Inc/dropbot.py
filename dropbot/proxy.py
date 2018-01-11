@@ -527,6 +527,9 @@ try:
         pass
 
     class SerialProxy(ProxyMixin, _SerialProxy):
+        device_name = 'dropbot'
+        device_version = __version__
+
         def __init__(self, settling_time_s=.05, **kwargs):
             '''
             Parameters
