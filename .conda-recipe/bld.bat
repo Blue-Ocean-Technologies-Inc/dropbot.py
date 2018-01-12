@@ -34,6 +34,7 @@ REM Install source directory as Python package.
 "%PYTHON%" -m pip install --no-cache .
 if errorlevel 1 exit 1
 
+REM .. versionadded:: 1.40
 if exist "%PREFIX%"\share\platformio\.cache (
     rmdir /S /Q "%PREFIX%"\share\platformio\.cache
 )

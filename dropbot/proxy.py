@@ -526,7 +526,9 @@ try:
         pass
 
     class SerialProxy(ProxyMixin, _SerialProxy):
+        # .. versionadded:: 1.40
         device_name = 'dropbot'
+        # .. versionadded:: 1.40
         device_version = __version__
 
         def __init__(self, settling_time_s=.05, **kwargs):
@@ -541,6 +543,10 @@ try:
                 By default, :data:`settling_time_s` is set to 50 ms.
             **kwargs
                 Extra keyword arguments to pass on to
+                :class:`base_node_rpc.proxy.SerialProxyMixin`.
+
+            .. versionchanged:: 1.40
+                Delegate automatic port selection to
                 :class:`base_node_rpc.proxy.SerialProxyMixin`.
             '''
             kwargs['settling_time_s'] = settling_time_s
