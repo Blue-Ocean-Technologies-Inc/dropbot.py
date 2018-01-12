@@ -9,7 +9,6 @@ from teensy_minimal_rpc.adc_sampler import AdcDmaMixin
 import numpy as np
 import pandas as pd
 import serial
-import serial_device as sd
 
 from .bin.upload import upload
 from . import __version__
@@ -27,33 +26,6 @@ class NoPower(Exception):
 
 class CommunicationError(Exception):
     pass
-
-
-def serial_ports():
-    '''
-    Returns
-    -------
-    pandas.DataFrame
-        Table of serial ports that match the USB vendor ID and product ID for
-        the `Teensy 3.2`_ board.
-
-    .. Teensy 3.2: https://www.pjrc.com/store/teensy32.html
-
-    .. versionchanged:: 1.33
-        Only return serial ports that are available for access.  This, for
-        example, will not include ports that are already opened.
-    '''
-    # Get list of ports that are available for connecting to (do not include
-    # ports that are not available).
-    df_comports = sd.comports(only_available=True)
-    # Match COM ports with USB vendor ID and product IDs for [Teensy 3.2
-    # device][1].
-    #
-    # [1]: https://www.pjrc.com/store/teensy32.html
-    df_teensy_comports = df_comports.loc[df_comports.hardware_id.str
-                                         .contains('VID:PID=16c0:0483',
-                                                   case=False)]
-    return df_teensy_comports
 
 
 try:
@@ -116,6 +88,12 @@ try:
                 #    connected to a power source.
                 #  - Connecting to a DropBot without a configured I2C address
                 #    to set an I2C address.
+                super(ProxyMixin, self).__init__(*args, **kwargs)
+                # XXX TODO Need to initialize DMA in embedded C++ code.
+                # XXX Otherwise, initialization will not be performed on
+                # device reset.
+                self.init_dma()
+
                 ignore = kwargs.pop('ignore', [])
 
                 if isinstance(ignore, bool):
@@ -125,12 +103,6 @@ try:
                         ignore = [NoPower, I2cAddressNotSet]
                     else:
                         ignore = []
-
-                super(ProxyMixin, self).__init__(*args, **kwargs)
-                # XXX TODO Need to initialize DMA in embedded C++ code.
-                # XXX Otherwise, initialization will not be performed on
-                # device reset.
-                self.init_dma()
 
                 # Check that we have power
                 if NoPower not in ignore and self.measure_voltage() < 5:
@@ -555,24 +527,21 @@ try:
         pass
 
     class SerialProxy(ProxyMixin, _SerialProxy):
-        def __init__(self, **kwargs):
+        def __init__(self, settling_time_s=.05, **kwargs):
             '''
             Parameters
             ----------
-            port : str or list
-                Serial port to attempt connection to.
+            settling_time_s : float, optional
+                If specified, wait :data:`settling_time_s` seconds after
+                establishing serial connection before trying to execute test
+                command.
 
-                If specified as a :class:`list`, try each port, in order, until
-                a successful connection is established.
+                By default, :data:`settling_time_s` is set to 50 ms.
             **kwargs
                 Extra keyword arguments to pass on to
                 :class:`base_node_rpc.proxy.SerialProxyMixin`.
             '''
-            if 'port' not in kwargs:
-                # No port was explicitly set.  Use default list of ports.
-                port = serial_ports().index.tolist()
-                if port:
-                    kwargs['port'] = port
+            kwargs['settling_time_s'] = settling_time_s
             super(SerialProxy, self).__init__(**kwargs)
 
         def flash_firmware(self):
