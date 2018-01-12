@@ -47,6 +47,8 @@ def get_includes():
 
     For example:
 
+    .. sourcecode:: python
+
         import arduino_rpc
         ...
         print ' '.join(['-I%s' % i for i in arduino_rpc.get_includes()])
@@ -77,9 +79,9 @@ def get_firmwares():
     Return compiled Arduino hex file paths.
 
     This function may be used to locate firmware binaries that are available
-    for flashing to [Arduino][1] boards.
+    for flashing to Arduino_ boards.
 
-    [1]: http://arduino.cc
+    .. _Arduino: http://arduino.cc
     '''
     return OrderedDict([(board_dir.name, [f.abspath() for f in
                                           board_dir.walkfiles('*.hex')])

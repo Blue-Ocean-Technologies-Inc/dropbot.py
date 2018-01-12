@@ -204,10 +204,10 @@ try:
 
         def get_environment_state(self, i2c_address=0x27):
             '''
-            Acquire temperature and humidity from Honeywell HIH6000 series
+            Acquire temperature and humidity from `Honeywell HIH6000`_ series
             sensor.
 
-            [1]: http://sensing.honeywell.com/index.php/ci_id/142171/la_id/1/document/1/re_id/0
+            .. _Honeywell HIH6000: http://sensing.honeywell.com/index.php/ci_id/142171/la_id/1/document/1/re_id/0
             '''
             import pandas as pd
 
@@ -316,23 +316,25 @@ try:
 
         def _disabled_channels_mask(self):
             '''
-            Prepend underscore to the auto-generated disabled_channels_mask accessor
+            .. versionadded:: 1.34
 
-            ..versionadded:: 1.34
+            Prepend underscore to the auto-generated disabled_channels_mask accessor
             '''
             return super(ProxyMixin, self).disabled_channels_mask()
 
         def _set_disabled_channels_mask(self, mask):
             '''
-            Prepend underscore to the auto-generated disabled_channels_mask setter
+            .. versionadded:: 1.34
 
-            ..versionadded:: 1.34
+            Prepend underscore to the auto-generated disabled_channels_mask setter
             '''
             return super(ProxyMixin, self).set_disabled_channels_mask(mask)
 
         @property
         def disabled_channels_mask(self):
             '''
+            .. versionadded:: 1.34
+
             Retrieve the mask bytes from the device and unpack them into an
             array with one entry per channel.  Return unpacked array.
 
@@ -342,8 +344,6 @@ try:
             State of mask for each channel is binary, 0 or 1.  On device,
             mask states are stored in bytes, where each byte corresponds to
             the mask state for eight channels.
-
-            ..versionadded:: 1.34
             '''
             return np.unpackbits(super(ProxyMixin, self)
                                  .disabled_channels_mask()[::-1])[::-1]
@@ -354,12 +354,12 @@ try:
 
         def set_disabled_channels_mask(self, mask):
             '''
+            .. versionadded:: 1.34
+
             Pack array containing one entry per channel to bytes (8 channels
             per byte).  Set disabled channels mask on device using mask bytes.
 
             See also: `disabled_channels_mask` (get)
-
-            ..versionadded:: 1.34
             '''
             if len(mask) != self.number_of_channels:
                 raise ValueError('Error setting disabled channels mask.  Check '
@@ -468,11 +468,11 @@ try:
             '''
             Returns
             -------
+            uuid.UUID
+                UUID constructed from the `Unique Identification Register`_
+                (12.2.19 page 265).
 
-                (uuid.UUID) : UUID constructed from the [Unique Identification
-                    Register][1] (12.2.19 page 265).
-
-            [1]: https://www.pjrc.com/teensy/K20P64M72SF1RM.pdf
+                .. _Unique Identification Register: https://www.pjrc.com/teensy/K20P64M72SF1RM.pdf
             '''
             return uuid.UUID(bytes=np.array(self._uuid(),
                                             dtype='uint8').tostring())
@@ -526,9 +526,9 @@ try:
         pass
 
     class SerialProxy(ProxyMixin, _SerialProxy):
-        # .. versionadded:: 1.40
+        #: .. versionadded:: 1.40
         device_name = 'dropbot'
-        # .. versionadded:: 1.40
+        #: .. versionadded:: 1.40
         device_version = __version__
 
         def __init__(self, settling_time_s=.05, **kwargs):
