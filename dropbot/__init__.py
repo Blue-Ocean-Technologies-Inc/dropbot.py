@@ -9,7 +9,7 @@ from .version import getVersion
 __version__ = getVersion()
 
 try:
-    from .proxy import Proxy, I2cProxy, SerialProxy, serial_ports
+    from .proxy import Proxy, I2cProxy, SerialProxy
     from .config import Config
     from .state import State
 except (ImportError, TypeError), exception:
