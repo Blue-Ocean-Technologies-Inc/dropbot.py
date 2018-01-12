@@ -34,6 +34,10 @@ REM Install source directory as Python package.
 "%PYTHON%" -m pip install --no-cache .
 if errorlevel 1 exit 1
 
+if exist "%PREFIX%"\share\platformio\.cache (
+    rmdir /S /Q "%PREFIX%"\share\platformio\.cache
+)
+
 copy "%RECIPE_DIR%\firmware-upload-icon.ico" "%PREFIX%\Menu"
 if errorlevel 1 exit 1
 copy "%RECIPE_DIR%\dropbot.json" "%PREFIX%\Menu"
