@@ -38,12 +38,13 @@ def format_system_info_results(info):
     Parameters
     ----------
     info : dict
-        Results from :func:`system_info`.
+        Results from :func:`dropbot.hardware_test.system_info`.
 
     Returns
     -------
     str
-        Summary of :func:`system_info` results in Markdown format.
+        Summary of :func:`dropbot.hardware_test.system_info` results in
+        Markdown format.
     '''
     template = jinja2.Template(r'''
 # Control board (UUID: `{{ info['control board']['uuid'] }}`) #
@@ -72,12 +73,13 @@ def format_test_system_metrics_results(results):
     Parameters
     ----------
     results : dict
-        Results from :func:`test_system_metrics`.
+        Results from :func:`dropbot.hardware_test.test_system_metrics`.
 
     Returns
     -------
     str
-        Summary of :func:`test_system_metrics` results in Markdown format.
+        Summary of :func:`dropbot.hardware_test.test_system_metrics` results in
+        Markdown format.
     '''
     template = jinja2.Template(r'''
 # System Metrics: #
@@ -115,12 +117,13 @@ def format_test_i2c_results(results):
     Parameters
     ----------
     results : dict
-        Results from :func:`test_i2c`.
+        Results from :func:`dropbot.hardware_test.test_i2c`.
 
     Returns
     -------
     str
-        Summary of :func:`test_i2c` results in Markdown format.
+        Summary of :func:`dropbot.hardware_test.test_i2c` results in Markdown
+        format.
     '''
     template = jinja2.Template(r'''
 # I2C scan: #
@@ -151,7 +154,7 @@ def format_test_voltage_results(results, figure_path=None):
     Parameters
     ----------
     results : dict
-        Results from :func:`test_voltage`.
+        Results from :func:`dropbot.hardware_test.test_voltage`.
     figure_path : str, optional
         If specified, include summary figure reference in text and write figure
         image to specified path.
@@ -162,7 +165,8 @@ def format_test_voltage_results(results, figure_path=None):
     Returns
     -------
     str
-        Summary of :func:`test_voltage` results in Markdown format.
+        Summary of :func:`dropbot.hardware_test.test_voltage` results in
+        Markdown format.
 
         If :data:`figure_path` was specified, summary figure is written to the
         specified path.
@@ -205,12 +209,12 @@ def plot_test_voltage_results(results, axis=None):
     '''
     .. versionadded:: 1.28
 
-    Plot summary of results from :func:`test_voltage`.
+    Plot summary of results from :func:`dropbot.hardware_test.test_voltage`.
 
     Parameters
     ----------
     results : dict
-        Results from :func:`test_voltage`.
+        Results from :func:`dropbot.hardware_test.test_voltage`.
     axis : matplotlib.axes._subplots.AxesSubplot, optional
         A `matplotlib` axis to plot to.
 
@@ -246,7 +250,8 @@ def format_test_on_board_feedback_calibration_results(results,
     Parameters
     ----------
     results : dict
-        Results from :func:`test_on_board_feedback_calibration`.
+        Results from
+        :func:`dropbot.hardware_test.test_on_board_feedback_calibration`.
     figure_path : str, optional
         If specified, include summary figure reference in text and write figure
         image to specified path.
@@ -257,8 +262,9 @@ def format_test_on_board_feedback_calibration_results(results,
     Returns
     -------
     str
-        Summary of :func:`test_on_board_feedback_calibration` results in
-        Markdown format.
+        Summary of
+        :func:`dropbot.hardware_test.test_on_board_feedback_calibration`
+        results in Markdown format.
 
         If :data:`figure_path` was specified, summary figure is written to the
         specified path.
@@ -300,12 +306,14 @@ def plot_test_on_board_feedback_calibration_results(results, axis=None):
         Use :data:`NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS` from
         :module:`__init__`.
 
-    Plot summary of results from :func:`test_on_board_feedback_calibration`.
+    Plot summary of results from
+    :func:`dropbot.hardware_test.test_on_board_feedback_calibration`.
 
     Parameters
     ----------
     results : dict
-        Results from :func:`test_on_board_feedback_calibration`.
+        Results from
+        :func:`dropbot.hardware_test.test_on_board_feedback_calibration`.
     axis : matplotlib.axes._subplots.AxesSubplot, optional
         A `matplotlib` axis to plot to.
 
@@ -341,12 +349,13 @@ def format_test_shorts_results(results):
     Parameters
     ----------
     results : dict
-        Results from :func:`test_shorts`.
+        Results from :func:`dropbot.hardware_test.test_shorts`.
 
     Returns
     -------
     str
-        Summary of :func:`test_shorts` results in Markdown format.
+        Summary of :func:`dropbot.hardware_test.test_shorts` results in
+        Markdown format.
     '''
     template = jinja2.Template(r'''
 # Test shorts results: #
@@ -371,7 +380,7 @@ def format_test_channels_results(results, figure_path=None):
     Parameters
     ----------
     results : dict
-        Results from :func:`test_channels`.
+        Results from :func:`dropbot.hardware_test.test_channels`.
     figure_path : str, optional
         If specified, include summary figure reference in text and write figure
         image to specified path.
@@ -382,7 +391,8 @@ def format_test_channels_results(results, figure_path=None):
     Returns
     -------
     str
-        Summary of :func:`test_channels` results in Markdown format.
+        Summary of :func:`dropbot.hardware_test.test_channels` results in
+        Markdown format.
 
         If :data:`figure_path` was specified, summary figure is written to the
         specified path.
@@ -459,12 +469,12 @@ def plot_test_channels_results(results, axes=None):
     '''
     .. versionadded:: 1.28
 
-    Plot summary of results from :func:`test_channels`.
+    Plot summary of results from :func:`dropbot.hardware_test.test_channels`.
 
     Parameters
     ----------
     results : dict
-        Results from :func:`test_channels`.
+        Results from :func:`dropbot.hardware_test.test_channels`.
     axes : list, optional
         List of two `matplotlib` axes to plot to.
 
