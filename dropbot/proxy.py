@@ -406,7 +406,7 @@ try:
 
             See also: `state_of_channels` (get)
             '''
-            states = np.asarray(states)
+            states = np.asarray(states, dtype=int)
 
             if len(states) != self.number_of_channels:
                 raise ValueError('Error setting state of channels.  Check '
