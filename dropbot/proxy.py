@@ -1,6 +1,7 @@
 import logging
 import math
 import time
+import types
 import uuid
 
 from base_node_rpc.proxy import ConfigMixinBase, StateMixinBase
@@ -191,16 +192,64 @@ try:
             n = self.i2c_read(address, 1)
             return self.i2c_read(address, n)
 
-        def measure_capacitance(self, n_samples=50):
+        def measure_capacitance(self, n_samples=50, amplitude='filtered_mean'):
+            '''
+            Parameters
+            ----------
+            n_samples : int, optional
+                Number of analog measurements to sample for the capacitance
+                calculation.
+            amplitude : str or list, optional
+                The amplitude calculation method.  See `issue #25 <https://gitlab.com/sci-bots/dropbot.py/issues/25>`_
+                for more information.  Each value must be one of
+                ``filtered_mean`` or ``percentile_difference``.
+
+            Returns
+            -------
+            float
+                If a single amplitude calculation method is specified (i.e.,
+                :data:`amplitude` is a string)
+            pandas.Series
+                If a list of amplitude calculation methods is specified.
+                Series is indexed by the specified amplitude calculation
+                methods.
+
+            .. versionchanged:: X.X.X
+                Add :data:`amplitude` keyword argument.  See `issue #25 <https://gitlab.com/sci-bots/dropbot.py/issues/25>`_
+                for more information.
+            '''
             df_volts = pd.DataFrame({'volts':
                                      self.analog_reads_simple(11, n_samples) *
                                      3.3 / 2**16})
-            v_gnd = np.mean(df_volts)
-            v_abs = np.abs(df_volts - v_gnd)
-            v_abs_mean = np.mean(v_abs)
-            filter_th = v_abs_mean * 1.5
-            v_filtered_mean = np.mean(v_abs[v_abs < filter_th])
-            return v_filtered_mean.values[0] / self.measure_voltage() * 0.15e-6
+
+            singleton = False
+
+            if isinstance(amplitude, types.StringTypes):
+                amplitude = [amplitude]
+                singleton = True
+
+            values = []
+            for method_i in amplitude:
+                if method_i == 'filtered_mean':
+                    v_gnd = np.mean(df_volts)
+                    v_abs = np.abs(df_volts - v_gnd)
+                    v_abs_mean = np.mean(v_abs)
+                    filter_th = v_abs_mean * 1.5
+                    amplitude_i = np.mean(v_abs[v_abs < filter_th])['volts']
+                elif method_i == 'percentile_difference':
+                    volts_description = df_volts['volts'].describe()
+                    amplitude_i = .5 * (volts_description['75%'] -
+                                        volts_description['25%'])
+                else:
+                    raise NameError('Unknown amplitude calculation method '
+                                    '`%s`.' % method_i)
+                values.append(amplitude_i)
+
+            if not singleton:
+                value = pd.Series(values, index=amplitude)
+            else:
+                value = values[0]
+            return value / self.measure_voltage() * 0.15e-6
 
         def get_environment_state(self, i2c_address=0x27):
             '''
