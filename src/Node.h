@@ -719,7 +719,9 @@ public:
     // poll button state
     output_enable_input.process(now);
 
-    if (100 < now - capacitance_timestamp_ms_) {
+    if ((state_._.capacitance_update_interval_ms > 0) &&
+        (state_._.capacitance_update_interval_ms < now -
+         capacitance_timestamp_ms_)) {
       UInt8Array result = get_buffer();
       result.length = 0;
 

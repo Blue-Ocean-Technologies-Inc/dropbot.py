@@ -11,5 +11,9 @@ message State {
   optional bool hv_output_enabled = 3 [default = false];
   optional bool hv_output_selected = 4 [default = true];
   optional int32 channel_count = 5 [default = 0];
+
+  //: .. versionadded:: X.X.X
+  // 0 == disabled
+  optional uint32 capacitance_update_interval_ms = 6 [default = 0];
 }
 
