@@ -350,6 +350,39 @@ public:
     return result.data[high_i] - result.data[low_i];
   }
 
+  float capacitance(uint16_t n_samples) {
+    /*
+     * .. versionadded:: X.X.X
+     *
+     * Measure device load capacitance based on the specified number of analog
+     * samples.
+     *
+     * Amplitude of measured square wave is calculated by computing the `inter-quartile range (IQR) <https://en.wikipedia.org/wiki/Interquartile_range>`_,
+     * i.e., the difference between the 75th percentile and the 25th
+     * percentile.
+     *
+     * See: https://gitlab.com/sci-bots/dropbot.py/issues/25
+     *
+     * Parameters
+     * ----------
+     * n_samples : uint16_t
+     *     Number of analog samples to measure.
+     *
+     * Returns
+     * -------
+     * float
+     *     Capacitance of device load in farads (F).
+     */
+    // Compute capacitance from measured square-wave RMS voltage amplitude.
+    const uint16_t raw = u16_percentile_diff(11, n_samples, 25, 75);
+
+    // Compute capacitance from measured square-wave RMS voltage amplitude.
+    return raw * 0.5  // RMS from square-wave peak-to-peak
+               * 0.15e-8  // Feedback circuit Voltage to C transfer function
+               * 3.3  // Analog reference voltage
+               / float(1L << 16);  // Divide by maximum analog value
+  }
+
   UInt16Array analog_reads_simple(uint8_t pin, uint16_t n_samples) {
     UInt8Array byte_buffer = get_buffer();
     UInt16Array output;
