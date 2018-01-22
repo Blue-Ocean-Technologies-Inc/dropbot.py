@@ -44,7 +44,7 @@
 #define CPU_RESTART_VAL 0x5FA0004
 #define CPU_RESTART (*CPU_RESTART_ADDR = CPU_RESTART_VAL);
 
-/* .. versionadded:: X.X.X
+/* .. versionadded:: 1.42
  *
  * Add `printf`/`sprintf` float formatting support.
  *
@@ -226,7 +226,7 @@ public:
   // Detect chip insertion/removal.
   OutputEnableDebounce output_enable_input;
 
-  //: .. versionadded:: X.X.X
+  //: .. versionadded:: 1.42
   //
   // Time of most recent capacitance measurement.
   uint32_t capacitance_timestamp_ms_;
@@ -710,7 +710,7 @@ public:
   /** Called periodically from the main program loop. */
   void loop() {
     /*
-     * .. versionchanged:: X.X.X
+     * .. versionchanged:: 1.42
      *     Add periodic capacitance measurement.  Each new value is sent as an
      *     event stream packet to the serial interface.
      */
