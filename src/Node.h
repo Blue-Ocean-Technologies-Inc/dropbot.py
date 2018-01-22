@@ -38,6 +38,7 @@
 #include "Dropbot/config_pb.h"
 #include "Dropbot/state_pb.h"
 #include "packet_stream.h"
+#include "kxsort.h"
 
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
 #define CPU_RESTART_VAL 0x5FA0004
@@ -292,6 +293,27 @@ public:
         sum += analogRead(39);
     }
     return 1.195 * 65535.0 / (float)sum * 255.0;
+  }
+
+  UInt16Array kxsort_u16(UInt16Array data) {
+    /*
+     * .. versionadded:: X.X.X
+     *
+     * Sort array (in-place) using (MIT-licensed)
+     * `radix-sort <https://github.com/voutcn/kxsort>`_.
+     *
+     * Parameters
+     * ----------
+     * data : UInt16Array
+     *     Input array.
+     *
+     * Returns
+     * -------
+     * UInt16Array
+     *     Input array in sorted order.
+     */
+    kx::radix_sort(data.data, &data.data[data.length]);
+    return data;
   }
 
   UInt16Array analog_reads_simple(uint8_t pin, uint16_t n_samples) {
