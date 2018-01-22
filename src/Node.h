@@ -44,6 +44,13 @@
 #define CPU_RESTART_VAL 0x5FA0004
 #define CPU_RESTART (*CPU_RESTART_ADDR = CPU_RESTART_VAL);
 
+/* .. versionadded:: 1.42
+ *
+ * Add `printf`/`sprintf` float formatting support.
+ *
+ * See https://forum.pjrc.com/threads/41761-float-to-string-issue?p=131683&viewfull=1#post131683 */
+asm(".global _printf_float");
+
 extern uint8_t watchdog_status_;
 extern bool watchdog_refresh_;
 extern uint16_t STARTUP_WDOG_STCTRLH_VALUE;
@@ -219,6 +226,11 @@ public:
   // Detect chip insertion/removal.
   OutputEnableDebounce output_enable_input;
 
+  //: .. versionadded:: 1.42
+  //
+  // Time of most recent capacitance measurement.
+  uint32_t capacitance_timestamp_ms_;
+
   Node() : BaseNode(),
            BaseNodeConfig<config_t>(dropbot_Config_fields),
            BaseNodeState<state_t>(dropbot_State_fields), dmaBuffer_(NULL),
@@ -228,7 +240,8 @@ public:
            dma_stream_id_(0), watchdog_disable_request_(false),
            output_enable_input(*this, -1, DEFAULT_INPUT_DEBOUNCE_DELAY,
                                InputDebounce::PinInMode::PIM_EXT_PULL_UP_RES,
-                               0) {
+                               0),
+           capacitance_timestamp_ms_(0) {
     pinMode(LED_BUILTIN, OUTPUT);
     dma_data_ = UInt8Array_init_default();
     output_enable_input.setup(OE_PIN);
@@ -696,10 +709,40 @@ public:
 
   /** Called periodically from the main program loop. */
   void loop() {
+    /*
+     * .. versionchanged:: 1.42
+     *     Add periodic capacitance measurement.  Each new value is sent as an
+     *     event stream packet to the serial interface.
+     */
     unsigned long now = millis();
 
     // poll button state
     output_enable_input.process(now);
+
+    if ((state_._.capacitance_update_interval_ms > 0) &&
+        (state_._.capacitance_update_interval_ms < now -
+         capacitance_timestamp_ms_)) {
+      UInt8Array result = get_buffer();
+      result.length = 0;
+
+      unsigned long start = millis();
+      const unsigned long n_samples = config_._.capacitance_n_samples;
+      float value = capacitance(n_samples);
+      now = millis();
+
+      // Stream "capacitance-updated" event to serial interface.
+      sprintf((char *)result.data, "{\"event\": \"capacitance-updated\", \"new_value\": %g, \"start\": %lu, \"end\": %lu, \"n_samples\": %lu}", value, start, now, n_samples);
+      result.length = strlen((char *)result.data);
+
+      {
+        PacketStream output;
+        output.start(Serial, result.length);
+        output.write(Serial, (char *)result.data, result.length);
+        output.end(Serial);
+      }
+
+      capacitance_timestamp_ms_ = now;
+    }
 
     fast_analog_.update();
     if (watchdog_disable_request_) {
