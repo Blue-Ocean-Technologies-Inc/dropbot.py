@@ -38,6 +38,7 @@
 #include "Dropbot/config_pb.h"
 #include "Dropbot/state_pb.h"
 #include "packet_stream.h"
+#include "kxsort.h"
 
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
 #define CPU_RESTART_VAL 0x5FA0004
@@ -292,6 +293,101 @@ public:
         sum += analogRead(39);
     }
     return 1.195 * 65535.0 / (float)sum * 255.0;
+  }
+
+  UInt16Array kxsort_u16(UInt16Array data) {
+    /*
+     * .. versionadded:: 1.41
+     *
+     * Sort array (in-place) using (MIT-licensed)
+     * `radix-sort <https://github.com/voutcn/kxsort>`_.
+     *
+     * Parameters
+     * ----------
+     * data : UInt16Array
+     *     Input array.
+     *
+     * Returns
+     * -------
+     * UInt16Array
+     *     Input array in sorted order.
+     */
+    kx::radix_sort(data.data, &data.data[data.length]);
+    return data;
+  }
+
+  uint16_t u16_percentile_diff(uint8_t pin, uint16_t n_samples,
+                               float low_percentile, float high_percentile) {
+    /*
+     * ..versionadded:: 1.41
+     *
+     * Measure samples from specified analog pin and compute difference between
+     * specified high and low percentiles.
+     *
+     * For example, :data:`low_percentile` as 25 and :data:`high_percentile` as
+     * 75 is equivalent to computing the `inter-quartile range <https://en.wikipedia.org/wiki/Interquartile_range>`_.
+     *
+     * Parameters
+     * ----------
+     * pin : uint8_t
+     *     Analog pin number.
+     * n_samples : uint16_t
+     *     Number of samples to measure.
+     * low_percentile : float
+     *     Low percentile of range.
+     * high_percentile : float
+     *     High percentile of range.
+     *
+     * Returns
+     * -------
+     * uint16_t
+     *     Difference between high and low percentiles.
+     */
+    UInt16Array result = analog_reads_simple(pin, n_samples);
+    kx::radix_sort(result.data, &result.data[result.length]);
+    const uint16_t high_i = (int)round((high_percentile / 100.) * n_samples);
+    const uint16_t low_i = (int)round((low_percentile / 100.) * n_samples);
+    return result.data[high_i] - result.data[low_i];
+  }
+
+  float capacitance(uint16_t n_samples) {
+    /*
+     * .. versionadded:: 1.41
+     *
+     * Measure device load capacitance based on the specified number of analog
+     * samples.
+     *
+     * Amplitude of measured square wave is calculated by computing the `inter-quartile range (IQR) <https://en.wikipedia.org/wiki/Interquartile_range>`_,
+     * i.e., the difference between the 75th percentile and the 25th
+     * percentile.
+     *
+     * See: https://gitlab.com/sci-bots/dropbot.py/issues/25
+     *
+     * Parameters
+     * ----------
+     * n_samples : uint16_t
+     *     Number of analog samples to measure.
+     *
+     *     If 0, use default from :attr:`config_._`.
+     *
+     * Returns
+     * -------
+     * float
+     *     Capacitance of device load in farads (F).
+     *
+     *
+     * .. versionchanged:: 1.41
+     *     If 0, use default from :attr:`config_._`.
+     */
+    // Compute capacitance from measured square-wave RMS voltage amplitude.
+    n_samples = (n_samples) ? n_samples : config_._.capacitance_n_samples;
+    const uint16_t raw = u16_percentile_diff(11, n_samples, 25, 75);
+
+    // Compute capacitance from measured square-wave RMS voltage amplitude.
+    return raw * 0.5  // RMS from square-wave peak-to-peak
+               * 0.15e-8  // Feedback circuit Voltage to C transfer function
+               * 3.3  // Analog reference voltage
+               / float(1L << 16);  // Divide by maximum analog value
   }
 
   UInt16Array analog_reads_simple(uint8_t pin, uint16_t n_samples) {

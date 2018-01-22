@@ -29,4 +29,7 @@ message Config {
   optional float min_frequency =  57 [default = 100];
   optional float max_frequency =  58 [default = 10e3];
   optional string id = 59 [default = ''];
+
+  //: .. versionadded:: 1.41
+  optional uint32 capacitance_n_samples = 60 [default = 50];
 }
