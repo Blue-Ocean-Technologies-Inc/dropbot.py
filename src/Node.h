@@ -226,6 +226,11 @@ public:
   // Detect chip insertion/removal.
   OutputEnableDebounce output_enable_input;
 
+  //: .. versionadded:: X.X.X
+  //
+  // Time of most recent capacitance measurement.
+  uint32_t capacitance_timestamp_ms_;
+
   Node() : BaseNode(),
            BaseNodeConfig<config_t>(dropbot_Config_fields),
            BaseNodeState<state_t>(dropbot_State_fields), dmaBuffer_(NULL),
@@ -235,7 +240,8 @@ public:
            dma_stream_id_(0), watchdog_disable_request_(false),
            output_enable_input(*this, -1, DEFAULT_INPUT_DEBOUNCE_DELAY,
                                InputDebounce::PinInMode::PIM_EXT_PULL_UP_RES,
-                               0) {
+                               0),
+           capacitance_timestamp_ms_(0) {
     pinMode(LED_BUILTIN, OUTPUT);
     dma_data_ = UInt8Array_init_default();
     output_enable_input.setup(OE_PIN);
@@ -703,10 +709,38 @@ public:
 
   /** Called periodically from the main program loop. */
   void loop() {
+    /*
+     * .. versionchanged:: X.X.X
+     *     Add periodic capacitance measurement.  Each new value is sent as an
+     *     event stream packet to the serial interface.
+     */
     unsigned long now = millis();
 
     // poll button state
     output_enable_input.process(now);
+
+    if (100 < now - capacitance_timestamp_ms_) {
+      UInt8Array result = get_buffer();
+      result.length = 0;
+
+      unsigned long start = millis();
+      const unsigned long n_samples = config_._.capacitance_n_samples;
+      float value = capacitance(n_samples);
+      now = millis();
+
+      // Stream "capacitance-updated" event to serial interface.
+      sprintf((char *)result.data, "{\"event\": \"capacitance-updated\", \"new_value\": %g, \"start\": %lu, \"end\": %lu, \"n_samples\": %lu}", value, start, now, n_samples);
+      result.length = strlen((char *)result.data);
+
+      {
+        PacketStream output;
+        output.start(Serial, result.length);
+        output.write(Serial, (char *)result.data, result.length);
+        output.end(Serial);
+      }
+
+      capacitance_timestamp_ms_ = now;
+    }
 
     fast_analog_.update();
     if (watchdog_disable_request_) {
