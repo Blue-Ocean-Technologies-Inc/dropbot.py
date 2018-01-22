@@ -44,6 +44,13 @@
 #define CPU_RESTART_VAL 0x5FA0004
 #define CPU_RESTART (*CPU_RESTART_ADDR = CPU_RESTART_VAL);
 
+/* .. versionadded:: X.X.X
+ *
+ * Add `printf`/`sprintf` float formatting support.
+ *
+ * See https://forum.pjrc.com/threads/41761-float-to-string-issue?p=131683&viewfull=1#post131683 */
+asm(".global _printf_float");
+
 extern uint8_t watchdog_status_;
 extern bool watchdog_refresh_;
 extern uint16_t STARTUP_WDOG_STCTRLH_VALUE;
