@@ -368,12 +368,19 @@ public:
      * n_samples : uint16_t
      *     Number of analog samples to measure.
      *
+     *     If 0, use default from :attr:`config_._`.
+     *
      * Returns
      * -------
      * float
      *     Capacitance of device load in farads (F).
+     *
+     *
+     * .. versionchanged:: X.X.X
+     *     If 0, use default from :attr:`config_._`.
      */
     // Compute capacitance from measured square-wave RMS voltage amplitude.
+    n_samples = (n_samples) ? n_samples : config_._.capacitance_n_samples;
     const uint16_t raw = u16_percentile_diff(11, n_samples, 25, 75);
 
     // Compute capacitance from measured square-wave RMS voltage amplitude.
