@@ -28,7 +28,7 @@ requirements:
     # ..versionadded:: 1.31
     # ..versionchanged:: 1.40
     # ..versionchanged:: 1.40.3
-    # ..versionchanged:: X.X.X
+    # ..versionchanged:: 1.41
     - base-node-rpc >=0.41.1
     - future
     - json-tricks
@@ -61,7 +61,7 @@ requirements:
     # ..versionchanged:: 1.40
     # ..versionchanged:: 1.40.2
     # ..versionchanged:: 1.40.3
-    # ..versionchanged:: X.X.X
+    # ..versionchanged:: 1.41
     - base-node-rpc >=0.41.1
     - json-tricks
     - nanopb-helpers >=0.6

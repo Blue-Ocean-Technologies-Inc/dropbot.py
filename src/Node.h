@@ -297,7 +297,7 @@ public:
 
   UInt16Array kxsort_u16(UInt16Array data) {
     /*
-     * .. versionadded:: X.X.X
+     * .. versionadded:: 1.41
      *
      * Sort array (in-place) using (MIT-licensed)
      * `radix-sort <https://github.com/voutcn/kxsort>`_.
@@ -319,7 +319,7 @@ public:
   uint16_t u16_percentile_diff(uint8_t pin, uint16_t n_samples,
                                float low_percentile, float high_percentile) {
     /*
-     * ..versionadded:: X.X.X
+     * ..versionadded:: 1.41
      *
      * Measure samples from specified analog pin and compute difference between
      * specified high and low percentiles.
@@ -352,7 +352,7 @@ public:
 
   float capacitance(uint16_t n_samples) {
     /*
-     * .. versionadded:: X.X.X
+     * .. versionadded:: 1.41
      *
      * Measure device load capacitance based on the specified number of analog
      * samples.
@@ -376,7 +376,7 @@ public:
      *     Capacitance of device load in farads (F).
      *
      *
-     * .. versionchanged:: X.X.X
+     * .. versionchanged:: 1.41
      *     If 0, use default from :attr:`config_._`.
      */
     // Compute capacitance from measured square-wave RMS voltage amplitude.

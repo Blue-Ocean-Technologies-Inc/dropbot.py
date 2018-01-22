@@ -214,7 +214,7 @@ try:
                 Series is indexed by the specified amplitude calculation
                 methods.
 
-            .. versionchanged:: X.X.X
+            .. versionchanged:: 1.41
                 Add :data:`amplitude` keyword argument.  See `issue #25 <https://gitlab.com/sci-bots/dropbot.py/issues/25>`_
                 for more information.
             '''
