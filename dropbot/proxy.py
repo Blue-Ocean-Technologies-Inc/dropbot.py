@@ -461,10 +461,28 @@ try:
             per byte).  Set state of channels on device using state bytes.
 
             See also: `state_of_channels` (get)
-            '''
-            states = np.asarray(states, dtype=int)
 
-            if len(states) != self.number_of_channels:
+            Parameters
+            ----------
+            states : list or pandas.Series
+                If :class:`list`, 0 or 1 for each channel (size must be equal
+                to the total number of channels).
+
+                If :class:`pandas.Series`, values 0 or 1 for each corresponding
+                channel number listed in index.
+            '''
+            N = self.number_of_channels
+            if isinstance(states, pd.Series):
+                if len(states) == N:
+                    channel_states = np.zeros(N, dtype=int)
+                else:
+                    channel_states = self.state_of_channels
+                channel_states[states.index] = states
+                states = channel_states
+            else:
+                states = np.asarray(states, dtype=int)
+
+            if len(states) != N:
                 raise ValueError('Error setting state of channels.  Check '
                                  'number of states matches channel count.')
 
