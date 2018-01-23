@@ -781,11 +781,51 @@ public:
      * .. versionchanged:: X.X.X
      *     Report ``start`` and ``end`` times of capacitance update events in
      *     **microseconds** instead of **milliseconds**.
+     *
+     *     If target capacitance state field is non-zero, compare current
+     *     device load capacitance to the target capacitance.  If target
+     *     capacitance has been exceeded, stream ``"capacitance-exceeded"``
+     *     event packet to serial interface.
      */
     unsigned long now = millis();
 
     // poll button state
     output_enable_input.process(now);
+
+    // Send event if target capacitance has been set and exceeded.
+    if (state_._.target_capacitance > 0) {
+      UInt8Array result = get_buffer();
+      result.length = 0;
+
+      const unsigned long n_samples = config_._.capacitance_n_samples;
+      unsigned long start = microseconds();
+      float value = capacitance(n_samples);
+      now = microseconds();
+
+      if (value > state_._.target_capacitance) {
+        // Target capacitance has been met.
+
+        // Stream "capacitance-updated" event to serial interface.
+        sprintf((char *)result.data, "{\"event\": \"capacitance-exceeded\", \"new_value\": %g, \"target\": %g, \"start\": %lu, \"end\": %lu, \"n_samples\": %lu}", value, state_._.target_capacitance, start, now, n_samples);
+        result.length = strlen((char *)result.data);
+        unsigned long now = microseconds();
+
+        // Reset target capacitance.
+        state_._.target_capacitance = 0;
+
+        {
+          PacketStream output;
+          output.start(Serial, result.length);
+          output.write(Serial, (char *)result.data, result.length);
+          output.end(Serial);
+        }
+
+        // Reset periodic capacitance timestamp since there is no need to send
+        // `capacitance-updated` event since `capacitance-exceeded` event
+        // contains latest capacitance value.
+        capacitance_timestamp_ms_ = now;
+      }
+    }
 
     // Send periodic capacitance value update events.
     if ((state_._.capacitance_update_interval_ms > 0) &&
