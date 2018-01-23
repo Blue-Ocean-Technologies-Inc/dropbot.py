@@ -376,6 +376,43 @@ public:
      *
      * See: https://gitlab.com/sci-bots/dropbot.py/issues/25
      *
+     * Notes
+     * -----
+     *
+     * According to the figure below, the transfer function describes the
+     * following relationship::
+     *
+     *     V₂   Z₂
+     *     ── = ──
+     *     V₁   Z₁
+     *
+     * where $V_{1}$ denotes the high-voltage actuation signal and $V_{2}$
+     * denotes the signal sufficiently attenuated to fall within the measurable
+     * input range of the analog-to-digital converter *(approx. 3.3 V)*.  The
+     * feedback circuits for the control board is shown below.
+     *
+     * .. code-block:: none
+     *
+     *       V_1 @ frequency
+     *           ┯
+     *         ┌─┴─┐    ┌───┐
+     *         │Z_1│  ┌─┤Z_2├─┐
+     *         └─┬─┘  │ └───┘ │
+     *           │    │  │╲   ├───⊸ V_2
+     *           └────┴──│-╲__│
+     *                ┌──│+╱
+     *                │  │╱
+     *                │
+     *               ═╧═
+     *
+     * See `HVAC`_ in DropBot HV square wave driver and `A11` and `C16` in
+     * `feedback filter`_:
+     *
+     *  - `C16`: 0.15 uF
+     *
+     * Where ``V1`` and ``V2`` are root-mean-squared voltages, and Z1 == jwC1``
+     * and ``Z2 == jwC2``, ``C2 = V2 / V1 * C1``.
+     *
      * Parameters
      * ----------
      * n_samples : uint16_t
@@ -391,16 +428,43 @@ public:
      *
      * .. versionchanged:: 1.41
      *     If 0, use default from :attr:`config_._`.
+     *
+     * .. versionchanged:: 1.43
+     *     Fix equation to divide by actuation voltage.
+     *
+     * .. _`HVAC`: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/boost-converter-boost-converter.pdf
+     * .. _`feedback filter`: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/feedback-feedback.pdf
      */
-    // Compute capacitance from measured square-wave RMS voltage amplitude.
-    n_samples = (n_samples) ? n_samples : config_._.capacitance_n_samples;
-    const uint16_t raw = u16_percentile_diff(11, n_samples, 25, 75);
 
     // Compute capacitance from measured square-wave RMS voltage amplitude.
-    return raw * 0.5  // RMS from square-wave peak-to-peak
-               * 0.15e-8  // Feedback circuit Voltage to C transfer function
-               * 3.3  // Analog reference voltage
-               / float(1L << 16);  // Divide by maximum analog value
+    n_samples = (n_samples) ? n_samples : config_._.capacitance_n_samples;
+    const uint16_t A11_raw = u16_percentile_diff(11, n_samples, 25, 75);
+
+    // Compute capacitance from measured square-wave RMS voltage amplitude.
+    // V2 = 0.5 * (float(A11) / MAX_ANALOG) * AREF
+    const float device_load_v = 0.5 * (A11_raw / float(1L << 16)) * 3.3;
+    // C2 = V2 * C16 / HVAC
+    const float C2 = device_load_v * 0.15e-6 / high_voltage();
+    return C2;
+  }
+
+  float high_voltage() {
+    /* See [`A1/HV_FB`][1] in DropBot boost converter schematic:
+     *
+     *  - `R8`: 2 Mohms
+     *  - `R9`: 20 Kohms
+     *  - `AREF`: 3.3 V
+     *
+     * [1]: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/boost-converter-boost-converter.pdf
+     */
+    // HV_FB = (float(A1) / MAX_ANALOG) * AREF
+    const float hv_fb = (analogRead(A1) / float(1L << 16)) * 3.3;
+    // HV peak-to-peak = HV_FB * R8 / R9
+    const float R8 = 2e6;
+    const float R9 = 20e3;
+    const float hv_peak_to_peak = hv_fb * R8 / R9;
+    // HV RMS = 0.5 * HV peak-to-peak
+    return 0.5 * hv_peak_to_peak;
   }
 
   UInt16Array analog_reads_simple(uint8_t pin, uint16_t n_samples) {
@@ -713,22 +777,67 @@ public:
      * .. versionchanged:: 1.42
      *     Add periodic capacitance measurement.  Each new value is sent as an
      *     event stream packet to the serial interface.
+     *
+     * .. versionchanged:: 1.43
+     *     Report ``start`` and ``end`` times of capacitance update events in
+     *     **microseconds** instead of **milliseconds**.
+     *
+     *     If target capacitance state field is non-zero, compare current
+     *     device load capacitance to the target capacitance.  If target
+     *     capacitance has been exceeded, stream ``"capacitance-exceeded"``
+     *     event packet to serial interface.
      */
     unsigned long now = millis();
 
     // poll button state
     output_enable_input.process(now);
 
+    // Send event if target capacitance has been set and exceeded.
+    if (state_._.target_capacitance > 0) {
+      UInt8Array result = get_buffer();
+      result.length = 0;
+
+      const unsigned long n_samples = config_._.capacitance_n_samples;
+      unsigned long start = microseconds();
+      float value = capacitance(n_samples);
+      now = microseconds();
+
+      if (value > state_._.target_capacitance) {
+        // Target capacitance has been met.
+
+        // Stream "capacitance-updated" event to serial interface.
+        sprintf((char *)result.data, "{\"event\": \"capacitance-exceeded\", \"new_value\": %g, \"target\": %g, \"start\": %lu, \"end\": %lu, \"n_samples\": %lu}", value, state_._.target_capacitance, start, now, n_samples);
+        result.length = strlen((char *)result.data);
+        unsigned long now = microseconds();
+
+        // Reset target capacitance.
+        state_._.target_capacitance = 0;
+
+        {
+          PacketStream output;
+          output.start(Serial, result.length);
+          output.write(Serial, (char *)result.data, result.length);
+          output.end(Serial);
+        }
+
+        // Reset periodic capacitance timestamp since there is no need to send
+        // `capacitance-updated` event since `capacitance-exceeded` event
+        // contains latest capacitance value.
+        capacitance_timestamp_ms_ = now;
+      }
+    }
+
+    // Send periodic capacitance value update events.
     if ((state_._.capacitance_update_interval_ms > 0) &&
         (state_._.capacitance_update_interval_ms < now -
          capacitance_timestamp_ms_)) {
       UInt8Array result = get_buffer();
       result.length = 0;
 
-      unsigned long start = millis();
+      unsigned long start = microseconds();
       const unsigned long n_samples = config_._.capacitance_n_samples;
       float value = capacitance(n_samples);
-      now = millis();
+      now = microseconds();
 
       // Stream "capacitance-updated" event to serial interface.
       sprintf((char *)result.data, "{\"event\": \"capacitance-updated\", \"new_value\": %g, \"start\": %lu, \"end\": %lu, \"n_samples\": %lu}", value, start, now, n_samples);
@@ -741,7 +850,7 @@ public:
         output.end(Serial);
       }
 
-      capacitance_timestamp_ms_ = now;
+      capacitance_timestamp_ms_ = millis();
     }
 
     fast_analog_.update();
