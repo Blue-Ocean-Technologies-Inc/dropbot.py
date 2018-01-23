@@ -403,6 +403,25 @@ public:
                / float(1L << 16);  // Divide by maximum analog value
   }
 
+  float high_voltage() {
+    /* See [`A1/HV_FB`][1] in DropBot boost converter schematic:
+     *
+     *  - `R8`: 2 Mohms
+     *  - `R9`: 20 Kohms
+     *  - `AREF`: 3.3 V
+     *
+     * [1]: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/boost-converter-boost-converter.pdf
+     */
+    // HV_FB = (float(A1) / MAX_ANALOG) * AREF
+    const float hv_fb = (analogRead(A1) / float(1L << 16)) * 3.3;
+    // HV peak-to-peak = HV_FB * R8 / R9
+    const float R8 = 2e6;
+    const float R9 = 20e3;
+    const float hv_peak_to_peak = hv_fb * R8 / R9;
+    // HV RMS = 0.5 * HV peak-to-peak
+    return 0.5 * hv_peak_to_peak;
+  }
+
   UInt16Array analog_reads_simple(uint8_t pin, uint16_t n_samples) {
     UInt8Array byte_buffer = get_buffer();
     UInt16Array output;
