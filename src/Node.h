@@ -777,22 +777,27 @@ public:
      * .. versionchanged:: 1.42
      *     Add periodic capacitance measurement.  Each new value is sent as an
      *     event stream packet to the serial interface.
+     *
+     * .. versionchanged:: X.X.X
+     *     Report ``start`` and ``end`` times of capacitance update events in
+     *     **microseconds** instead of **milliseconds**.
      */
     unsigned long now = millis();
 
     // poll button state
     output_enable_input.process(now);
 
+    // Send periodic capacitance value update events.
     if ((state_._.capacitance_update_interval_ms > 0) &&
         (state_._.capacitance_update_interval_ms < now -
          capacitance_timestamp_ms_)) {
       UInt8Array result = get_buffer();
       result.length = 0;
 
-      unsigned long start = millis();
+      unsigned long start = microseconds();
       const unsigned long n_samples = config_._.capacitance_n_samples;
       float value = capacitance(n_samples);
-      now = millis();
+      now = microseconds();
 
       // Stream "capacitance-updated" event to serial interface.
       sprintf((char *)result.data, "{\"event\": \"capacitance-updated\", \"new_value\": %g, \"start\": %lu, \"end\": %lu, \"n_samples\": %lu}", value, start, now, n_samples);
@@ -805,7 +810,7 @@ public:
         output.end(Serial);
       }
 
-      capacitance_timestamp_ms_ = now;
+      capacitance_timestamp_ms_ = millis();
     }
 
     fast_analog_.update();
