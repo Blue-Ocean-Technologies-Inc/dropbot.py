@@ -429,7 +429,7 @@ public:
      * .. versionchanged:: 1.41
      *     If 0, use default from :attr:`config_._`.
      *
-     * .. versionchanged:: X.X.X
+     * .. versionchanged:: 1.43
      *     Fix equation to divide by actuation voltage.
      *
      * .. _`HVAC`: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/boost-converter-boost-converter.pdf
@@ -778,7 +778,7 @@ public:
      *     Add periodic capacitance measurement.  Each new value is sent as an
      *     event stream packet to the serial interface.
      *
-     * .. versionchanged:: X.X.X
+     * .. versionchanged:: 1.43
      *     Report ``start`` and ``end`` times of capacitance update events in
      *     **microseconds** instead of **milliseconds**.
      *

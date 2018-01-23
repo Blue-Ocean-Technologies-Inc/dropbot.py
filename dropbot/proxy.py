@@ -122,7 +122,7 @@ try:
         @property
         def signals(self):
             '''
-            .. versionadded:: X.X.X
+            .. versionadded:: 1.43
             '''
             return self._packet_queue_manager.signals
 
