@@ -376,6 +376,43 @@ public:
      *
      * See: https://gitlab.com/sci-bots/dropbot.py/issues/25
      *
+     * Notes
+     * -----
+     *
+     * According to the figure below, the transfer function describes the
+     * following relationship::
+     *
+     *     V₂   Z₂
+     *     ── = ──
+     *     V₁   Z₁
+     *
+     * where $V_{1}$ denotes the high-voltage actuation signal and $V_{2}$
+     * denotes the signal sufficiently attenuated to fall within the measurable
+     * input range of the analog-to-digital converter *(approx. 3.3 V)*.  The
+     * feedback circuits for the control board is shown below.
+     *
+     * .. code-block:: none
+     *
+     *       V_1 @ frequency
+     *           ┯
+     *         ┌─┴─┐    ┌───┐
+     *         │Z_1│  ┌─┤Z_2├─┐
+     *         └─┬─┘  │ └───┘ │
+     *           │    │  │╲   ├───⊸ V_2
+     *           └────┴──│-╲__│
+     *                ┌──│+╱
+     *                │  │╱
+     *                │
+     *               ═╧═
+     *
+     * See `HVAC`_ in DropBot HV square wave driver and `A11` and `C16` in
+     * `feedback filter`_:
+     *
+     *  - `C16`: 0.15 uF
+     *
+     * Where ``V1`` and ``V2`` are root-mean-squared voltages, and Z1 == jwC1``
+     * and ``Z2 == jwC2``, ``C2 = V2 / V1 * C1``.
+     *
      * Parameters
      * ----------
      * n_samples : uint16_t
@@ -391,16 +428,24 @@ public:
      *
      * .. versionchanged:: 1.41
      *     If 0, use default from :attr:`config_._`.
+     *
+     * .. versionchanged:: X.X.X
+     *     Fix equation to divide by actuation voltage.
+     *
+     * .. _`HVAC`: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/boost-converter-boost-converter.pdf
+     * .. _`feedback filter`: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/feedback-feedback.pdf
      */
-    // Compute capacitance from measured square-wave RMS voltage amplitude.
-    n_samples = (n_samples) ? n_samples : config_._.capacitance_n_samples;
-    const uint16_t raw = u16_percentile_diff(11, n_samples, 25, 75);
 
     // Compute capacitance from measured square-wave RMS voltage amplitude.
-    return raw * 0.5  // RMS from square-wave peak-to-peak
-               * 0.15e-8  // Feedback circuit Voltage to C transfer function
-               * 3.3  // Analog reference voltage
-               / float(1L << 16);  // Divide by maximum analog value
+    n_samples = (n_samples) ? n_samples : config_._.capacitance_n_samples;
+    const uint16_t A11_raw = u16_percentile_diff(11, n_samples, 25, 75);
+
+    // Compute capacitance from measured square-wave RMS voltage amplitude.
+    // V2 = 0.5 * (float(A11) / MAX_ANALOG) * AREF
+    const float device_load_v = 0.5 * (A11_raw / float(1L << 16)) * 3.3;
+    // C2 = V2 * C16 / HVAC
+    const float C2 = device_load_v * 0.15e-6 / high_voltage();
+    return C2;
   }
 
   float high_voltage() {
