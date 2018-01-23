@@ -119,6 +119,13 @@ try:
                 self.terminate()
                 raise
 
+        @property
+        def signals(self):
+            '''
+            .. versionadded:: X.X.X
+            '''
+            return self._packet_queue_manager.signals
+
         def i2c_eeprom_write(self, i2c_address, eeprom_address, data):
             '''
             Write data to specified address in I2C EEPROM chip.
