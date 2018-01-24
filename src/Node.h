@@ -679,19 +679,18 @@ public:
   bool on_state_frequency_changed(float frequency) {
     /* This method is triggered whenever a frequency is included in a state
      * update. */
-    if ((config_._.min_frequency <= frequency) &&
+    if (frequency == 0) { // DC mode
+      digitalWrite(DRIVER_HIGH_PIN, HIGH); // set voltage high
+      digitalWrite(DRIVER_LOW_PIN, LOW);
+      Timer1.stop(); // stop timer
+    } else if ((config_._.min_frequency <= frequency) &&
                 (frequency <= config_._.max_frequency)) {
-      if (frequency == 0) { // DC mode
-        digitalWrite(DRIVER_HIGH_PIN, HIGH); // set voltage high
-        digitalWrite(DRIVER_LOW_PIN, LOW);
-        Timer1.stop(); // stop timer
-      } else {
-        Timer1.setPeriod(500000.0 / frequency); // set timer period in ms
-        Timer1.restart();
-      }
-      return true;
+      Timer1.setPeriod(500000.0 / frequency); // set timer period in ms
+      Timer1.restart();
+    } else {
+      return false;
     }
-    return false;
+    return true;
   }
 
   bool on_state_voltage_changed(float voltage) {
