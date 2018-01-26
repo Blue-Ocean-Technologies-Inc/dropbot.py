@@ -579,6 +579,11 @@ public:
   }
 
   UInt8Array state_of_channels() {
+    // XXX Stop the timer (which toggles the HV square-wave driver) during i2c
+    // communication.
+    //
+    // See https://gitlab.com/sci-bots/dropbot.py/issues/26
+    Timer1.stop(); // stop the timer during i2c transmission
     for (uint8_t chip = 0; chip < state_._.channel_count / 40; chip++) {
       for (uint8_t port = 0; port < 5; port++) {
         Wire.beginTransmission((uint8_t)config_._.switching_board_i2c_address + chip);
@@ -591,10 +596,12 @@ public:
         if (Wire.available()) {
           state_of_channels_[chip * 5 + port] = ~Wire.read();
         } else {
+	  Timer1.restart();
           return UInt8Array_init_default();
         }
       }
     }
+    Timer1.restart();
     return UInt8Array_init(state_._.channel_count / 8,
                            (uint8_t *)&state_of_channels_[0]);
   }
@@ -627,6 +634,11 @@ public:
   }
 
   void _update_channels() {
+    // XXX Stop the timer (which toggles the HV square-wave driver) during i2c
+    // communication.
+    //
+    // See https://gitlab.com/sci-bots/dropbot.py/issues/26
+    Timer1.stop(); // stop the timer during i2c transmission
     uint8_t data[2];
     // Each PCA9505 chip has 5 8-bit output registers for a total of 40 outputs
     // per chip. We can have up to 8 of these chips on an I2C bus, which means
@@ -646,6 +658,7 @@ public:
         delayMicroseconds(200);
       }
     }
+    Timer1.restart();
   }
 
   float min_waveform_voltage() {
@@ -679,19 +692,18 @@ public:
   bool on_state_frequency_changed(float frequency) {
     /* This method is triggered whenever a frequency is included in a state
      * update. */
-    if ((config_._.min_frequency <= frequency) &&
+    if (frequency == 0) { // DC mode
+      digitalWrite(DRIVER_HIGH_PIN, HIGH); // set voltage high
+      digitalWrite(DRIVER_LOW_PIN, LOW);
+      Timer1.stop(); // stop timer
+    } else if ((config_._.min_frequency <= frequency) &&
                 (frequency <= config_._.max_frequency)) {
-      if (frequency == 0) { // DC mode
-        digitalWrite(DRIVER_HIGH_PIN, HIGH); // set voltage high
-        digitalWrite(DRIVER_LOW_PIN, LOW);
-        Timer1.stop(); // stop timer
-      } else {
-        Timer1.setPeriod(500000.0 / frequency); // set timer period in ms
-        Timer1.restart();
-      }
-      return true;
+      Timer1.setPeriod(500000.0 / frequency); // set timer period in ms
+      Timer1.restart();
+    } else {
+      return false;
     }
-    return false;
+    return true;
   }
 
   bool on_state_voltage_changed(float voltage) {

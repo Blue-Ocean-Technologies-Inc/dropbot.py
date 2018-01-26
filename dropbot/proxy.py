@@ -494,17 +494,17 @@ try:
                 # (don't include disabled channels)
                 current_state = self.state_of_channels
                 try:
-                    assert(np.all((states & ~self.disabled_channels_mask) ==
-                                  current_state))
+                    assert(np.all((states.astype(np.uint8) &
+                                   ~self.disabled_channels_mask) ==
+                           current_state))
                     return
                 except Exception:
-                    if retry < 3:
-                        # if not, reset the switching boards and try again
-                        self.reset_switching_boards()
-                        continue
-                    else:
-                        raise CommunicationError('Error setting the state of '
-                                                 'channels')
+                    # if not, reset the switching boards and try again
+                    self.reset_switching_boards()
+                    continue
+
+            # If we get to here, we were unable to verify the state
+            raise CommunicationError('Error setting the state of channels')
 
         def reset_switching_boards(self):
             '''
