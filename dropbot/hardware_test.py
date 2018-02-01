@@ -316,7 +316,7 @@ def test_channels(proxy, n_reps=1, test_channels=None, shorts=None):
     proxy.hv_output_enabled = True
     proxy.hv_output_selected = True
 
-    c = np.zeros([n_channels, n_reps])
+    c = np.zeros([len(test_channels), n_reps])
 
     for j in range(n_reps):
         for i, channel_i in enumerate(test_channels):
