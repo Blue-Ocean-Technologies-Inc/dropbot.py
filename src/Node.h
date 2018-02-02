@@ -667,19 +667,19 @@ public:
 
   bool _set_voltage(float voltage) {
     float pot_value = R6 / ( 2 * voltage / 1.5 - 1 ) - config_._.R7;
-    uint8_t wiper_value = (uint8_t)(pot_value / config_._.pot_max * 255);
+    float wiper_value = pot_value / config_._.pot_max * 255;
     if ( voltage <= config_._.max_voltage && \
-         pot_value <= config_._.pot_max && pot_value >= 0 ) {
+         wiper_value < 256 && pot_value >= 0 ) {
       // This method is triggered whenever a voltage is included in a state
       // update.
       i2c.beginTransmission(44);
       i2c.write(0);
-      i2c.write(wiper_value);
+      i2c.write((uint8_t)wiper_value);
       i2c.endTransmission();
 
       // verify that we wrote the correct value to the pot
       i2c.requestFrom(44, 1);
-      if (i2c.read() == wiper_value) {
+      if (i2c.read() == (uint8_t)wiper_value) {
         return true;
       }
     }
@@ -715,7 +715,7 @@ public:
       // If we're turning the output on, we need to start with a low voltage,
       // enable the MAX1771, then increase the voltage. Otherwise, if the voltage
       // is > ~100 the MAX1771 will not turn on.
-      _set_voltage(15);
+      _set_voltage(min_waveform_voltage());
       delay(100);
       digitalWrite(SHDN_PIN, !value);
       delay(100);

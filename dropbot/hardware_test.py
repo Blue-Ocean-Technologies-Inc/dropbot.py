@@ -207,7 +207,7 @@ def test_voltage(proxy, n=5, delay=0.1):
     input_voltage = proxy.measure_input_voltage()
 
     target_voltage = np.linspace(proxy.min_waveform_voltage,
-                                 proxy.max_waveform_voltage, n + 2)[1:-1]
+                                 proxy.max_waveform_voltage, n)
     for v in target_voltage:
         proxy.voltage = v
         time.sleep(delay)
