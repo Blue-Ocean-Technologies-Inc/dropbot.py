@@ -137,7 +137,7 @@ def test_i2c(proxy):
     -------
     dict
         Nested dictionary (keyed by i2c address) containing metadata
-        (e.g., uuid, name, software version, hardwar version) for each of the
+        (e.g., uuid, name, software version, hardware version) for each of the
         devices on the i2c bus.
     '''
     results = {}
@@ -187,12 +187,32 @@ def test_voltage(proxy, n=5, delay=0.1):
     Returns
     -------
     dict
-        target_voltage: list
+        target_voltage : list
             List of target voltages.
-        measured_voltage: list
+        measured_voltage : list
             List of measured voltages.
         delay : float
             Seconds between measurements.
+        input_voltage : float
+            Input voltage from the power supply.
+        input_current : float
+            Input current (in Amps) to the boost converter.
+        input_current_no_load : float
+            Input current (in Amps) to the boost converter when the
+            high-voltage output is not selected.
+        output_current : float
+            Output current (in Amps) from the boost converter.
+        output_current_no_load
+            Output current (in Amps) from the boost converter when the
+            high-voltage output is not selected.
+
+
+    .. versionchanged:: 1.23
+        Add input_current and output_current measurements.
+    .. versionchanged:: 1.25
+        Add input_voltage measurement.
+    .. versionchanged:: 1.46
+        Add input_current_no_load and output_current_no_load measurements.
     '''
     proxy.hv_output_enabled = True
     proxy.hv_output_selected = True
@@ -269,32 +289,41 @@ def test_shorts(proxy):
 
 @time_it
 @restore_state
-def test_on_board_feedback_calibration(proxy):
+def test_on_board_feedback_calibration(proxy, n_reps=3):
     '''
     Measure the on-board feedback capacitors.
 
     Parameters
     ----------
     proxy : Proxy
+    n_reps : int
 
     Returns
     -------
     dict
-        c : list
-            List of measured capacitance values for each of the
-            test capacitors.
+        c : numpy.ndarray
+            [m x n] array of measured capacitance values where m
+            is the number of test capacitors n is the number
+            of replicates.
+
+
+    .. versionchanged:: 1.46
+        Add n_reps argument (default=3).
+        Return 'c' as a numpy.ndarray instead of list.
     '''
     proxy.voltage = 100
     proxy.hv_output_enabled = True
     proxy.hv_output_selected = True
     proxy.state_of_channels = np.zeros(proxy.number_of_channels)
 
-    c = []
-    for i in [-1, 0, 1, 2]:
-        proxy.select_on_board_test_capacitor(i)
-        c.append(proxy.measure_capacitance())
+    c = np.zeros((4, n_reps))
+    for rep in range(n_reps):
+        for i, capacitor_index in enumerate([-1, 0, 1, 2]):
+            proxy.select_on_board_test_capacitor(capacitor_index)
+            c[i, rep] = proxy.measure_capacitance()
 
     proxy.select_on_board_test_capacitor(-1)
+
     return {'c_measured': c}
 
 
@@ -308,7 +337,7 @@ def test_channels(proxy, n_reps=1, test_channels=None, shorts=None):
     ----------
     proxy : Proxy
     n_reps : int
-        Number of reps per channel (default=1).
+        Number of replicates per channel (default=1).
     test_channels : list
         List of channels to test (default=all channels).
     shorts : list
@@ -322,10 +351,10 @@ def test_channels(proxy, n_reps=1, test_channels=None, shorts=None):
             List of channels tested.
         shorts : list
             List of channels with shorts.
-        c : np.array
+        c : numpy.array
             [m x n] array of measured capacitance values where m
             is the number of channels tested and n is the number
-            of reps.
+            of replicates.
     '''
     n_channels = proxy.number_of_channels
     if not shorts:
