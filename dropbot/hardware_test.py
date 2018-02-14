@@ -200,9 +200,9 @@ def test_voltage(proxy, n=5, delay=0.1):
     input_current = []
     output_current = []
 
-    # need to wait for the voltage to stabilize
-    proxy.voltage = proxy.min_waveform_voltage + 5
-    time.sleep(0.5)
+    # Wait for the voltage to stabilize
+    proxy.voltage = proxy.min_waveform_voltage
+    time.sleep(1)
 
     input_voltage = proxy.measure_input_voltage()
 
@@ -217,11 +217,32 @@ def test_voltage(proxy, n=5, delay=0.1):
         results = proxy.measure_output_current()
         output_current.append(results['rms'])
 
-    measured_voltage = np.array(measured_voltage)
+    # Perform the same test with the high-voltage output de-selected
+    proxy.hv_output_selected = False
+    measured_voltage_no_load = []
+    input_current_no_load = []
+    output_current_no_load = []
+
+    # Wait for the voltage to stabilize
+    proxy.voltage = proxy.min_waveform_voltage
+    time.sleep(1)
+
+    for v in target_voltage:
+        proxy.voltage = v
+        time.sleep(delay)
+        measured_voltage_no_load.append(proxy.measure_voltage())
+        results = proxy.measure_input_current()
+        input_current_no_load.append(results['rms'])
+        results = proxy.measure_output_current()
+        output_current_no_load.append(results['rms'])
+
     return {'target_voltage': target_voltage,
             'measured_voltage': measured_voltage,
             'input_current': input_current,
             'output_current': output_current,
+            'measured_voltage_no_load': measured_voltage_no_load,
+            'input_current_no_load': input_current_no_load,
+            'output_current_no_load': output_current_no_load,
             'input_voltage': input_voltage,
             'delay': delay}
 
