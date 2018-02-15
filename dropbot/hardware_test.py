@@ -289,7 +289,7 @@ def test_shorts(proxy):
 
 @time_it
 @restore_state
-def test_on_board_feedback_calibration(proxy, n_reps=3):
+def test_on_board_feedback_calibration(proxy, n_reps=10):
     '''
     Measure the on-board feedback capacitors.
 
@@ -308,7 +308,7 @@ def test_on_board_feedback_calibration(proxy, n_reps=3):
 
 
     .. versionchanged:: 1.46
-        Add n_reps argument (default=3).
+        Add n_reps argument (default=10).
         Return 'c' as a numpy.ndarray instead of list.
     '''
     proxy.voltage = 100
