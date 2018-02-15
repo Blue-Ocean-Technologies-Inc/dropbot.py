@@ -247,6 +247,10 @@ def format_test_on_board_feedback_calibration_results(results,
     .. versionchanged:: 1.30
         Format measured/nominal voltages as a table.
 
+    .. versionchanged:: 1.46
+        Accept capacitance input in list or 2-d array format (where
+        the dimension 1 represents replicates).
+
     Parameters
     ----------
     results : dict
@@ -270,8 +274,14 @@ def format_test_on_board_feedback_calibration_results(results,
         specified path.
     '''
     C_nominal = NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS
+    c_measured = np.array(results['c_measured'])
+
+    # If c_measured is a 1-d array or a list, convert it to a 2-d array
+    if len(c_measured.shape) == 1:
+        c_measured = np.reshape(c_measured, [len(C_nominal), 1])
+
     capacitances = (pd.DataFrame(np.column_stack([C_nominal.values,
-                                                  results['c_measured']]),
+                                                  np.mean(c_measured, 1)]),
                                  columns=['nominal',
                                           'measured']).T
                     .applymap(lambda x: '%sF' % si.si_format(x)))
@@ -306,6 +316,11 @@ def plot_test_on_board_feedback_calibration_results(results, axis=None):
         Use :data:`NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS` from
         :module:`__init__`.
 
+    .. versionchanged:: 1.46
+        Accept capacitance input in list or 2-d array format (where
+        the dimension 1 represents replicates).
+
+
     Plot summary of results from
     :func:`dropbot.hardware_test.test_on_board_feedback_calibration`.
 
@@ -330,8 +345,14 @@ def plot_test_on_board_feedback_calibration_results(results, axis=None):
         axis.set_aspect(True)
 
     C_nominal = NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS.values
+    c_measured = np.array(results['c_measured'])
+    
+    # If c_measured is a 1-d array or a list, convert it to a 2-d array
+    if len(np.array(c_measured).shape) == 1:
+        c_measured = np.reshape(c_measured, [len(C_nominal), 1])
 
-    axis.plot(C_nominal, results['c_measured'], 'o')
+    axis.errorbar(C_nominal, np.mean(c_measured, 1),
+                  yerr=np.std(c_measured, 1), fmt='o')
     axis.plot(C_nominal, C_nominal, 'k--')
     axis.set_xlabel('Nominal capacitance')
     axis.set_ylabel('Measured capacitance')
