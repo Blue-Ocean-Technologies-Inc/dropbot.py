@@ -65,7 +65,7 @@ options(
                author='Christian Fobel',
                author_email='christian@fobel.net',
                url=URL,
-               license='GPLv2',
+               license='BSD-3',
                install_requires=['teensy-minimal-rpc>=0.3.0'],
                include_package_data=True,
                packages=[str(PROJECT_PREFIX)]))
