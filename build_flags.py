@@ -1,7 +1,7 @@
 import argparse
 import sys
 
-import dropbot.version
+from dropbot import __version__ as DROPBOT_VERSION
 
 
 def parse_args(args=None):
@@ -9,7 +9,7 @@ def parse_args(args=None):
         args = sys.argv[1:]
     parser = argparse.ArgumentParser()
 
-    default_version = dropbot.version.getVersion()
+    default_version = DROPBOT_VERSION
     parser.add_argument('-V', '--version', default=default_version)
     parser.add_argument('arg', nargs='*')
 

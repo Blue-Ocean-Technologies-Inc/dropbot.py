@@ -9,3 +9,5 @@ recursive-exclude dropbot *.o
 recursive-exclude dropbot *.exe
 recursive-exclude dropbot .ipynb_checkpoints/*
 recursive-exclude dropbot .proto
+include versioneer.py
+include dropbot/_version.py

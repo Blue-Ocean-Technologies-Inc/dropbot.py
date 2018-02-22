@@ -1,6 +1,5 @@
 from collections import OrderedDict
 import sys
-import os
 from importlib import import_module
 
 from paver.easy import path, options
@@ -17,8 +16,8 @@ except ImportError:
                   'install).')
 
 # Add current directory to Python path
-sys.path.append(os.path.dirname(__file__))
-from dropbot.version import getVersion
+sys.path.insert(0, '.')
+import versioneer
 install_distutils_tasks()
 
 DEFAULT_ARDUINO_BOARDS = []  #['mega2560']
@@ -26,7 +25,7 @@ PROJECT_PREFIX = 'dropbot'
 module_name = PROJECT_PREFIX
 package_name = module_name.replace('_', '-')
 rpc_module = import_module(PROJECT_PREFIX)
-VERSION = getVersion()
+VERSION = versioneer.get_version()
 URL='http://gitlab.com/sci-bots/%s.py.git' % package_name
 PROPERTIES = OrderedDict([('base_node_software_version',
                            base_node_rpc.__version__),
@@ -61,6 +60,7 @@ options(
     DEFAULT_ARDUINO_BOARDS=DEFAULT_ARDUINO_BOARDS,
     setup=dict(name=package_name,
                version=VERSION,
+               cmdclass=versioneer.get_cmdclass(),
                description=LIB_PROPERTIES['short_description'],
                author='Christian Fobel',
                author_email='christian@fobel.net',

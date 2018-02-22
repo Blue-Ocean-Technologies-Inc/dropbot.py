@@ -11,8 +11,11 @@ import numpy as np
 import pandas as pd
 import serial
 
+from ._version import get_versions
 from .bin.upload import upload
-from . import __version__
+
+__version__ = get_versions()['version']
+del get_versions
 
 logger = logging.getLogger(__name__)
 

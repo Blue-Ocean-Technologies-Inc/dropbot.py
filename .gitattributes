@@ -1,0 +1,3 @@
+
+*.ipynb	diff=jupyternotebook
+dropbot/_version.py export-subst

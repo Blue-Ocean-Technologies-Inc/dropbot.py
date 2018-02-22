@@ -4,16 +4,17 @@ import warnings
 from path_helpers import path
 import pandas as pd
 
-from .version import getVersion
-
-__version__ = getVersion()
-
+from ._version import get_versions
 try:
     from .proxy import Proxy, I2cProxy, SerialProxy
     from .config import Config
     from .state import State
 except (ImportError, TypeError), exception:
     warnings.warn(str(exception))
+
+__version__ = get_versions()['version']
+del get_versions
+
 
 '''
 .. versionadded:: 1.30
@@ -87,3 +88,7 @@ def get_firmwares():
                                           board_dir.walkfiles('*.hex')])
                         for board_dir in
                         package_path().joinpath('firmware').dirs()])
+
+from ._version import get_versions
+__version__ = get_versions()['version']
+del get_versions
