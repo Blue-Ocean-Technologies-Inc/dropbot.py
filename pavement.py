@@ -104,6 +104,7 @@ def compile_protobufs():
 
     code = pbh.compile_pb(path('.').joinpath('dropbot',
                           'metadata.proto').realpath())
-    with (path('.').joinpath('dropbot',
-              'metadata.py').realpath().open('wb')) as output:
+    output_path = path('.').joinpath('dropbot',
+                                     'metadata.py').realpath()
+    with output_path.open('w') as output:
         output.write(code['python'])
