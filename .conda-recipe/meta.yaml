@@ -45,7 +45,7 @@ requirements:
     # .. versionchanged:: 1.37.2
     - protobuf >=3.5
     - pytables
-    - python 2.7*
+    - python
     # ..versionchanged:: 1.33
     - serial-device >=0.9
     # ..versionchanged:: 1.37.3
@@ -72,7 +72,7 @@ requirements:
     # .. versionchanged:: 1.37.2
     - protobuf >=3.5
     - pytables
-    - python 2.7*
+    - python
     # ..versionchanged:: 1.33
     - serial-device >=0.9
     # ..versionchanged:: 1.37.3
