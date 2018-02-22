@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from functools import wraps
 import datetime as dt
 import time
@@ -12,6 +13,8 @@ from dropbot import metadata
 import json_tricks
 import numpy as np
 import path_helpers as ph
+import six
+from six.moves import range
 
 __all__ = ['log_results', 'system_info', 'test_system_metrics', 'test_i2c',
            'test_voltage', 'test_shorts', 'test_on_board_feedback_calibration',
@@ -43,7 +46,7 @@ def restore_state(f):
             result = f(*args, **kwargs)
         finally:
             # Restore state of attributes that we were modified.
-            for attr_i, value_i in state.iteritems():
+            for attr_i, value_i in six.iteritems(state):
                 setattr(proxy, attr_i, value_i)
         return result
     return _decorator

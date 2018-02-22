@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import datetime as dt
 import logging
 import subprocess as sp
@@ -18,6 +19,9 @@ from .hardware_test import (ALL_TESTS, system_info, test_system_metrics,
                             test_i2c, test_voltage, test_shorts,
                             test_on_board_feedback_calibration,
                             test_channels)
+import six
+from six.moves import map
+from six.moves import range
 
 logger = logging.getLogger(name=__name__)
 
@@ -97,7 +101,7 @@ def format_test_system_metrics_results(results):
     units = {'analog_reference': 'V',
              'temperature': 'degrees C',
              'voltage_limit': 'V'}
-    for property_i, unit_i in units.iteritems():
+    for property_i, unit_i in six.iteritems(units):
         results[property_i] = '%s%s' % (si.si_format(results[property_i],
                                                      precision=2), unit_i)
 
@@ -518,7 +522,7 @@ def plot_test_channels_results(results, axes=None):
         fig, axes = mpl.pyplot.subplots(2, figsize=(4, 4))
 
     axis_i = axes[0]
-    axis_i.bar(range(c.shape[0]), np.mean(c, 1), yerr=np.std(c, 1))
+    axis_i.bar(list(range(c.shape[0])), np.mean(c, 1), yerr=np.std(c, 1))
     axis_i.set_xlabel("Channel")
     axis_i.set_ylabel("Capacitance")
     # Use SI unit prefixes for y-axis capacitance tick labels.
@@ -616,7 +620,7 @@ def _generate_test_channels_results(channels=20, n_reps=3, c_min=3e-12,
     random = np.random.RandomState(seed)
     # Simulate capacitance measurements for each test channel.
     c = np.array([random.rand(n_reps) * (c_max - c_min) + c_min
-                  for i in xrange(len(test_channels_))])
+                  for i in range(len(test_channels_))])
     # Simulate shorts by randomly selecting test channels.
     shorts = random.choice(test_channels_, size=min(short_count,
                                                     len(test_channels_)),
@@ -689,7 +693,7 @@ def generate_report(results, output_path=None, force=False):
     # Find starting time of earliest test (or current date and time if no
     # timestamp is available).
     min_timestamp = min([result_i['utc_timestamp']
-                         for result_i in results.itervalues()
+                         for result_i in six.itervalues(results)
                          if 'utc_timestamp' in result_i] +
                         [dt.datetime.utcnow().isoformat()])
     header = ['# DropBot self test (*{}*)'.format(min_timestamp.split('.')[0])]
@@ -700,7 +704,7 @@ def generate_report(results, output_path=None, force=False):
         md_results_cmds = ['format_{test_name}_results(results["{test_name}"])'
                            .format(test_name=name_i) for name_i in ALL_TESTS
                            if name_i in results]
-        md_results = map(eval, md_results_cmds)
+        md_results = list(map(eval, md_results_cmds))
 
         # Join Markdown reports, separated by horizontal bars.
         md_report = (2 * '\n' + (72 * '-') + 2 * '\n').join(header +

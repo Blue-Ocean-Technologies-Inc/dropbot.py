@@ -1,15 +1,17 @@
+from __future__ import absolute_import
 import logging
 import math
 import time
-import types
 import uuid
 
 from base_node_rpc.proxy import ConfigMixinBase, StateMixinBase
 from path_helpers import path
+from six.moves import range
 from teensy_minimal_rpc.adc_sampler import AdcDmaMixin
 import numpy as np
 import pandas as pd
 import serial
+import six
 
 from ._version import get_versions
 from .bin.upload import upload
@@ -234,7 +236,7 @@ try:
 
             singleton = False
 
-            if isinstance(amplitude, types.StringTypes):
+            if isinstance(amplitude, six.string_types):
                 amplitude = [amplitude]
                 singleton = True
 

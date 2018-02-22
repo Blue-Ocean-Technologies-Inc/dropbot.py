@@ -1,3 +1,6 @@
+from __future__ import print_function
+
+from __future__ import absolute_import
 import argparse
 import sys
 
@@ -23,4 +26,4 @@ if __name__ == '__main__':
                    .format(args.version), r'-DTWI_BUFFER_LENGTH=160',
                    r'-DPACKET_SIZE=160']
 
-    print ' '.join(extra_args)
+    print(' '.join(extra_args))

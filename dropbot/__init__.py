@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from collections import OrderedDict
 import warnings
 
@@ -9,7 +10,7 @@ try:
     from .proxy import Proxy, I2cProxy, SerialProxy
     from .config import Config
     from .state import State
-except (ImportError, TypeError), exception:
+except (ImportError, TypeError) as exception:
     warnings.warn(str(exception))
 
 __version__ = get_versions()['version']

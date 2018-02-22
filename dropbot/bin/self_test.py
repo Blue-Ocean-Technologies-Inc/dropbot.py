@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import argparse
 import datetime as dt
 import logging
@@ -16,6 +18,7 @@ from ..self_test import (format_system_info_results, format_test_i2c_results,
                          format_test_on_board_feedback_calibration_results,
                          format_test_channels_results, generate_report,
                          self_test)
+import six
 
 json_tricks.NumpyEncoder.SHOW_SCALAR_WARNING = False
 
@@ -87,7 +90,7 @@ def main(argv=None):
         # Find starting time of earliest test (or current date and time if no
         # timestamp is available).
         min_timestamp = min([result_i['utc_timestamp']
-                             for result_i in results.itervalues()
+                             for result_i in six.itervalues(results)
                              if 'utc_timestamp' in result_i] +
                             [dt.datetime.utcnow().isoformat()])
         # Get control board UUID from system info.
@@ -114,9 +117,9 @@ def main(argv=None):
                 output_path = _render_output_path(args.output_path)
                 with output_path.open('w') as output:
                     output.write(json_results)
-                print output_path
+                print(output_path)
             else:
-                print json_results
+                print(json_results)
             return
     elif args.command == 'report':
         # XXX Load using `json_tricks` rather than `json` to add support for
@@ -132,7 +135,7 @@ def main(argv=None):
             # Launch output path (either directory or Word document).
             output_path.launch()
     else:
-        print generate_report(results)
+        print(generate_report(results))
 
 
 if __name__ == '__main__':
