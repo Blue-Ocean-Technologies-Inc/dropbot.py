@@ -1,3 +1,8 @@
+{% set PKG_NAME = 'dropbot' %}
+{% set PLATFORMIO_ENVS = 'teensy31'.split(' ') %}
+{% set LIB_NAME = 'Dropbot' %}
+{% set MODULE_NAME = PKG_NAME.replace('-', '_') %}
+
 {% if GIT_DESCRIBE_NUMBER > '0' %}
 {% set GIT_VERSION = GIT_DESCRIBE_TAG[1:] + '.post' + GIT_DESCRIBE_NUMBER %}
 {% else %}
@@ -10,7 +15,7 @@ source:
   git_url: ../
 
 package:
-  name: dropbot
+  name: {{ PKG_NAME }}
   version: {{ GIT_VERSION }}
 
 build:
@@ -19,6 +24,45 @@ build:
     - dropbot-self-test = dropbot.bin.self_test:main
     # .. versionadded:: 1.29
     - dropbot-upload = dropbot.bin.upload:upload
+  script:
+    # Generate Arduino code
+    - python -m paver generate_all_code
+    # Copy Arduino library to Conda include directory
+    - python -c
+        "import os.path; import os; import shutil;
+        lib_src_dir = os.path.join(os.environ['SRC_DIR'], 'lib',
+                                   '{{ LIB_NAME }}');
+        install_dir = os.path.join(os.environ['PREFIX'],
+                                   'Library',  # [win]
+                                   'include', 'Arduino', '{{ LIB_NAME }}');
+        shutil.copytree(lib_src_dir, install_dir);
+        "
+    # Build firmware
+    - python -m paver build_firmware
+    # Copy compiled firmware to Conda bin directory
+    - python -c
+        "import os.path; import os; import shutil;
+        SRC_DIR = os.environ['SRC_DIR'];
+        PIO_BIN_DIR = os.path.join(os.environ['PREFIX'], 'Library', 'bin',
+                                   'platformio', '{{ PKG_NAME }}');
+        created = (None if os.path.isdir(PIO_BIN_DIR)
+                   else os.makedirs(PIO_BIN_DIR));
+        shutil.copy2(os.path.join(SRC_DIR, 'platformio.ini'),
+                     os.path.join(PIO_BIN_DIR, 'platformio.ini'));
+        {% for pio_platform in PLATFORMIO_ENVS -%}
+        HEX_DIR = os.path.join(PIO_BIN_DIR, '{{ pio_platform }}');
+        os.makedirs(HEX_DIR);
+        shutil.copy2(os.path.join(SRC_DIR, '.pioenvs', '{{ pio_platform }}',
+                                  'firmware.hex'),
+                      os.path.join(PIO_BIN_DIR, '{{ pio_platform }}',
+                                   'firmware.hex'));
+        {%- endfor %}
+        "
+    # Generate `setup.py` from `pavement.py` definition.
+    - python -m paver generate_setup
+    # Install source directory as Python package.
+    - python -B setup.py install --single-version-externally-managed --record record.txt
+
 
 requirements:
   build:
