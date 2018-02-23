@@ -194,9 +194,6 @@ public:
   static const uint8_t PCA9505_CONFIG_IO_REGISTER = 0x18;
   static const uint8_t PCA9505_OUTPUT_PORT_REGISTER = 0x08;
 
-  // use dma with ADC0
-  RingBufferDMA *dmaBuffer_;
-
   static const float R6;
 
   uint8_t buffer_[BUFFER_SIZE];
@@ -233,7 +230,7 @@ public:
 
   Node() : BaseNode(),
            BaseNodeConfig<config_t>(dropbot_Config_fields),
-           BaseNodeState<state_t>(dropbot_State_fields), dmaBuffer_(NULL),
+           BaseNodeState<state_t>(dropbot_State_fields),
            adc_period_us_(0), adc_timestamp_us_(0), adc_tick_tock_(false),
            adc_count_(0), dma_adc_active_(false), dma_channel_done_(-1),
            last_dma_channel_done_(-1), adc_read_active_(false),
@@ -894,18 +891,6 @@ public:
   uint32_t D__F_BUS() { return F_BUS; }
   uint32_t V__SYST_CVR() { return SYST_CVR; }
   uint32_t V__SCB_ICSR() { return SCB_ICSR; }
-  UInt16Array adc_buffer() {
-    UInt8Array byte_buffer = get_buffer();
-    UInt16Array result;
-    result.data = reinterpret_cast<uint16_t *>(byte_buffer.data);
-    result.length = dmaBuffer_->b_size;
-
-    uint16_t i = 0;
-    for (i = 0; i < dmaBuffer_->b_size; i++) {
-      result.data[i] = dmaBuffer_->p_elems[i];
-    }
-    return result;
-  }
   float adc_period_us() const {
     uint32_t _SYST_CVR = ((adc_SYST_CVR_ < adc_SYST_CVR_prev_)
                           ? adc_SYST_CVR_ + 1000
@@ -1021,22 +1006,6 @@ public:
   uint16_t digital_pin_has_pwm(uint16_t pin) { return digitalPinHasPWM(pin); }
   uint16_t digital_pin_to_interrupt(uint16_t pin) { return digitalPinToInterrupt(pin); }
   uint16_t dma_channel_count() { return DMA_NUM_CHANNELS; }
-  bool dma_empty() { return (dmaBuffer_ == NULL) ? 0 : dmaBuffer_->isEmpty(); }
-  bool dma_full() { return (dmaBuffer_ == NULL) ? 0 : dmaBuffer_->isFull(); }
-  int16_t dma_read() { return (dmaBuffer_ == NULL) ? 0 : dmaBuffer_->read(); }
-  UInt8Array dma_tcd() {
-    /* Return serialized "Transfer control descriptor" of DMA channel. */
-    UInt8Array result = get_buffer();
-    if (dmaBuffer_ == NULL) {
-      result.length = 0;
-      return result;
-    }
-    typedef typename DMABaseClass::TCD_t tcd_t;
-    tcd_t &tcd = *reinterpret_cast<tcd_t *>(result.data);
-    result.length = sizeof(tcd_t);
-    tcd = *(dmaBuffer_->dmaChannel->TCD);
-    return result;
-  }
   int8_t last_dma_channel_done() const { return last_dma_channel_done_; }
   UInt8Array mem_cpy_device_to_host(uint32_t address, uint32_t size) {
     UInt8Array output;
@@ -1073,24 +1042,6 @@ public:
 
   // ##########################################################################
   // # Mutator methods
-  UInt16Array adc_read() {
-    adc_read_active_ = true;
-    UInt8Array byte_buffer = get_buffer();
-    UInt16Array result;
-    result.data = reinterpret_cast<uint16_t *>(byte_buffer.data);
-    result.length = sizeof(uint32_t) / sizeof(uint16_t);
-    uint32_t &adc_count = *(reinterpret_cast<uint32_t *>(result.data));
-    adc_count = adc_count_;
-    adc_count_ = 0;
-
-    uint16_t i = 0;
-    while (!dmaBuffer_->isEmpty()) {
-      result.data[i + 2] = dmaBuffer_->read();
-      i++;
-    }
-    adc_read_active_ = false;
-    return result;
-  }
   void attach_dma_interrupt(uint8_t dma_channel) {
     void (*isr)(void);
     switch(dma_channel) {
@@ -1120,19 +1071,6 @@ public:
   }
   void detach_dma_interrupt(uint8_t dma_channel) {
       NVIC_DISABLE_IRQ(IRQ_DMA_CH0 + dma_channel);
-  }
-  bool dma_start(uint32_t buffer_size) {
-    const bool power_of_two = (buffer_size &&
-                               !(buffer_size & (buffer_size - 1)));
-    if ((buffer_size > ADC_BUFFER_SIZE) || !power_of_two) { return false; }
-    dma_stop();
-    dmaBuffer_ = new RingBufferDMA(dropbot::adc_buffer,
-                                   buffer_size, ADC_0);
-    dmaBuffer_->start();
-    return true;
-  }
-  void dma_stop() {
-    if (dmaBuffer_ != NULL) { delete dmaBuffer_; }
   }
   void free_all() {
     while (allocations_.size() > 0) { free((void *)allocations_.shift()); }
