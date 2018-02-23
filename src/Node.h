@@ -1243,7 +1243,7 @@ public:
      * but if F_BUS<F_ADCK, you can't use ADC_VERY_HIGH_SPEED for sampling speed.
      *
      */
-    adc_->setConversionSpeed(speed, adc_num);
+    adc_->setConversionSpeed((ADC_CONVERSION_SPEED)speed, adc_num);
   }
   void setReference(uint8_t type, int8_t adc_num) {
     //! Set the voltage reference you prefer, default is 3.3 V (VCC)
@@ -1252,7 +1252,7 @@ public:
      *
      *  It recalibrates at the end.
      */
-    adc_->setReference(type, adc_num);
+    adc_->setReference((ADC_REFERENCE)type, adc_num);
   }
   void setResolution(uint8_t bits, int8_t adc_num) {
     //! Change the resolution of the measurement.
@@ -1278,7 +1278,7 @@ public:
      * ADC_HIGH_SPEED (or ADC_HIGH_SPEED_16BITS) adds +6 ADCK.
      * ADC_VERY_HIGH_SPEED is the highest possible sampling speed (0 ADCK added).
      */
-    adc_->setSamplingSpeed(speed, adc_num);
+    adc_->setSamplingSpeed((ADC_SAMPLING_SPEED)speed, adc_num);
   }
   void disableCompare(int8_t adc_num) {
   //! Disable the compare function
