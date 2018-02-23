@@ -15,7 +15,7 @@ class SerialProxy(Proxy):
         self.default_timeout = kwargs.pop('timeout', 5)
         if kwargs.get('port') is None:
             # Find DropBots
-            df_devices = bnr.available_devices(timeout=.5)
+            df_devices = bnr.available_devices(timeout=settling_time_s)
             if not df_devices.shape[0]:
                 raise IOError('No serial devices available for connection')
             df_dropbots = df_devices.loc[df_devices.device_name == 'dropbot']
