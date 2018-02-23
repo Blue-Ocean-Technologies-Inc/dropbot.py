@@ -25,6 +25,7 @@ requirements:
     - arduino-linked-list >=1.2.3
     - arduino-fast-digital
     - arduino-slow-soft-wire
+    - arduino-slow-soft-i2c-master
     # ..versionadded:: 1.31
     # ..versionchanged:: 1.40
     # ..versionchanged:: 1.40.3
@@ -32,16 +33,22 @@ requirements:
     - base-node-rpc >=0.41.1
     - future
     - json-tricks
+    #: .. versionadded:: X.X.X
+    - logging-helpers
+    #: .. versionadded:: X.X.X
+    - matplotlib
     - nanopb-helpers >=0.6
+    - path_helpers
     - paver
     - pandoc
     - pip
+    - platformio
     - platformio-framework-arduinoteensy >=1.136.0
     - platformio-helpers >=0.3
     - platformio-platform-teensy >=2.0.0
     - platformio-tool-scons
     - platformio-tool-teensy >=1.21.0
-    - platformio-toolchain-gccarmnoneeabi
+    - platformio-toolchain-gccarmnoneeabi ==1.50401.0
     # .. versionchanged:: 1.37.2
     - protobuf >=3.5
     - pytables
@@ -64,8 +71,13 @@ requirements:
     # ..versionchanged:: 1.41
     - base-node-rpc >=0.41.1
     - json-tricks
+    #: .. versionadded:: X.X.X
+    - logging-helpers
+    #: .. versionadded:: X.X.X
+    - matplotlib
     - nanopb-helpers >=0.6
     - pandoc
+    - path_helpers
     - platformio-helpers >=0.3
     - platformio-tool-scons
     - platformio-tool-teensy >=1.21.0
