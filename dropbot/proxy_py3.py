@@ -2,6 +2,7 @@
 from logging_helpers import _L
 import base_node_rpc as bnr
 import base_node_rpc.async
+import time
 
 from .bin.upload import upload
 from .node import Proxy
@@ -55,3 +56,17 @@ class SerialProxy(Proxy):
 
     def __del__(self):
         self.terminate()
+
+    def flash_firmware(self):
+        # currently, we're ignoring the hardware version, but eventually,
+        # we will want to pass it to upload()
+        self.terminate()
+        try:
+            upload()
+        except Exception:
+            _L().debug('error updating firmware')
+        time.sleep(0.5)
+        self.connect()
+
+
+I2cProxy = None
