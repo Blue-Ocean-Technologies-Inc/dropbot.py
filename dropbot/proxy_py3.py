@@ -3,6 +3,7 @@ from logging_helpers import _L
 import base_node_rpc as bnr
 import base_node_rpc.async
 
+from .bin.upload import upload
 from .node import Proxy
 
 
@@ -13,7 +14,8 @@ class SerialProxy(Proxy):
     '''
     def __init__(self, settling_time_s=.05, **kwargs):
         self.default_timeout = kwargs.pop('timeout', 5)
-        if kwargs.get('port') is None:
+        port = kwargs.pop('port', None)
+        if port is None:
             # Find DropBots
             df_devices = bnr.available_devices(timeout=settling_time_s)
             if not df_devices.shape[0]:
@@ -21,10 +23,19 @@ class SerialProxy(Proxy):
             df_dropbots = df_devices.loc[df_devices.device_name == 'dropbot']
             if not df_dropbots.shape[0]:
                 raise IOError('No DropBot available for connection')
-            kwargs['port'] = df_dropbots.index[0]
-        self.monitor = bnr.async.BaseNodeSerialMonitor(**kwargs)
-        self.monitor.start()
-        self.monitor.connected_event.wait()
+            port = df_dropbots.index[0]
+        self.port = port
+        self.monitor = None
+        self.connect()
+        super(SerialProxy, self).__init__(**kwargs)
+
+    def connect(self):
+        self.terminate()
+        monitor = bnr.async.BaseNodeSerialMonitor(port=self.port)
+        monitor.start()
+        monitor.connected_event.wait()
+        self.monitor = monitor
+        return self.monitor
 
     def _send_command(self, packet, timeout=None):
         if timeout is None:
@@ -33,7 +44,8 @@ class SerialProxy(Proxy):
         return self.monitor.request(packet.tostring(), timeout=timeout)
 
     def terminate(self):
-        self.monitor.stop()
+        if self.monitor is not None:
+            self.monitor.stop()
 
     def __enter__(self):
         return self
