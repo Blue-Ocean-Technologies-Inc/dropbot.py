@@ -556,14 +556,6 @@ try:
             return uuid.UUID(bytes=np.array(self._uuid(),
                                             dtype='uint8').tostring())
 
-        @property
-        def port(self):
-            try:
-                port = self.serial_thread.protocol.port
-            except Exception:
-                port = None
-            return port
-
         def _number_of_channels(self):
             return super(ProxyMixin, self).number_of_channels()
 
@@ -630,6 +622,14 @@ try:
             '''
             kwargs['settling_time_s'] = settling_time_s
             super(SerialProxy, self).__init__(**kwargs)
+
+        @property
+        def port(self):
+            try:
+                port = self.serial_thread.protocol.port
+            except Exception:
+                port = None
+            return port
 
         def flash_firmware(self):
             # currently, we're ignoring the hardware version, but eventually,
