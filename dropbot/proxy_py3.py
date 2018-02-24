@@ -6,9 +6,10 @@ import time
 
 from .bin.upload import upload
 from .node import Proxy
+from .proxy_py2 import ProxyMixin
 
 
-class SerialProxy(Proxy):
+class SerialProxy(ProxyMixin, Proxy):
     '''
     Example using :class:`BaseNodeSerialMonitor` for DropBot
     RPC communication.
