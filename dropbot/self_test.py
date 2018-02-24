@@ -54,12 +54,12 @@ def format_system_info_results(info):
 # Control board (UUID: `{{ info['control board']['uuid'] }}`) #
 
 ## Properties ##
-{% for name_i, property_i in info['control board']['properties'].iteritems() %}
+{% for name_i, property_i in info['control board']['properties'].items() %}
  - **{{ name_i }}**: `{{ property_i }}`
 {%- endfor %}
 
 ## Config ##
-{% for name_i, value_i in info['control board']['config'].iteritems() %}
+{% for name_i, value_i in info['control board']['config'].items() %}
  - **{{ name_i }}**: `{{ value_i }}`
 {%- endfor %}
 
@@ -88,7 +88,7 @@ def format_test_system_metrics_results(results):
     template = jinja2.Template(r'''
 # System Metrics: #
 
-{% for name_i, property_i in results.iteritems() %}
+{% for name_i, property_i in results.items() %}
  - **{{ name_i }}**: `{{ property_i }}`
 {%- endfor %}'''.strip())
     # Remove utc_timestamp and test_duration from results dict before
@@ -350,7 +350,7 @@ def plot_test_on_board_feedback_calibration_results(results, axis=None):
 
     C_nominal = NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS.values
     c_measured = np.array(results['c_measured'])
-    
+
     # If c_measured is a 1-d array or a list, convert it to a 2-d array
     if len(np.array(c_measured).shape) == 1:
         c_measured = np.reshape(c_measured, [len(C_nominal), 1])
