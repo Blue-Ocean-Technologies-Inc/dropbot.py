@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from functools import wraps
 import datetime as dt
 import time
@@ -12,6 +13,8 @@ from dropbot import metadata
 import json_tricks
 import numpy as np
 import path_helpers as ph
+import six
+from six.moves import range
 
 __all__ = ['log_results', 'system_info', 'test_system_metrics', 'test_i2c',
            'test_voltage', 'test_shorts', 'test_on_board_feedback_calibration',
@@ -43,7 +46,7 @@ def restore_state(f):
             result = f(*args, **kwargs)
         finally:
             # Restore state of attributes that we were modified.
-            for attr_i, value_i in state.iteritems():
+            for attr_i, value_i in six.iteritems(state):
                 setattr(proxy, attr_i, value_i)
         return result
     return _decorator
@@ -139,17 +142,21 @@ def test_i2c(proxy):
         Nested dictionary (keyed by i2c address) containing metadata
         (e.g., uuid, name, software version, hardware version) for each of the
         devices on the i2c bus.
+
+
+    .. versionchanged:: 1.47
+        Split using byte strings to support Python 3.
     '''
     results = {}
     results['i2c_scan'] = {}
     for address in proxy.i2c_scan():
         if address in [32, 33, 34]:
             node = BaseNode(proxy, int(address))
-            info = {'name': node.name().split('\0', 1)[0],
+            info = {'name': node.name().split(b'\0', 1)[0],
                     'hardware_version':
-                    node.hardware_version().split('\0', 1)[0],
+                    node.hardware_version().split(b'\0', 1)[0],
                     'software_version':
-                    node.software_version().split('\0', 1)[0],
+                    node.software_version().split(b'\0', 1)[0],
                     'uuid': str(node.uuid)}
             results['i2c_scan'].update({int(address): info})
         elif address in [80, 81]:

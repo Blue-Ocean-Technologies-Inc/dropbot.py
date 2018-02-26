@@ -1,8 +1,11 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import logging
 import time
 
 import pytest
 import serial
+from six.moves import range
 
 # Watchdog enable bit mask
 WDOG_STCTRLH_WDOGEN = 0x01
@@ -16,7 +19,7 @@ def restore_watchdog_time_out(proxy):
     if watchdog_enabled:
         # Save initial watchdog time out.
         initial_time_out = proxy.watchdog_time_out_value()
-        print 'Initial watchdog time out:', initial_time_out
+        print('Initial watchdog time out:', initial_time_out)
 
     yield
 
@@ -56,11 +59,11 @@ def test_disable(proxy, retry_count):
     # See [issue 4][i4].
     #
     # [i4]: https://gitlab.com/sci-bots/dropbot.py/issues/4
-    for i in xrange(retry_count):
+    for i in range(retry_count):
         proxy.watchdog_disable()
         timer_output = proxy.watchdog_timer_output()
         if timer_output == 0:
-            print 'Disabled on attempt', i + 1
+            print('Disabled on attempt', i + 1)
             break
         else:
             # Disabling watchdog was not successful.  Reboot and try again.
@@ -81,12 +84,12 @@ def test_enable(proxy, time_out):
     proxy.watchdog_auto_refresh(False)
 
     output_count = (time_out - 100) / 10
-    print 'Testing %s times' % output_count
-    for i in xrange(output_count):
+    print('Testing %s times' % output_count)
+    for i in range(output_count):
         timer_output_i = proxy.watchdog_timer_output()
         assert timer_output_i <= time_out
         assert timer_output_i >= 0
-    print 'Timer output:', timer_output_i
+    print('Timer output:', timer_output_i)
 
     proxy.watchdog_auto_refresh(True)
 
