@@ -144,7 +144,7 @@ def test_i2c(proxy):
         devices on the i2c bus.
 
 
-    .. versionchanged:: X.X.X
+    .. versionchanged:: 1.47
         Split using byte strings to support Python 3.
     '''
     results = {}

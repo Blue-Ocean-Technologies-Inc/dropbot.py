@@ -77,9 +77,9 @@ requirements:
     - base-node-rpc >=0.41.1
     - future
     - json-tricks
-    #: .. versionadded:: X.X.X
+    #: .. versionadded:: 1.47
     - logging-helpers
-    #: .. versionadded:: X.X.X
+    #: .. versionadded:: 1.47
     - matplotlib
     - nanopb-helpers >=0.6
     - path_helpers
@@ -115,9 +115,9 @@ requirements:
     # ..versionchanged:: 1.41
     - base-node-rpc >=0.41.1
     - json-tricks
-    #: .. versionadded:: X.X.X
+    #: .. versionadded:: 1.47
     - logging-helpers
-    #: .. versionadded:: X.X.X
+    #: .. versionadded:: 1.47
     - matplotlib
     - nanopb-helpers >=0.6
     - pandoc
