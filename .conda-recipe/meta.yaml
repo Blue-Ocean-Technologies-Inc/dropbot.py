@@ -145,6 +145,18 @@ test:
     - dropbot.metadata
     - dropbot.proxy
     - dropbot.state
+  commands:
+    - python -c
+        "import os.path; import os; import shutil;
+        PIO_BIN_DIR = os.path.join(os.environ['PREFIX'], 'Library', 'bin',
+                                   'platformio', '{{ PKG_NAME }}');
+        {% for pio_platform in PLATFORMIO_ENVS -%}
+        HEX_DIR = os.path.join(PIO_BIN_DIR, '{{ pio_platform }}');
+        HEX_PATH = os.path.join(HEX_DIR, 'firmware.hex');
+        sys.exit(-1) if not os.path.isfile(HEX_PATH) else 0;
+        {%- endfor %}
+        "
+
 
 about:
   home: https://gitlab.com/sci-bots/dropbot.py
