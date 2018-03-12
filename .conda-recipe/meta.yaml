@@ -19,6 +19,7 @@ package:
   version: {{ GIT_VERSION }}
 
 build:
+  noarch: python
   entry_points:
     # .. versionadded:: 1.28
     - dropbot-self-test = dropbot.bin.self_test:main
