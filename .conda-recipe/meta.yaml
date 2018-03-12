@@ -157,7 +157,7 @@ outputs:
         - dropbot.state
       commands:
         - python -c
-            "import os.path; import os; import shutil; import platformio_helpers as pioh;
+            "import sys; import os.path; import os; import shutil; import platformio_helpers as pioh;
             PIO_BIN_DIR = pioh.conda_bin_path().joinpath('{{ PKG_NAME }}');
             {% for pio_platform in PLATFORMIO_ENVS -%}
             HEX_DIR = os.path.join(PIO_BIN_DIR, '{{ pio_platform }}');
