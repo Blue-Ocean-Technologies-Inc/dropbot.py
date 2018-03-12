@@ -78,7 +78,7 @@ requirements:
     - logging-helpers
     #: .. versionadded:: 1.47
     - matplotlib
-    - nanopb-helpers >=0.6
+    - nanopb-helpers >=0.11.1
     - path_helpers
     - paver
     - pandoc
@@ -89,7 +89,7 @@ requirements:
     - platformio-platform-teensy >=2.0.0
     - platformio-tool-scons
     - platformio-tool-teensy >=1.21.0
-    - platformio-toolchain-gccarmnoneeabi ==1.50401.0
+    - platformio-toolchain-gccarmnoneeabi >=1.50401.0
     # .. versionchanged:: 1.37.2
     - protobuf >=3.5
     - pytables
@@ -107,6 +107,16 @@ outputs:
     noarch: generic
     files:
       - share
+    requirements:
+      run:
+        - arduino-linked-list >=1.2.3
+        - arduino-fast-digital
+        - arduino-slow-soft-wire >=1.0.1
+        - base-node-dev >=0.13
+        - base-node-rpc-dev >=0.46.1
+        - platformio-tool-scons
+        - platformio-tool-teensy >=1.21.0
+        - teensy-minimal-rpc-dev >=0.8.1
   - name: {{ PKG_NAME }}
     noarch: python
     files:
@@ -114,28 +124,16 @@ outputs:
     requirements:
       run:
         - {{ pin_subpackage(PKG_NAME + '-dev', max_pin='x.x') }}
-        - arduino-linked-list >=1.2.3
-        - arduino-fast-digital
-        - arduino-slow-soft-wire
-        - base-node
-        # ..versionadded:: 1.31
-        # ..versionchanged:: 1.37
-        # ..versionchanged:: 1.40
-        # ..versionchanged:: 1.40.2
-        # ..versionchanged:: 1.40.3
-        # ..versionchanged:: 1.41
-        - base-node-rpc >=0.41.1
+        - base-node >=0.13
         - json-tricks
         #: .. versionadded:: 1.47
         - logging-helpers
         #: .. versionadded:: 1.47
         - matplotlib
-        - nanopb-helpers >=0.6
+        - nanopb-helpers >=0.11.1
         - pandoc
         - path_helpers
         - platformio-helpers >=0.3
-        - platformio-tool-scons
-        - platformio-tool-teensy >=1.21.0
         # .. versionchanged:: 1.37.2
         - protobuf >=3.5
         - pytables
@@ -143,7 +141,7 @@ outputs:
         # ..versionchanged:: 1.33
         - serial-device >=0.9
         # ..versionchanged:: 1.37.3
-        - teensy-minimal-rpc >=0.6.1
+        - teensy-minimal-rpc >=0.8.1
     test:
       imports:
         # .. versionchanged:: 1.37.2
