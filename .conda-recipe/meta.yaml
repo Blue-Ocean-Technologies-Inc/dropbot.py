@@ -113,7 +113,7 @@ outputs:
         - arduino-linked-list >=1.2.3
         - arduino-fast-digital
         - arduino-slow-soft-wire >=1.0.1
-        - base-node-dev >=0.13
+        - base-node-dev >=0.13.1
         - base-node-rpc-dev >=0.46.1
         - platformio-tool-scons
         - platformio-tool-teensy >=1.21.0
@@ -125,7 +125,7 @@ outputs:
     requirements:
       run:
         - {{ pin_subpackage(PKG_NAME + '-dev', max_pin='x.x') }}
-        - base-node >=0.13
+        - base-node >=0.13.1
         - json-tricks
         #: .. versionadded:: 1.47
         - logging-helpers
