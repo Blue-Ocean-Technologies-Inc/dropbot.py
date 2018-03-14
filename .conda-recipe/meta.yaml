@@ -72,7 +72,7 @@ requirements:
     # ..versionchanged:: 1.40
     # ..versionchanged:: 1.40.3
     # ..versionchanged:: 1.41
-    - base-node-rpc >=0.41.1
+    - base-node-rpc >=0.46.2
     - future
     - json-tricks
     #: .. versionadded:: 1.47
@@ -114,7 +114,7 @@ outputs:
         - arduino-fast-digital
         - arduino-slow-soft-wire >=1.0.1
         - base-node-dev >=0.13.1
-        - base-node-rpc-dev >=0.46.1
+        - base-node-rpc-dev >=0.46.2
         - platformio-tool-scons
         - platformio-tool-teensy >=1.21.0
         - teensy-minimal-rpc-dev >=0.8.1
@@ -142,7 +142,7 @@ outputs:
         # ..versionchanged:: 1.33
         - serial-device >=0.9
         # ..versionchanged:: 1.37.3
-        - teensy-minimal-rpc >=0.8.1
+        - teensy-minimal-rpc >=0.8.2
     test:
       imports:
         # .. versionchanged:: 1.37.2
