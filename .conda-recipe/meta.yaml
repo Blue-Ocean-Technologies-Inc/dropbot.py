@@ -19,6 +19,7 @@ package:
   version: {{ GIT_VERSION }}
 
 build:
+  noarch: python
   entry_points:
     # .. versionadded:: 1.28
     - dropbot-self-test = dropbot.bin.self_test:main
@@ -29,22 +30,20 @@ build:
     - python -m paver generate_all_code
     # Copy Arduino library to Conda include directory
     - python -c
-        "import os.path; import os; import shutil;
+        "import os.path; import os; import shutil; import platformio_helpers as pioh;
         lib_src_dir = os.path.join(os.environ['SRC_DIR'], 'lib',
                                    '{{ LIB_NAME }}');
-        install_dir = os.path.join(os.environ['PREFIX'],
-                                   'Library',  # [win]
-                                   'include', 'Arduino', '{{ LIB_NAME }}');
+        install_dir = pioh.conda_arduino_include_path().joinpath('{{ LIB_NAME }}');
         shutil.copytree(lib_src_dir, install_dir);
         "
     # Build firmware
     - python -m paver build_firmware
     # Copy compiled firmware to Conda bin directory
     - python -c
-        "import os.path; import os; import shutil;
+        "import os.path; import os; import shutil; import platformio_helpers as pioh;
         SRC_DIR = os.environ['SRC_DIR'];
-        PIO_BIN_DIR = os.path.join(os.environ['PREFIX'], 'Library', 'bin',
-                                   'platformio', '{{ PKG_NAME }}');
+        SRC_DIR = os.environ['SRC_DIR'];
+        PIO_BIN_DIR = pioh.conda_bin_path().joinpath('{{ PKG_NAME }}');
         created = (None if os.path.isdir(PIO_BIN_DIR)
                    else os.makedirs(PIO_BIN_DIR));
         shutil.copy2(os.path.join(SRC_DIR, 'platformio.ini'),
@@ -63,7 +62,6 @@ build:
     # Install source directory as Python package.
     - python -B setup.py install --single-version-externally-managed --record record.txt
 
-
 requirements:
   build:
     - arduino-linked-list >=1.2.3
@@ -74,14 +72,14 @@ requirements:
     # ..versionchanged:: 1.40
     # ..versionchanged:: 1.40.3
     # ..versionchanged:: 1.41
-    - base-node-rpc >=0.41.1
+    - base-node-rpc >=0.46.2
     - future
     - json-tricks
     #: .. versionadded:: 1.47
     - logging-helpers
     #: .. versionadded:: 1.47
     - matplotlib
-    - nanopb-helpers >=0.6
+    - nanopb-helpers >=0.11.1
     - path_helpers
     - paver
     - pandoc
@@ -92,7 +90,7 @@ requirements:
     - platformio-platform-teensy >=2.0.0
     - platformio-tool-scons
     - platformio-tool-teensy >=1.21.0
-    - platformio-toolchain-gccarmnoneeabi ==1.50401.0
+    - platformio-toolchain-gccarmnoneeabi >=1.50401.0
     # .. versionchanged:: 1.37.2
     - protobuf >=3.5
     - pytables
@@ -102,60 +100,70 @@ requirements:
     # ..versionchanged:: 1.37.3
     - teensy-minimal-rpc >=0.6.1
 
-  run:
-    - arduino-linked-list >=1.2.3
-    - arduino-fast-digital
-    - arduino-slow-soft-wire
-    - base-node
-    # ..versionadded:: 1.31
-    # ..versionchanged:: 1.37
-    # ..versionchanged:: 1.40
-    # ..versionchanged:: 1.40.2
-    # ..versionchanged:: 1.40.3
-    # ..versionchanged:: 1.41
-    - base-node-rpc >=0.41.1
-    - json-tricks
-    #: .. versionadded:: 1.47
-    - logging-helpers
-    #: .. versionadded:: 1.47
-    - matplotlib
-    - nanopb-helpers >=0.6
-    - pandoc
-    - path_helpers
-    - platformio-helpers >=0.3
-    - platformio-tool-scons
-    - platformio-tool-teensy >=1.21.0
-    # .. versionchanged:: 1.37.2
-    - protobuf >=3.5
-    - pytables
-    - python
-    # ..versionchanged:: 1.33
-    - serial-device >=0.9
-    # ..versionchanged:: 1.37.3
-    - teensy-minimal-rpc >=0.6.1
-
-test:
-  imports:
-    # .. versionchanged:: 1.37.2
-    - dropbot
-    - dropbot._version
-    - dropbot.bin
-    - dropbot.config
-    - dropbot.hardware_test
-    - dropbot.metadata
-    - dropbot.proxy
-    - dropbot.state
-  commands:
-    - python -c
-        "import os.path; import os; import shutil;
-        PIO_BIN_DIR = os.path.join(os.environ['PREFIX'], 'Library', 'bin',
-                                   'platformio', '{{ PKG_NAME }}');
-        {% for pio_platform in PLATFORMIO_ENVS -%}
-        HEX_DIR = os.path.join(PIO_BIN_DIR, '{{ pio_platform }}');
-        HEX_PATH = os.path.join(HEX_DIR, 'firmware.hex');
-        sys.exit(-1) if not os.path.isfile(HEX_PATH) else 0;
-        {%- endfor %}
-        "
+# .. versionadded:: 1.48
+#     Split into `noarch` C++ header package and platform-specific Python
+#     package.
+outputs:
+  - name: {{ PKG_NAME }}-dev
+    noarch: generic
+    files:
+      - share
+    requirements:
+      run:
+        - arduino-linked-list >=1.2.3
+        - arduino-fast-digital
+        - arduino-slow-soft-wire >=1.0.1
+        - base-node-dev >=0.13.1
+        - base-node-rpc-dev >=0.46.2
+        - platformio-tool-scons
+        - platformio-tool-teensy >=1.21.0
+        - teensy-minimal-rpc-dev >=0.8.1
+  - name: {{ PKG_NAME }}
+    noarch: python
+    files:
+      - Lib/site-packages/{{ MODULE_NAME }}
+    requirements:
+      run:
+        - {{ pin_subpackage(PKG_NAME + '-dev', max_pin='x.x') }}
+        - base-node >=0.13.1
+        - json-tricks
+        #: .. versionadded:: 1.47
+        - logging-helpers
+        #: .. versionadded:: 1.47
+        - matplotlib
+        - nanopb-helpers >=0.11.1
+        - pandoc
+        - path_helpers
+        - platformio-helpers >=0.3
+        # .. versionchanged:: 1.37.2
+        - protobuf >=3.5
+        - pytables
+        - python
+        # ..versionchanged:: 1.33
+        - serial-device >=0.9
+        # ..versionchanged:: 1.37.3
+        - teensy-minimal-rpc >=0.8.2
+    test:
+      imports:
+        # .. versionchanged:: 1.37.2
+        - dropbot
+        - dropbot._version
+        - dropbot.bin
+        - dropbot.config
+        - dropbot.hardware_test
+        - dropbot.metadata
+        - dropbot.proxy
+        - dropbot.state
+      commands:
+        - python -c
+            "import sys; import os.path; import os; import shutil; import platformio_helpers as pioh;
+            PIO_BIN_DIR = pioh.conda_bin_path().joinpath('{{ PKG_NAME }}');
+            {% for pio_platform in PLATFORMIO_ENVS -%}
+            HEX_DIR = os.path.join(PIO_BIN_DIR, '{{ pio_platform }}');
+            HEX_PATH = os.path.join(HEX_DIR, 'firmware.hex');
+            sys.exit(-1) if not os.path.isfile(HEX_PATH) else 0;
+            {%- endfor %}
+            "
 
 
 about:
