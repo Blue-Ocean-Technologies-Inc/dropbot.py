@@ -2,9 +2,10 @@
 from __future__ import absolute_import, print_function, unicode_literals
 import itertools as it
 import platform
-import subprocess
+import subprocess as sp
 import sys
 import threading
+import time
 
 from platformio_helpers.upload import upload_conda
 import colorama as co
@@ -16,9 +17,10 @@ def upload():
     .. versionchanged:: 1.29
         Add ``dropbot-upload`` entry point (i.e., make script callable as
         ``dropbot-upload`` from system command shell).
+
     .. versionchanged:: X.X.X
-        If upload fails, leave Teensy GUI open for 10 seconds to allow manual
-        reset into programming mode.
+        If upload fails, leave Teensy GUI open until either a) Teensy GUI
+        window is closed; or b) Ctrl-C is pressed.
     '''
     if platform.system() == 'Windows':
         # Upload using Teensy GUI to allow auto-reboot on Windows.
@@ -31,7 +33,7 @@ def upload():
         teensy_tools_dir = (ch.conda_prefix() / 'share' / 'platformio' /
                             'packages' / 'tool-teensy')
         teensy_exe_path = teensy_tools_dir.joinpath('teensy.exe')
-        p = subprocess.Popen([teensy_exe_path])
+        p = sp.Popen([teensy_exe_path])
 
         def on_error(exception):
             # Loop calls to `teensy_reboot.exe` to keep retrying firmware
@@ -51,6 +53,10 @@ def upload():
             wait_complete = threading.Event()
 
             def wait_for_reboot():
+                '''
+                Display status while waiting for Teensy to reboot into
+                programming mode.
+                '''
                 # Update no faster than `stderr` flush interval (if set).
                 update_interval = 2 * getattr(sys.stderr, 'flush_interval', .2)
 
@@ -74,19 +80,44 @@ def upload():
             thread.start()
             teensy_reboot_exe = teensy_tools_dir.joinpath('teensy_reboot.exe')
 
+            reboot_process = None
+
+            def _cancel():
+                '''
+                Clean up Teensy reboot process, set status to cancelled, and
+                stop reboot attempt(s).
+                '''
+                if reboot_process is not None:
+                    reboot_process.kill()
+                status.message = co.Fore.YELLOW + 'CANCELLED'
+                status.set()
+                reboot_done.set()
+
             try:
-                # Keep retrying firmware upload until Ctrl-C is pressed.
-                while not wait_complete.is_set():
-                    return_code, stdout, stderr = \
-                        ch.with_loop(ch.run_command)(teensy_reboot_exe,
-                                                     shell=True, verbose=False)
+                # Keep retrying firmware upload until either a) Teensy GUI
+                # window is closed; or b) Ctrl-C is pressed.
+                while not wait_complete.is_set() and p.poll() is None:
+                    reboot_process = sp.Popen(teensy_reboot_exe,
+                                              stdout=sp.PIPE, stderr=sp.PIPE)
+
+                    while reboot_process.poll() is None:
+                        if p.poll() is not None:
+                            # Teensy GUI windows closed.  Cancel upload.
+                            _cancel()
+                            break
+                        time.sleep(.5)
+
+                    if status.is_set():
+                        break
+
+                    return_code = reboot_process.returncode
+
                     if return_code == 0:
                         status.message = co.Fore.LIGHTGREEN_EX + 'SUCCESS'
                         status.set()
                         break
             except KeyboardInterrupt:
-                status.message = co.Fore.YELLOW + 'CANCELLED'
-                status.set()
+                _cancel()
             finally:
                 reboot_done.set()
                 wait_complete.wait(5)
