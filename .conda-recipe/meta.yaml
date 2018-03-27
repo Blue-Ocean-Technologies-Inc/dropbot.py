@@ -86,7 +86,8 @@ requirements:
     - pip
     - platformio
     - platformio-framework-arduinoteensy >=1.136.0
-    - platformio-helpers >=0.3
+    #: ..versionchanged:: X.X.X
+    - platformio-helpers >=0.9
     - platformio-platform-teensy >=2.0.0
     - platformio-tool-scons
     - platformio-tool-teensy >=1.21.0
@@ -134,7 +135,8 @@ outputs:
         - nanopb-helpers >=0.11.1
         - pandoc
         - path_helpers
-        - platformio-helpers >=0.3
+          #: ..versionchanged:: X.X.X
+        - platformio-helpers >=0.9
         # .. versionchanged:: 1.37.2
         - protobuf >=3.5
         - pytables
