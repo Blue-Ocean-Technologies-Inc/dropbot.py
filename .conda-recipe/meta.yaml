@@ -87,7 +87,7 @@ requirements:
     - platformio
     - platformio-framework-arduinoteensy >=1.136.0
     #: ..versionchanged:: X.X.X
-    - platformio-helpers >=0.9
+    - platformio-helpers >=0.10
     - platformio-platform-teensy >=2.0.0
     - platformio-tool-scons
     - platformio-tool-teensy >=1.21.0
@@ -136,7 +136,7 @@ outputs:
         - pandoc
         - path_helpers
           #: ..versionchanged:: X.X.X
-        - platformio-helpers >=0.9
+        - platformio-helpers >=0.10
         # .. versionchanged:: 1.37.2
         - protobuf >=3.5
         - pytables
