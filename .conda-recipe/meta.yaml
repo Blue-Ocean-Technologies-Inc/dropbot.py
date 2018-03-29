@@ -86,7 +86,8 @@ requirements:
     - pip
     - platformio
     - platformio-framework-arduinoteensy >=1.136.0
-    - platformio-helpers >=0.3
+    #: ..versionchanged:: 0.48
+    - platformio-helpers >=0.10
     - platformio-platform-teensy >=2.0.0
     - platformio-tool-scons
     - platformio-tool-teensy >=1.21.0
@@ -126,6 +127,7 @@ outputs:
       run:
         - {{ pin_subpackage(PKG_NAME + '-dev', max_pin='x.x') }}
         - base-node >=0.13.1
+        - conda-helpers >=0.20
         - json-tricks
         #: .. versionadded:: 1.47
         - logging-helpers
@@ -134,7 +136,8 @@ outputs:
         - nanopb-helpers >=0.11.1
         - pandoc
         - path_helpers
-        - platformio-helpers >=0.3
+          #: ..versionchanged:: 0.48
+        - platformio-helpers >=0.10
         # .. versionchanged:: 1.37.2
         - protobuf >=3.5
         - pytables

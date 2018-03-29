@@ -1,0 +1,3 @@
+[submodule ".dropbot-recipes"]
+	path = .dropbot-recipes
+	url = git@github.com:sci-bots/dropbot-recipes.git
