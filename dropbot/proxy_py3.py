@@ -31,6 +31,10 @@ class SerialProxy(ProxyMixin, Proxy):
         self.connect()
         super(SerialProxy, self).__init__(**kwargs)
 
+    @property
+    def signals(self):
+        return self.monitor.signals
+
     def connect(self):
         self.terminate()
         monitor = bnr.async.BaseNodeSerialMonitor(port=self.port)
