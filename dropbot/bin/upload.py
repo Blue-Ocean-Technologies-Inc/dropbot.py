@@ -18,7 +18,7 @@ def upload():
         Add ``dropbot-upload`` entry point (i.e., make script callable as
         ``dropbot-upload`` from system command shell).
 
-    .. versionchanged:: X.X.X
+    .. versionchanged:: 0.48
         If upload fails, leave Teensy GUI open until either a) Teensy GUI
         window is closed; or b) Ctrl-C is pressed.
     '''
