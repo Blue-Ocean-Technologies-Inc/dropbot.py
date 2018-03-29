@@ -853,7 +853,13 @@ public:
       now = microseconds();
 
       // Stream "capacitance-updated" event to serial interface.
-      sprintf((char *)result.data, "{\"event\": \"capacitance-updated\", \"new_value\": %g, \"start\": %lu, \"end\": %lu, \"n_samples\": %lu}", value, start, now, n_samples);
+      sprintf((char *)result.data,
+              "{\"event\": \"capacitance-updated\", "
+              "\"new_value\": %g, "  // Capacitance value
+              "\"start\": %lu, \"end\": %lu, "  // start/end times in ms
+              "\"n_samples\": %lu, "  // # of analog samples taken for reading
+              "\"V_a\": %g}",  // Actuation voltage
+              value, start, now, n_samples, _high_voltage);
       result.length = strlen((char *)result.data);
 
       {
