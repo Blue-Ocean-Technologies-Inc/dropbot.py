@@ -156,6 +156,8 @@ class Node :
   public BaseNodeSerialHandler,
 #endif  // #ifndef DISABLE_SERIAL
   public BaseNodeI2cHandler<base_node_rpc::i2c_handler_t> {
+private:
+  float _high_voltage;  // Cached high-voltage reading.
 public:
   typedef PacketParser<FixedPacket> parser_t;
 
@@ -231,6 +233,7 @@ public:
   Node() : BaseNode(),
            BaseNodeConfig<config_t>(dropbot_Config_fields),
            BaseNodeState<state_t>(dropbot_State_fields),
+           _high_voltage(0),
            adc_period_us_(0), adc_timestamp_us_(0), adc_tick_tock_(false),
            adc_count_(0), dma_adc_active_(false), dma_channel_done_(-1),
            last_dma_channel_done_(-1), adc_read_active_(false),
@@ -461,7 +464,8 @@ public:
     const float R9 = 20e3;
     const float hv_peak_to_peak = hv_fb * R8 / R9;
     // HV RMS = 0.5 * HV peak-to-peak
-    return 0.5 * hv_peak_to_peak;
+    _high_voltage = 0.5 * hv_peak_to_peak;
+    return _high_voltage;
   }
 
   UInt16Array analog_reads_simple(uint8_t pin, uint16_t n_samples) {
