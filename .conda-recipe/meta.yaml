@@ -127,6 +127,7 @@ outputs:
       run:
         - {{ pin_subpackage(PKG_NAME + '-dev', max_pin='x.x') }}
         - base-node >=0.13.1
+        - conda-helpers >=0.20
         - json-tricks
         #: .. versionadded:: 1.47
         - logging-helpers
