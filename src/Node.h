@@ -534,6 +534,11 @@ public:
   }
 
   UInt8Array detect_shorts(uint8_t delay_ms) {
+    /*
+     * .. versionchanged:: X.X.X
+     *     Send ``shorts-detected`` event stream packet containing:
+     *      - ``"channels"``: list of identifiers of shorted channels.
+     */
     // Deselect the HV output
     on_state_hv_output_selected_changed(false);
 
@@ -575,6 +580,36 @@ public:
 
     // Restore the HV output selection
     on_state_hv_output_selected_changed(state_._.hv_output_selected);
+
+    {
+      // Stream `shorts-detected` event packet.
+      UInt8Array result;
+      result.data = &shorts.data[shorts.length];
+
+      sprintf((char *)result.data, "{\"event\": \"shorts-detected\", \"values\": [");
+      result.length = strlen((char *)result.data);
+
+      char *start = reinterpret_cast<char *>(&result.data[result.length]);
+      for (int i = 0 ; i < shorts.length; i++) {
+        if (i > 0) {
+          sprintf(start, ", ");
+          start += 2;
+        }
+        sprintf(start, "%d", shorts.data[i]);
+        start += strlen(start);
+      }
+
+      sprintf(start, "]};");
+      start += strlen(start);
+      result.length = reinterpret_cast<uint8_t *>(start) - result.data;
+
+      {
+        PacketStream output;
+        output.start(Serial, result.length);
+        output.write(Serial, (char *)result.data, result.length);
+        output.end(Serial);
+      }
+    }
 
     return shorts;
   }
