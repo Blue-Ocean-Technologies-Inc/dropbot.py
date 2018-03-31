@@ -557,9 +557,9 @@ public:
       // list of shorts and disable the channel
       if (analog_read(0) < 65535 / 2) {
         shorts.data[shorts.length++] = i;
-	disabled_channels_mask_[i / 8] |= 1 << i % 8;
+        disabled_channels_mask_[i / 8] |= 1 << i % 8;
       } else { // enable the channel
-	disabled_channels_mask_[i / 8] &= ~(1 << i % 8);
+        disabled_channels_mask_[i / 8] &= ~(1 << i % 8);
       }
     }
 
@@ -593,7 +593,7 @@ public:
         if (Wire.available()) {
           state_of_channels_[chip * 5 + port] = ~Wire.read();
         } else {
-	  Timer1.restart();
+          Timer1.restart();
           return UInt8Array_init_default();
         }
       }
