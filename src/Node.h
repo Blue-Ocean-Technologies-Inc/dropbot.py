@@ -635,11 +635,20 @@ public:
   }
 
   void _update_channels() {
+    /*
+     * .. versionchanged:: X.X.X
+     *     Send ``channels-updated`` event stream packet containing:
+     *      - ``"n"``: number of actuated channel
+     *      - ``"actuated"``: list of actuated channel identifiers.
+     *      - ``"start"``: millisecond counter before setting shift registers
+     *      - ``"end"``: millisecond counter after setting shift registers
+     */
     // XXX Stop the timer (which toggles the HV square-wave driver) during i2c
     // communication.
     //
     // See https://gitlab.com/sci-bots/dropbot.py/issues/26
     Timer1.stop(); // stop the timer during i2c transmission
+    const unsigned long start = microseconds();
     uint8_t data[2];
     // Each PCA9505 chip has 5 8-bit output registers for a total of 40 outputs
     // per chip. We can have up to 8 of these chips on an I2C bus, which means
@@ -659,7 +668,44 @@ public:
         delayMicroseconds(200);
       }
     }
+    const unsigned long end = microseconds();
     Timer1.restart();
+    {
+      // Stream `channels-updated` event packet.
+      UInt8Array result = get_buffer();
+      char * const data = reinterpret_cast<char *>(result.data);
+
+      result.length = sprintf((char *)result.data, "{\"event\": "
+                              "\"channels-updated\", \"actuated\": [");
+
+      // XXX LSB of chip 0 and port 0 is channel 0.
+      uint8_t actuated_count = 0;
+      for (uint8_t chip = 0; chip < state_._.channel_count / 40; chip++) {
+        for (uint8_t port = 0; port < 5; port++) {
+          const uint8_t byte_j = chip * 5 + port;
+          for (uint8_t i = 0; i < 8; i++) {
+            if (bitRead(state_of_channels_[byte_j] &
+                        ~disabled_channels_mask_[byte_j], i)) {
+              // Channel is actuated.
+              const uint8_t channel_id = 8 * byte_j + i;
+              if (actuated_count > 0) {
+                result.length += sprintf(&data[result.length], ", ");
+              }
+              actuated_count++;
+              result.length += sprintf(&data[result.length], "%d", channel_id);
+            }
+          }
+        }
+      }
+      result.length += sprintf(&data[result.length], "], \"start\": %lu, \"end\": %lu, \"n\": %d}", start, end, actuated_count);
+
+      {
+        PacketStream output;
+        output.start(Serial, result.length);
+        output.write(Serial, (char *)result.data, result.length);
+        output.end(Serial);
+      }
+    }
   }
 
   float min_waveform_voltage() {
