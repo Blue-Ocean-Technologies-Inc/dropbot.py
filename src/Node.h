@@ -1767,6 +1767,52 @@ public:
            packed_channel_neighbours.length);
     return 0;
   }
+
+  float _benchmark_channel_update(uint32_t count) {
+    /* Apply channel state to **all channels** across **all switching boards**
+     * repeatedly the specified number of times.
+     *
+     * Parameters
+     * ----------
+     * count : uint32_t
+     *     Number of times to repeat channels update.
+     *
+     * Returns
+     * -------
+     * float
+     *     Average seconds per update.
+     */
+    // Eight channels per port
+    const uint8_t port_count = state_._.channel_count / 8;
+    // Back up current channel states.
+    uint8_t old_state[port_count];
+    memcpy(old_state, state_of_channels_, port_count);
+
+    // Save current state
+    const bool disable_events = disable_events_;
+    disable_events_ = true;
+
+    // Initialize all channels in off state
+    memset(state_of_channels_, 0, port_count);
+
+    uint32_t start = micros();
+    for (uint32_t i = 0; i < count; i++) {
+      // Apply channel states
+      _update_channels();
+    }
+    uint32_t end = micros();
+
+    // Restore the previous channel state
+    memcpy(state_of_channels_, old_state, port_count);
+
+    // Apply channel states
+    _update_channels();
+
+    // Restore original state
+    disable_events_ = disable_events;
+
+    return (end - start) / float(count) * 1e-6;
+  }
 };
 }  // namespace dropbot
 
