@@ -589,6 +589,21 @@ try:
         def min_waveform_voltage(self):
             return float(super(ProxyMixin, self).min_waveform_voltage())
 
+        @property
+        def neighbours(self):
+            channel_neighbours = super(ProxyMixin, self).neighbours()
+            N = channel_neighbours.shape[0] / 4
+            index = pd.MultiIndex.from_arrays([np.repeat(range(N), 4),
+                                               ['up', 'down', 'left', 'right']
+                                               * N])
+            channel_neighbours = pd.Series(channel_neighbours, index=index)
+            channel_neighbours.loc[channel_neighbours == 255] = np.nan
+            return channel_neighbours
+
+        @neighbours.setter
+        def neighbours(self, value):
+            self.assign_neighbours(value.fillna(-1).astype('uint8').values)
+
 
     class Proxy(ProxyMixin, _Proxy):
         pass
