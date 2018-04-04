@@ -1768,6 +1768,75 @@ public:
     return 0;
   }
 
+  FloatArray all_channel_capacitances() {
+    uint8_t buffer[MAX_NUMBER_OF_CHANNELS];
+    UInt8Array channels = UInt8Array_init(sizeof(buffer), buffer);
+    for (uint8_t i = 0; i < sizeof(buffer); i++) {
+      channels.data[i] = i;
+    }
+    return channel_capacitances(channels);
+  }
+
+  FloatArray channel_capacitances(UInt8Array channels) {
+    // Enable the HV output and select it.
+    if (!state_._.hv_output_enabled) {
+      on_state_hv_output_enabled_changed(true);
+    }
+    if (!state_._.hv_output_selected) {
+      on_state_hv_output_selected_changed(true);
+    }
+
+    // Eight channels per port
+    const uint8_t port_count = state_._.channel_count / 8;
+    // Back up current channel states.
+    uint8_t old_state[port_count];
+    memcpy(old_state, state_of_channels_, port_count);
+
+    UInt8Array buffer = get_buffer();
+    FloatArray capacitances;
+
+    capacitances.length = channels.length;
+    /* Use end of buffer to store capacitance readings since beginning of
+     * buffer is used by `_update_channels`. */
+    capacitances.data =
+      reinterpret_cast<float *>(&buffer.data[buffer.length - sizeof(float) *
+                                             capacitances.length]);
+
+    // Save current state
+    const bool disable_events = disable_events_;
+    // Disable `channels-updated` signal while measuring channel capacitances.
+    disable_events_ = true;
+
+    for (uint8_t i = 0; i < channels.length; i++) {
+      const uint8_t channel_i = channels.data[i];
+      // Initialize all channels in off state
+      memset(state_of_channels_, 0, port_count);
+
+      // Set bit to actuate channel i
+      state_of_channels_[channel_i / 8] = 1 << channel_i % 8;
+
+      // Apply channel states
+      _update_channels();
+
+      capacitances.data[i] = capacitance(0);
+    }
+
+    // Restore the previous channel state
+    memcpy(state_of_channels_, old_state, port_count);
+
+    // Apply channel states
+    _update_channels();
+
+    // Disable `channels-updated` signal while measuring channel capacitances.
+    disable_events_ = disable_events;
+
+    // Restore the HV output selection
+    on_state_hv_output_selected_changed(state_._.hv_output_selected);
+    on_state_hv_output_enabled_changed(state_._.hv_output_enabled);
+
+    return capacitances;
+  }
+
   float _benchmark_channel_update(uint32_t count) {
     /* Apply channel state to **all channels** across **all switching boards**
      * repeatedly the specified number of times.
