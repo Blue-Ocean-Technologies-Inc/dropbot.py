@@ -220,6 +220,7 @@ public:
   UInt8Array dma_data_;
   uint16_t dma_stream_id_;
   bool watchdog_disable_request_;
+  bool disable_events_;
   base_node_rpc::FastAnalogWrite fast_analog_;
 
   // Detect chip insertion/removal.
@@ -240,6 +241,7 @@ public:
            adc_count_(0), dma_adc_active_(false), dma_channel_done_(-1),
            last_dma_channel_done_(-1), adc_read_active_(false),
            dma_stream_id_(0), watchdog_disable_request_(false),
+           disable_events_(false),
            output_enable_input(*this, -1, DEFAULT_INPUT_DEBOUNCE_DELAY,
                                InputDebounce::PinInMode::PIM_EXT_PULL_UP_RES,
                                0),
@@ -736,7 +738,7 @@ public:
     }
     const unsigned long end = microseconds();
     Timer1.restart();
-    {
+    if (!disable_events_) {
       // Stream `channels-updated` event packet.
       UInt8Array result = get_buffer();
       char * const data = reinterpret_cast<char *>(result.data);
