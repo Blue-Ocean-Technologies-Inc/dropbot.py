@@ -76,6 +76,13 @@ extern void dma_ch15_isr(void);
 
 namespace dropbot {
 
+struct ChannelNeighbours {
+  uint8_t up;
+  uint8_t down;
+  uint8_t left;
+  uint8_t right;
+};
+
 // Define the array that holds the conversions here.
 // The buffer is stored with the correct alignment in the DMAMEM section
 // the +0 in the aligned attribute is necessary b/c of a bug in gcc.
@@ -201,6 +208,7 @@ public:
   uint8_t buffer_[BUFFER_SIZE];
   uint8_t state_of_channels_[MAX_NUMBER_OF_CHANNELS / 8];
   uint8_t disabled_channels_mask_[MAX_NUMBER_OF_CHANNELS / 8];
+  ChannelNeighbours channel_neighbours_[MAX_NUMBER_OF_CHANNELS];
 
   ADC *adc_;
   uint32_t adc_period_us_;
@@ -249,6 +257,7 @@ public:
     pinMode(LED_BUILTIN, OUTPUT);
     dma_data_ = UInt8Array_init_default();
     output_enable_input.setup(OE_PIN);
+    clear_neighbours();
   }
 
   UInt8Array get_buffer() { return UInt8Array_init(sizeof(buffer_), buffer_); }
@@ -1723,6 +1732,40 @@ public:
      */
     fast_analog_.set_pin(pin);
     fast_analog_.configure(duty_cycle, period_us);
+  }
+
+  UInt8Array neighbours() {
+    UInt8Array result = get_buffer();
+    result.length = 4 * MAX_NUMBER_OF_CHANNELS;
+
+    // Copy channel neighbour assignments from array to
+    memcpy(result.data, reinterpret_cast<uint8_t *>(&channel_neighbours_[0]),
+           result.length);
+    return result;
+  }
+
+  void clear_neighbours() {
+    mem_fill(reinterpret_cast<uint8_t *>(&channel_neighbours_[0]),
+             static_cast<uint8_t>(255), 4 * MAX_NUMBER_OF_CHANNELS);
+  }
+
+  int8_t assign_neighbours(UInt8Array packed_channel_neighbours) {
+    if (packed_channel_neighbours.length != 4 * MAX_NUMBER_OF_CHANNELS) {
+      // Invalid payload size.
+      return -1;
+    }
+    for (uint32_t i = 0; i < 4 * MAX_NUMBER_OF_CHANNELS; i++) {
+      const uint8_t channel_i = packed_channel_neighbours.data[i];
+      if ((channel_i > MAX_NUMBER_OF_CHANNELS - 1) && (channel_i != 255)) {
+        // Invalid channel number.
+        return -2;
+      }
+    }
+    // Copy channel neighbour assignments from array to
+    memcpy(reinterpret_cast<uint8_t *>(&channel_neighbours_[0]),
+           packed_channel_neighbours.data,
+           packed_channel_neighbours.length);
+    return 0;
   }
 };
 }  // namespace dropbot
