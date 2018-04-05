@@ -1778,12 +1778,18 @@ public:
   }
 
   FloatArray channel_capacitances(UInt8Array channels) {
-    // Enable the HV output and select it.
+    // High voltage (HV) output is required to perform capacitance
+    // measurements.
+    // XXX Since selecting and enabling the high voltage output take about
+    // ~200 ms each, only select and enable it if necessary.
+    bool restore_required = false;
     if (!state_._.hv_output_enabled) {
       on_state_hv_output_enabled_changed(true);
+      restore_required = true;
     }
     if (!state_._.hv_output_selected) {
       on_state_hv_output_selected_changed(true);
+      restore_required = true;
     }
 
     // Eight channels per port
@@ -1830,9 +1836,11 @@ public:
     // Disable `channels-updated` signal while measuring channel capacitances.
     disable_events_ = disable_events;
 
-    // Restore the HV output selection
-    on_state_hv_output_selected_changed(state_._.hv_output_selected);
-    on_state_hv_output_enabled_changed(state_._.hv_output_enabled);
+    // Restore the original high-votage (HV) output state.
+    if (restore_required) {
+      on_state_hv_output_selected_changed(state_._.hv_output_selected);
+      on_state_hv_output_enabled_changed(state_._.hv_output_enabled);
+    }
 
     return capacitances;
   }
