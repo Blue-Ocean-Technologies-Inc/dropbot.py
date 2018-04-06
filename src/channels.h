@@ -1,6 +1,14 @@
+#ifndef ___DROPBOT__CHANNELS__H___
+#define ___DROPBOT__CHANNELS__H___
+
 #include <array>
 #include <numeric>
 #include <vector>
+#include <Arduino.h>
+#include <TimerOne.h>
+#include <Wire.h>
+
+#include <CArrayDefs.h>
 
 #include "analog.h"
 
@@ -25,71 +33,15 @@ struct Switch {
 };
 
 
-inline Switch channel_to_switch(uint8_t channel) {
-    /*
-     *  - 5 IO register ports per switching board.
-     *  - 8 bits per IO register port.
-     *  - Channels in LSB-first order within each IO register port.
-     */
-    const auto ports_per_board = 5;
-    const auto channels_per_port = 8;
-    const auto channels_per_board = ports_per_board * channels_per_port;
-
-    Switch _switch;
-    _switch.board = channel / channels_per_board;
-    _switch.port = (channel % channels_per_board) / channels_per_port;
-    _switch.bit = channel % channels_per_port;
-    return _switch;
-}
-
-
-inline uint8_t switch_to_channel(Switch const &_switch) {
-  /*
-   *  - 5 IO register ports per switching board.
-   *  - 8 bits per IO register port.
-   *  - Channels in LSB-first order within each IO register port.
-   */
-
-  // Port number within all IO register ports concatenated.
-  const auto ports_per_board = 5;
-  const auto channels_per_port = 8;
-  const auto channels_per_board = ports_per_board * channels_per_port;
-
-  return (_switch.board * channels_per_board + _switch.port * channels_per_port
-          + _switch.bit);
-}
-
-
-inline void pack_channels(UInt8Array const &channels,
-                          UInt8Array &packed_channels) {
-  const auto ports_per_board = 5;
-  packed_channels.length = 0;
-
-  for (auto i = 0; i < channels.length; i++) {
-    const Switch _switch = channel_to_switch(channels.data[i]);
-    const uint8_t byte_i = _switch.board * ports_per_board + _switch.port;
-
-    if (byte_i + 1 >= packed_channels.length) {
-        for (auto board_i = packed_channels.length;
-             board_i < _switch.board + 1; board_i++) {
-            for (auto port_j = 0; port_j < ports_per_board + 1; port_j++) {
-                packed_channels.data[_switch.board * ports_per_board
-                                     + port_j] = 0;
-            }
-        }
-        packed_channels.length = (_switch.board + 1) * ports_per_board;
-    }
-
-    packed_channels.data[byte_i] |= 1 << _switch.bit;
-  }
-}
+Switch channel_to_switch(uint8_t channel);
+uint8_t switch_to_channel(Switch const &_switch);
+void pack_channels(UInt8Array const &channels, UInt8Array &packed_channels);
 
 
 // Accept iterators to support vectors, arrays, etc.
 // See: https://stackoverflow.com/a/26684784/345236
 template <typename Iterator>
-inline std::vector<uint8_t> unpack_channels(Iterator begin,
-                                            const Iterator end) {
+std::vector<uint8_t> unpack_channels(Iterator begin, const Iterator end) {
   const auto ports_per_board = 5;
   const auto channels_per_port = 8;
   const auto channels_per_board = ports_per_board * channels_per_port;
@@ -118,7 +70,7 @@ inline std::vector<uint8_t> unpack_channels(Iterator begin,
 // Accept iterators to support vectors, arrays, etc.
 // See: https://stackoverflow.com/a/26684784/345236
 template <typename Container>
-inline std::vector<uint8_t> unpack_channels(Container packed_channels) {
+std::vector<uint8_t> unpack_channels(Container packed_channels) {
   return unpack_channels(std::begin(packed_channels),
                          std::end(packed_channels));
 }
@@ -127,7 +79,7 @@ inline std::vector<uint8_t> unpack_channels(Container packed_channels) {
 // Accept iterators to support vectors, arrays, etc.
 // See: https://stackoverflow.com/a/26684784/345236
 template <typename Iterator>
-inline std::vector<Switch> unpack_switches(Iterator begin,
+std::vector<Switch> unpack_switches(Iterator begin,
                                            const Iterator end) {
   const auto ports_per_board = 5;
   const auto channels_per_port = 8;
@@ -155,7 +107,7 @@ inline std::vector<Switch> unpack_switches(Iterator begin,
 
 
 template <typename Container>
-inline std::vector<Switch> unpack_switches(const Container &packed_switches) {
+std::vector<Switch> unpack_switches(const Container &packed_switches) {
   return unpack_switches(std::begin(packed_switches),
                          std::end(packed_switches));
 }
@@ -405,7 +357,7 @@ public:
       const uint8_t port_i = *it / 8;
       const uint8_t mask_i = 1 << (*it % 8);
 
-      if (!(mask_i & ~disabled_channels_mask_[i])) {
+      if (!(mask_i & ~disabled_channels_mask_[port_i])) {
         // Channel is disabled.
         capacitances.push_back(0);
         continue;
@@ -495,3 +447,5 @@ public:
 };
 
 }  // namespace dropbot
+
+#endif  // #ifndef ___DROPBOT__CHANNELS__H___
