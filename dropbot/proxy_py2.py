@@ -604,6 +604,42 @@ try:
         def neighbours(self, value):
             self.assign_neighbours(value.fillna(-1).astype('uint8').values)
 
+        def get_drops(self, capacitance_threshold=0):
+            '''
+            Parameters
+            ----------
+            capacitance_threshold : float, optional
+                Minimum capacitance (in farads) to consider as liquid present
+                on a channel electrode.
+
+                If set to 0, a default of 3 pF is used (default).
+
+            Returns
+            -------
+            list<numpy.array>
+                List of channels where threshold capacitance was met, grouped
+                by contiguous electrode regions (i.e., sets of electrodes that
+                are connected by neighbours where capacitance threshold was
+                also met).
+            '''
+            drops_raw = super(ProxyMixin, self).get_drops(capacitance_threshold)
+
+            # Unpack raw drops array format:
+            #
+            #     [drop 0 channel count][drop 0: channel 0, channel 1, ...][drop 1 channel count][drop 1: channel 0, channel 1, ...]
+            #
+            # into a list of `numpy.array` channels lists.
+            drops = []
+            i = 0
+            while i < drops_raw.shape[0]:
+                drop_j_size = drops_raw[i]
+                start_j = i + 1
+                end_j = start_j + drop_j_size
+                drop_j = drops_raw[i + 1:end_j]
+                drops.append(drop_j)
+                i = end_j
+            return drops
+
 
     class Proxy(ProxyMixin, _Proxy):
         pass
