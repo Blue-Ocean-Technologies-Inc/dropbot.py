@@ -45,6 +45,7 @@
 #include "kxsort.h"
 #include "analog.h"
 #include "channels.h"
+#include "drops.h"
 
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
 #define CPU_RESTART_VAL 0x5FA0004
@@ -1437,6 +1438,46 @@ public:
     result.data = reinterpret_cast<float *>(get_buffer().data);
     result.length = capacitances.size();
     std::copy(capacitances.begin(), capacitances.end(), result.data);
+    return result;
+  }
+
+  UInt8Array get_drops(float c_threshold) {
+    /*
+    * Parameters
+    * ----------
+    * c_threshold : float
+    *     Minimum capacitance (in farads) to consider as liquid present on a
+    *     channel electrode.
+    *
+    *     If set to 0, a default of 3 pF is used.
+    *
+    * Returns
+    * -------
+    * UInt8Array
+    *     List of channels where threshold capacitance was met, grouped by
+    *     contiguous electrode regions (i.e., sets of electrodes that are
+    *     connected by neighbours where capacitance threshold was also met).
+    *
+    *     Format:
+    *
+    *         [drop 0 channel count][drop 0: channel 0, channel 1, ...][drop 1 channel count][drop 1: channel 0, channel 1, ...]
+    */
+    c_threshold = c_threshold ? c_threshold : drops::C_THRESHOLD;
+
+    auto capacitances =
+        channels_.all_channel_capacitances(config_._.capacitance_n_samples);
+    auto drops = drops::get_drops(channel_neighbours_, capacitances,
+                                  c_threshold);
+
+    UInt8Array result = get_buffer();
+    result.length = 0;
+
+    for (auto it_drop = drops.begin(); it_drop != drops.end(); it_drop++) {
+      const auto &drop = *it_drop;
+      result.data[result.length++] = drop.size();
+      std::copy(drop.begin(), drop.end(), &result.data[result.length]);
+      result.length += drop.size();
+    }
     return result;
   }
 
