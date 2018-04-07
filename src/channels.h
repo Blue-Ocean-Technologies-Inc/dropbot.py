@@ -385,6 +385,61 @@ public:
     return capacitances;
   }
 
+  template <typename T>
+  std::vector<float> scatter_channels_capacitances(T channels,
+                                                   uint16_t n_samples) {
+    /*
+    * Parameters
+    * ----------
+    * channels : STL container
+    *     List of channels for which to measure capacitance - **MUST** be sorted.
+    * n_samples : uint16_t
+    *     Number of analog samples to measure.
+    *
+    *     If 0, use default from :attr:`config_._`.
+    *
+    * Returns
+    * -------
+    * std::vector<float>
+    *     List of channel capacitances, indexed by id.  Value for all indices
+    *     not in ``channels`` is zero.
+    */
+
+    // Only measure capacitance of specified channels.
+    std::vector<float> capacitances(MAX_NUMBER_OF_CHANNELS, 0);
+    channel_capacitances(channels.begin(), channels.end(), n_samples,
+                         capacitances.begin());
+
+    {
+      /* At this point, capacitances are stored in the form:
+      *
+      *      [channel a, channel b, channel c, ..., channel N, 0, 0, 0, 0, 0, ..., 0]
+      *
+      *  where the **first N** entries are the measured capacitances for the
+      *  specified list of channels and the remaining entries are 0.
+      *
+      *  Scatter measured capacitances to allow indexing by channel id, e.g.:
+      *
+      *      [<C0>, 0, 0, 0, <C4>, ..., <Cn>, ...]
+      *
+      *  Note that the reading for channel 0 is at index 0, the reading for
+      *  channel 4 is at index 4, etc.
+      */
+      std::reverse_iterator<decltype(capacitances)::iterator>
+        it_channel_c(capacitances.begin() + channels.size());
+      for (auto it_channel = channels.rbegin();
+           it_channel != channels.rend(); it_channel++, it_channel_c++) {
+          auto &id = *it_channel;
+          auto &channel_c = *it_channel_c;
+          capacitances[id] = channel_c;
+          if (&channel_c != &capacitances[id]) { channel_c = 0; }
+      }
+    }
+
+    capacitances.shrink_to_fit();
+    return capacitances;
+  }
+
   template <typename Container>
   std::vector<float> channel_capacitances(Container channels,
                                           uint16_t n_samples) {

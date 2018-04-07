@@ -1463,6 +1463,16 @@ public:
                                                 &channels[0]));
   }
 
+  UInt8Array all_channels() {
+    // Fill `channels` with range `(0, <channel_count_>)`.
+    std::vector<uint8_t> channels(state_._.channel_count);
+    std::iota(channels.begin(), channels.end(), 0);
+    UInt8Array result = get_buffer();
+    std::copy(channels.begin(), channels.end(), result.data);
+    result.length = channels.size();
+    return result;
+  }
+
   FloatArray channel_capacitances(UInt8Array channels) {
     // High voltage (HV) output is required to perform capacitance
     // measurements.
