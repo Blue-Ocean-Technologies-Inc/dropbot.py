@@ -19,5 +19,7 @@ message State {
   optional float target_capacitance = 7 [default = 0];
   //: .. versionadded:: X.X.X
   optional float target_count = 8 [default = 10];
+  //: .. versionadded:: X.X.X
+  optional uint32 event_mask = 9 [default = 4294967294];
 }
 
