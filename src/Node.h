@@ -46,6 +46,7 @@
 #include "analog.h"
 #include "channels.h"
 #include "drops.h"
+#include "format.h"
 
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
 #define CPU_RESTART_VAL 0x5FA0004
@@ -86,7 +87,8 @@ namespace dropbot {
 
 const uint32_t EVENT_ACTUATED_CHANNEL_CAPACITANCES = (1 << 31);
 const uint32_t EVENT_CHANNELS_UPDATED              = (1 << 30);
-const uint32_t EVENT_SHORTS_DETECTED               = (1 << 29);
+const uint32_t EVENT_SHORTS_DETECTED               = (1 << 28);
+const uint32_t EVENT_DROPS_DETECTED                = (1 << 27);
 const uint32_t EVENT_ENABLE                        = (1 << 0);
 
 // Define the array that holds the conversions here.
@@ -1464,10 +1466,12 @@ public:
     */
     c_threshold = c_threshold ? c_threshold : drops::C_THRESHOLD;
 
+    const unsigned long start = microseconds();
     auto capacitances =
         channels_.all_channel_capacitances(config_._.capacitance_n_samples);
     auto drops = drops::get_drops(channel_neighbours_, capacitances,
                                   c_threshold);
+    const unsigned long end = microseconds();
 
     UInt8Array result = get_buffer();
     result.length = 0;
@@ -1477,6 +1481,30 @@ public:
       result.data[result.length++] = drop.size();
       std::copy(drop.begin(), drop.end(), &result.data[result.length]);
       result.length += drop.size();
+    }
+
+    if (event_enabled(EVENT_DROPS_DETECTED)) {
+      /*
+      * Stream `drops-detected` event in the form:
+      *
+      *     {"event": "drops-detected",
+      *      "drops": {"channels": [[<drop 0 ch 0>, <drop 0 ch 1>, ...],
+      *                             [<drop 1 ch 0>, <drop 1 ch 1>, ...], ...],
+      *                "capacitances": [[<drop 0 cap 0>, <drop 0 cap 1>, ...],
+      *                                 [<drop 1 cap 0>, <drop 1 cap 1>, ...],
+      *                                 ...]},
+      *      "start": <start microseconds>, "end": <end microseconds>}
+      */
+      UInt8Array buffer = UInt8Array_init(0, &result.data[result.length]);
+      sprintf_drops_detected(capacitances, drops, start, end, buffer);
+
+      {
+        PacketStream output;
+        output.start(Serial, buffer.length);
+        output.write(Serial, reinterpret_cast<char *>(buffer.data),
+                     buffer.length);
+        output.end(Serial);
+      }
     }
     return result;
   }
