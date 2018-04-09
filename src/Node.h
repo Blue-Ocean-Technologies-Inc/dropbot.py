@@ -240,6 +240,10 @@ public:
   uint32_t capacitance_timestamp_ms_;
 
   uint8_t target_count_;
+  //: .. versionadded:: X.X.X
+  //
+  // Time of most recent drops detection.
+  uint32_t drops_timestamp_ms_;
 
   Node() : BaseNode(),
            BaseNodeConfig<config_t>(dropbot_Config_fields),
@@ -253,7 +257,8 @@ public:
            output_enable_input(*this, -1, DEFAULT_INPUT_DEBOUNCE_DELAY,
                                InputDebounce::PinInMode::PIM_EXT_PULL_UP_RES,
                                0),
-           capacitance_timestamp_ms_(0), target_count_(0) {
+           capacitance_timestamp_ms_(0), target_count_(0),
+           drops_timestamp_ms_(0) {
     pinMode(LED_BUILTIN, OUTPUT);
     dma_data_ = UInt8Array_init_default();
     output_enable_input.setup(OE_PIN);
@@ -749,6 +754,12 @@ public:
       watchdog_disable_request_ = false;
       watchdog_auto_refresh(false);
       __watchdog_disable__();
+    }
+    if (state_._.drops_update_interval_ms > 0 &&
+        (state_._.drops_update_interval_ms < now - drops_timestamp_ms_) &&
+        event_enabled(EVENT_DROPS_DETECTED)) {
+      get_drops(0);
+      drops_timestamp_ms_ = millis();
     }
     if (dma_channel_done_ >= 0) {
       // DMA channel has completed.
