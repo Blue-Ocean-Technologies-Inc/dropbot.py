@@ -21,6 +21,13 @@ float measure_temperature();
 
 float measure_aref();
 
+float benchmark_analog_read(uint8_t pin, uint32_t n_samples);
+
+float benchmmark_u16_percentile_diff(uint8_t pin, uint16_t n_samples,
+                                     float low_percentile,
+                                     float high_percentile,
+                                     uint32_t n_repeats);
+
 }  // namespace analog {
 }  // namespace dropbot {
 

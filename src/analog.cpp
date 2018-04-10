@@ -104,5 +104,28 @@ float measure_aref() {
 }
 
 
+float benchmark_analog_read(uint8_t pin, uint32_t n_samples) {
+  std::vector<uint16_t> values(1);
+  const unsigned long start = micros();
+  for (uint32_t i = 0; i < n_samples; i++) {
+    values[0] = analogRead(pin);
+  }
+  const unsigned long end = micros();
+  return (end - start) * 1e-6;
+}
+
+
+float benchmmark_u16_percentile_diff(uint8_t pin, uint16_t n_samples,
+                                      float low_percentile,
+                                      float high_percentile,
+                                      uint32_t n_repeats) {
+  const unsigned long start = micros();
+  for (uint32_t i = 0; i < n_repeats; i++) {
+    u16_percentile_diff(pin, n_samples, low_percentile, high_percentile);
+  }
+  const unsigned long end = micros();
+  return (end - start) * 1e-6;
+}
+
 }  // namespace analog {
 }  // namespace dropbot {
