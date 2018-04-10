@@ -12,9 +12,10 @@ namespace drops {
 constexpr float C_THRESHOLD = 3e-12;
 
 
-template <typename Neighbours, typename Capacitances>
+template <typename Neighbours, typename Capacitances, typename Channels>
 std::vector<std::vector<uint8_t> > get_drops(Neighbours &neighbours,
                                              Capacitances &capacitances,
+                                             Channels &channels,
                                              float c_threshold=C_THRESHOLD) {
   /* Assign each channel with a capacitance greater than the specified
    * threshold to a *"drop group"*.
@@ -35,7 +36,8 @@ std::vector<std::vector<uint8_t> > get_drops(Neighbours &neighbours,
    *    A list of *drop groups*, where each *drop group* is represented as a
    *    *list of corresponding channels*.
    */
-  std::vector<uint8_t> drop_member(neighbours.size(), 0xFF);
+  const auto max_channel = *std::max_element(channels.begin(), channels.end());
+  std::vector<uint8_t> drop_member(max_channel + 1, 0xFF);
 
   // Assign each channel to a **drop group**.
   for (auto it_channel = channels.begin(); it_channel != channels.end();
@@ -43,8 +45,8 @@ std::vector<std::vector<uint8_t> > get_drops(Neighbours &neighbours,
     if (capacitances[*it_channel] <= C_THRESHOLD) {
       continue;
     }
-    const auto &neighbours_i = neighbours[i];
-    for (auto& x_i : std::array<uint8_t, 5>({static_cast<uint8_t>(i),
+    const auto &neighbours_i = neighbours[*it_channel];
+    for (auto& x_i : std::array<uint8_t, 5>({static_cast<uint8_t>(*it_channel),
                                              neighbours_i.up,
                                              neighbours_i.down,
                                              neighbours_i.left,
@@ -59,12 +61,12 @@ std::vector<std::vector<uint8_t> > get_drops(Neighbours &neighbours,
         const auto original_drop_i = drop_member[x_i];
         for (auto j = 0; j < drop_member.size(); j++) {
           if (original_drop_i == drop_member[j]) {
-            drop_member[j] = i;
+            drop_member[j] = *it_channel;
           }
         }
       } else if (capacitances[x_i] > C_THRESHOLD) {
         // Neighbour is partially covered.  Map to current **drop group**.
-        drop_member[x_i] = i;
+        drop_member[x_i] = *it_channel;
       }
     }
   }

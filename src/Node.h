@@ -6,6 +6,7 @@
 #include <numeric>
 #include <stdint.h>
 #include <string.h>
+#include <set>
 #include <vector>
 #include <Arduino.h>
 
@@ -758,7 +759,7 @@ public:
     if (state_._.drops_update_interval_ms > 0 &&
         (state_._.drops_update_interval_ms < now - drops_timestamp_ms_) &&
         event_enabled(EVENT_DROPS_DETECTED)) {
-      get_drops(0);
+      get_all_drops(0);
       drops_timestamp_ms_ = millis();
     }
     if (dma_channel_done_ >= 0) {
@@ -1454,10 +1455,12 @@ public:
     return result;
   }
 
-  UInt8Array get_drops(float c_threshold) {
+  UInt8Array get_channels_drops(UInt8Array channels, float c_threshold) {
     /*
     * Parameters
     * ----------
+    * channels : UInt8Array
+    *     List of channels to measure for drop detection.
     * c_threshold : float
     *     Minimum capacitance (in farads) to consider as liquid present on a
     *     channel electrode.
@@ -1476,12 +1479,45 @@ public:
     *         [drop 0 channel count][drop 0: channel 0, channel 1, ...][drop 1 channel count][drop 1: channel 0, channel 1, ...]
     */
     c_threshold = c_threshold ? c_threshold : drops::C_THRESHOLD;
-
     const unsigned long start = microseconds();
-    auto capacitances =
-        channels_.all_channel_capacitances(config_._.capacitance_n_samples);
+
+    std::set<uint8_t> channels_v(channels.data, channels.data +
+                                 channels.length);
+
+    // Only measure capacitance of specified channels.
+    std::vector<float> capacitances(state_._.channel_count, 0);
+    channels_.channel_capacitances(channels_v.begin(), channels_v.end(),
+                                   config_._.capacitance_n_samples,
+                                   capacitances.begin());
+
+    {
+      /* At this point, capacitances are stored in the form:
+      *
+      *      [channel a, channel b, channel c, ..., channel N, 0, 0, 0, 0, 0, ..., 0]
+      *
+      *  where the **first N** entries are the measured capacitances for the
+      *  specified list of channels and the remaining entries are 0.
+      *
+      *  Scatter measured capacitances to allow indexing by channel id, e.g.:
+      *
+      *      [<C0>, 0, 0, 0, <C4>, ..., <Cn>, ...]
+      *
+      *  Note that the reading for channel 0 is at index 0, the reading for
+      *  channel 4 is at index 4, etc.
+      */
+      std::reverse_iterator<decltype(capacitances)::iterator>
+        it_channel_c(capacitances.begin() + channels_v.size());
+      for (auto it_channel = channels_v.rbegin();
+           it_channel != channels_v.rend(); it_channel++, it_channel_c++) {
+          auto &id = *it_channel;
+          auto &channel_c = *it_channel_c;
+          capacitances[id] = channel_c;
+          if (&channel_c != &capacitances[id]) { channel_c = 0; }
+      }
+    }
+
     auto drops = drops::get_drops(channel_neighbours_, capacitances,
-                                  c_threshold);
+                                  channels_v, c_threshold);
     const unsigned long end = microseconds();
 
     UInt8Array result = get_buffer();
@@ -1518,6 +1554,34 @@ public:
       }
     }
     return result;
+  }
+
+  UInt8Array get_all_drops(float c_threshold) {
+    /*
+    * Parameters
+    * ----------
+    * c_threshold : float
+    *     Minimum capacitance (in farads) to consider as liquid present on a
+    *     channel electrode.
+    *
+    *     If set to 0, a default of 3 pF is used.
+    *
+    * Returns
+    * -------
+    * UInt8Array
+    *     List of channels where threshold capacitance was met, grouped by
+    *     contiguous electrode regions (i.e., sets of electrodes that are
+    *     connected by neighbours where capacitance threshold was also met).
+    *
+    *     Format:
+    *
+    *         [drop 0 channel count][drop 0: channel 0, channel 1, ...][drop 1 channel count][drop 1: channel 0, channel 1, ...]
+    */
+    // Fill `channels` with range `(0, <channel_count_>)`.
+    std::vector<uint8_t> channels(state_._.channel_count);
+    std::iota(channels.begin(), channels.end(), 0);
+    return get_channels_drops(UInt8Array_init(channels.size(), &channels[0]),
+                              c_threshold);
   }
 
   UInt8Array neighbours() {
