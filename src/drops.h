@@ -105,6 +105,32 @@ std::vector<std::vector<uint8_t> > get_drops(Neighbours &neighbours,
 }
 
 
+template <typename Drops, typename Array>
+void pack_drops(const Drops &drops, Array &packed_drops) {
+  /*
+   * Pack drops lists into single array.
+   *
+   * Each drop is encoded with a length ``n + 1``, where ``n`` is the number of
+   * channels in the drop.  The first value in the encoded drop is ``n``,
+   * followed by the drop channel numbers.
+   *
+   * For example:
+   *
+   *     [[0, 3, 7], [13, 2]]
+   *
+   * is encoded as:
+   *
+   *     [3, 0, 3, 7, 2, 13, 2]
+   */
+  for (auto it_drop = drops.begin(); it_drop != drops.end(); it_drop++) {
+    const auto &drop = *it_drop;
+    packed_drops.data[packed_drops.length++] = drop.size();
+    std::copy(drop.begin(), drop.end(), &packed_drops.data[packed_drops.length]);
+    packed_drops.length += drop.size();
+  }
+}
+
+
 template <typename Drops, typename Neighbours>
 std::set<uint8_t> drop_channels(Drops const &drops, Neighbours const &neighbours) {
   /*
