@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 #include <algorithm>
+#include <array>
+#include <set>
 #include <vector>
 
 namespace dropbot {
@@ -100,6 +102,42 @@ std::vector<std::vector<uint8_t> > get_drops(Neighbours &neighbours,
   }
   drops.shrink_to_fit();
   return drops;
+}
+
+
+template <typename Drops, typename Neighbours>
+std::set<uint8_t> drop_channels(Drops const &drops, Neighbours const &neighbours) {
+  /*
+   * Returns
+   * -------
+   * std::set<uint8_t>
+   *     Set of channels belonging to the specified set of drops, as well as
+   *     any neighbouring channels.
+   *
+   *     For example:
+   *
+   *         Drops         Drops +
+   *                      Neighbours
+   *       ---------      ----xx----
+   *       ---XX----      ---xXXx---
+   *       ----X----      ----xXx---
+   *       ---------      -----x----
+   */
+  std::set<uint8_t> drop_channels;
+  for (auto const &drop_i : drops) {
+    for (auto const channel_i : drop_i) {
+      const auto &neighbours_i = neighbours[channel_i];
+      for (auto neighbour_i :
+           std::array<uint8_t, 5>({channel_i, neighbours_i.up,
+                                   neighbours_i.down, neighbours_i.left,
+                                   neighbours_i.right})) {
+          if (neighbour_i != 0xff) {
+              drop_channels.insert(neighbour_i);
+          }
+      }
+    }
+  }
+  return drop_channels;
 }
 
 
