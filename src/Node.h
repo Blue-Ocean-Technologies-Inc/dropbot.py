@@ -231,6 +231,7 @@ public:
   Channels channels_;
   std::array<ChannelNeighbours, MAX_NUMBER_OF_CHANNELS> channel_neighbours_;
   base_node_rpc::FastAnalogWrite fast_analog_;
+  std::vector<std::vector<uint8_t> > drops_;
 
   // Detect chip insertion/removal.
   OutputEnableDebounce output_enable_input;
@@ -759,7 +760,7 @@ public:
     if (state_._.drops_update_interval_ms > 0 &&
         (state_._.drops_update_interval_ms < now - drops_timestamp_ms_) &&
         event_enabled(EVENT_DROPS_DETECTED)) {
-      get_all_drops(0);
+      refresh_drops(0);
       drops_timestamp_ms_ = millis();
     }
     if (dma_channel_done_ >= 0) {
@@ -1567,11 +1568,21 @@ public:
     // Fill `channels` with range `(0, <channel_count_>)`.
     std::vector<uint8_t> channels(state_._.channel_count);
     std::iota(channels.begin(), channels.end(), 0);
-    auto drops = get_channels_drops(channels, c_threshold);
+    drops_ = get_channels_drops(channels, c_threshold);
 
     UInt8Array result = UInt8Array_init(0, get_buffer().data);
-    drops::pack_drops(drops, result);
+    drops::pack_drops(drops_, result);
     return result;
+  }
+
+  void refresh_drops(float c_threshold) {
+    if (drops_.size() > 0) {
+      drops_ = get_channels_drops(drops::drop_channels(drops_,
+                                                       channel_neighbours_),
+                                  c_threshold);
+    } else {
+      get_all_drops(c_threshold);
+    }
   }
 
   UInt8Array neighbours() {
