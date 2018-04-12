@@ -1478,57 +1478,44 @@ public:
     *
     *         [drop 0 channel count][drop 0: channel 0, channel 1, ...][drop 1 channel count][drop 1: channel 0, channel 1, ...]
     */
+    std::set<uint8_t> channels_v(channels.data, channels.data +
+                                 channels.length);
+    auto drops = get_channels_drops(channels_v, c_threshold);
+    UInt8Array result = UInt8Array_init(0, get_buffer().data);
+    drops::pack_drops(drops, result);
+    return result;
+  }
+
+  template <typename T>
+  std::vector<std::vector<uint8_t> > get_channels_drops(T channels, float c_threshold) {
+    /*
+    * Parameters
+    * ----------
+    * channels : STL container
+    *     Channels to measure for drop detection - **MUST** be sorted.
+    * c_threshold : float
+    *     Minimum capacitance (in farads) to consider as liquid present on a
+    *     channel electrode.
+    *
+    *     If set to 0, a default of 3 pF is used.
+    *
+    * Returns
+    * -------
+    * std::vector<std::vector<uint8_t> >
+    *     List of channels where threshold capacitance was met, grouped by
+    *     contiguous electrode regions (i.e., sets of electrodes that are
+    *     connected by neighbours where capacitance threshold was also met).
+    */
     c_threshold = c_threshold ? c_threshold : drops::C_THRESHOLD;
     const unsigned long start = microseconds();
 
-    std::set<uint8_t> channels_v(channels.data, channels.data +
-                                 channels.length);
-
     // Only measure capacitance of specified channels.
-    std::vector<float> capacitances(state_._.channel_count, 0);
-    channels_.channel_capacitances(channels_v.begin(), channels_v.end(),
-                                   config_._.capacitance_n_samples,
-                                   capacitances.begin());
-
-    {
-      /* At this point, capacitances are stored in the form:
-      *
-      *      [channel a, channel b, channel c, ..., channel N, 0, 0, 0, 0, 0, ..., 0]
-      *
-      *  where the **first N** entries are the measured capacitances for the
-      *  specified list of channels and the remaining entries are 0.
-      *
-      *  Scatter measured capacitances to allow indexing by channel id, e.g.:
-      *
-      *      [<C0>, 0, 0, 0, <C4>, ..., <Cn>, ...]
-      *
-      *  Note that the reading for channel 0 is at index 0, the reading for
-      *  channel 4 is at index 4, etc.
-      */
-      std::reverse_iterator<decltype(capacitances)::iterator>
-        it_channel_c(capacitances.begin() + channels_v.size());
-      for (auto it_channel = channels_v.rbegin();
-           it_channel != channels_v.rend(); it_channel++, it_channel_c++) {
-          auto &id = *it_channel;
-          auto &channel_c = *it_channel_c;
-          capacitances[id] = channel_c;
-          if (&channel_c != &capacitances[id]) { channel_c = 0; }
-      }
-    }
-
-    auto drops = drops::get_drops(channel_neighbours_, capacitances,
-                                  channels_v, c_threshold);
+    std::vector<float> capacitances =
+        channels_.scatter_channels_capacitances(channels, config_._
+                                                .capacitance_n_samples);
+    auto drops = drops::get_drops(channel_neighbours_, capacitances, channels,
+                                  c_threshold);
     const unsigned long end = microseconds();
-
-    UInt8Array result = get_buffer();
-    result.length = 0;
-
-    for (auto it_drop = drops.begin(); it_drop != drops.end(); it_drop++) {
-      const auto &drop = *it_drop;
-      result.data[result.length++] = drop.size();
-      std::copy(drop.begin(), drop.end(), &result.data[result.length]);
-      result.length += drop.size();
-    }
 
     if (event_enabled(EVENT_DROPS_DETECTED)) {
       /*
@@ -1542,7 +1529,7 @@ public:
       *                                 ...]},
       *      "start": <start microseconds>, "end": <end microseconds>}
       */
-      UInt8Array buffer = UInt8Array_init(0, &result.data[result.length]);
+      UInt8Array buffer = UInt8Array_init(0, get_buffer().data);
       sprintf_drops_detected(capacitances, drops, start, end, buffer);
 
       {
@@ -1553,7 +1540,7 @@ public:
         output.end(Serial);
       }
     }
-    return result;
+    return drops;
   }
 
   UInt8Array get_all_drops(float c_threshold) {
@@ -1580,8 +1567,11 @@ public:
     // Fill `channels` with range `(0, <channel_count_>)`.
     std::vector<uint8_t> channels(state_._.channel_count);
     std::iota(channels.begin(), channels.end(), 0);
-    return get_channels_drops(UInt8Array_init(channels.size(), &channels[0]),
-                              c_threshold);
+    auto drops = get_channels_drops(channels, c_threshold);
+
+    UInt8Array result = UInt8Array_init(0, get_buffer().data);
+    drops::pack_drops(drops, result);
+    return result;
   }
 
   UInt8Array neighbours() {
