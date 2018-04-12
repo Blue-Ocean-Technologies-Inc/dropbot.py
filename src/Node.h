@@ -1585,6 +1585,12 @@ public:
     }
   }
 
+  UInt8Array drops() {
+    UInt8Array result = UInt8Array_init(0, get_buffer().data);
+    drops::pack_drops(drops_, result);
+    return result;
+  }
+
   UInt8Array neighbours() {
     UInt8Array result = get_buffer();
     result.length = 4 * MAX_NUMBER_OF_CHANNELS;

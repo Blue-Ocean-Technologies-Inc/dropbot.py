@@ -34,6 +34,33 @@ class CommunicationError(Exception):
     pass
 
 
+def _unpack_drops(packed_drops):
+    '''
+    Unpack raw drops array format:
+
+        [drop 0 channel count][drop 0: channel 0, channel 1, ...][drop 1 channel count][drop 1: channel 0, channel 1, ...]
+
+    into a list of `numpy.array` channels lists.
+
+
+    Returns
+    -------
+    list<numpy.array>
+        List of channels lists, each channel list corresponding to channels
+        covered by a drop.
+    '''
+    drops = []
+    i = 0
+    while i < packed_drops.shape[0]:
+        drop_j_size = packed_drops[i]
+        start_j = i + 1
+        end_j = start_j + drop_j_size
+        drop_j = packed_drops[i + 1:end_j]
+        drops.append(drop_j)
+        i = end_j
+    return drops
+
+
 try:
     from .node import (Proxy as _Proxy, I2cProxy as _I2cProxy,
                        SerialProxy as _SerialProxy)
@@ -604,10 +631,18 @@ try:
         def neighbours(self, value):
             self.assign_neighbours(value.fillna(-1).astype('uint8').values)
 
-        def get_drops(self, capacitance_threshold=0):
+        @property
+        def drops(self):
+            return _unpack_drops(super(ProxyMixin, self).drops())
+
+        def get_drops(self, channels=None, capacitance_threshold=0):
             '''
             Parameters
             ----------
+            channels : list-like, optional
+                If ``None``, detect drops across **all** channels.  Otherwise,
+                only detect drops over electrodes connected to the specified
+                channels.
             capacitance_threshold : float, optional
                 Minimum capacitance (in farads) to consider as liquid present
                 on a channel electrode.
@@ -622,23 +657,14 @@ try:
                 are connected by neighbours where capacitance threshold was
                 also met).
             '''
-            drops_raw = super(ProxyMixin, self).get_drops(capacitance_threshold)
-
-            # Unpack raw drops array format:
-            #
-            #     [drop 0 channel count][drop 0: channel 0, channel 1, ...][drop 1 channel count][drop 1: channel 0, channel 1, ...]
-            #
-            # into a list of `numpy.array` channels lists.
-            drops = []
-            i = 0
-            while i < drops_raw.shape[0]:
-                drop_j_size = drops_raw[i]
-                start_j = i + 1
-                end_j = start_j + drop_j_size
-                drop_j = drops_raw[i + 1:end_j]
-                drops.append(drop_j)
-                i = end_j
-            return drops
+            if channels is None:
+                drops_raw = (super(ProxyMixin, self)
+                             .get_all_drops(capacitance_threshold))
+            else:
+                drops_raw = (super(ProxyMixin, self)
+                             .get_channels_drops(channels,
+                                                 capacitance_threshold))
+            return _unpack_drops(drops_raw)
 
 
     class Proxy(ProxyMixin, _Proxy):
