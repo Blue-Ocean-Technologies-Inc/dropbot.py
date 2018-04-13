@@ -1,4 +1,7 @@
+#include <Arduino.h>
+
 #include "analog.h"
+
 
 namespace dropbot {
 namespace analog {

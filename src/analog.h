@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <vector>
 #include <stdint.h>
-#include <Arduino.h>
 
 #include "kxsort.h"
 
