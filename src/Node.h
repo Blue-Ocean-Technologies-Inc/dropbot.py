@@ -1495,7 +1495,7 @@ public:
     // Disable events while measuring capacitances.  This prevents noise and
     // improves performance by not sending an event for each channel that is
     // set during the capacitance scan.
-    disable_events();
+    auto events_disabled = disable_events();
     auto capacitances =
         channels_.channel_capacitances(channels.data, channels.data +
                                        channels.length,
@@ -1505,7 +1505,7 @@ public:
     output_capacitances.data = reinterpret_cast<float *>(get_buffer().data);
     std::copy(capacitances.begin(), capacitances.end(),
               output_capacitances.data);
-    enable_events();
+    if (events_disabled) { enable_events(); }
 
     // Restore the original high-votage (HV) output state.
     if (restore_required) {
@@ -1517,9 +1517,9 @@ public:
   }
 
   float _benchmark_channel_update(uint32_t count) {
-    disable_events();
+    auto events_disabled = disable_events();
     float seconds_per_update = channels_._benchmark_channel_update(count);
-    enable_events();
+    if (events_disabled) { enable_events(); }
     return seconds_per_update;
   }
 
@@ -1620,8 +1620,20 @@ public:
                                                               EVENT_ENABLE);
   }
   void enable_event(uint32_t event) { state_._.event_mask |= event; }
-  void disable_event(uint32_t event) { state_._.event_mask &= ~event; }
-  void disable_events() { state_._.event_mask &= ~EVENT_ENABLE; }
+  bool disable_event(uint32_t event) {
+    if (state_._.event_mask & event) {
+      state_._.event_mask &= ~event;
+      return true;
+    }
+    return false;
+  }
+  bool disable_events() {
+    if (state_._.event_mask & EVENT_ENABLE) {
+      state_._.event_mask &= ~EVENT_ENABLE;
+      return true;
+    }
+    return false;
+  }
   void enable_events() { state_._.event_mask |= EVENT_ENABLE; }
 };
 }  // namespace dropbot
