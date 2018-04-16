@@ -1425,6 +1425,21 @@ public:
     fast_analog_.configure(duty_cycle, period_us);
   }
 
+  FloatArray scatter_channels_capacitances(UInt8Array channels) {
+    auto capacitances =
+      channels_.scatter_channels_capacitances(std::set<uint8_t>(channels.data,
+                                                                channels.data +
+                                                                channels
+                                                                .length),
+                                              config_._.capacitance_n_samples);
+
+    FloatArray result;
+    result.data = reinterpret_cast<float *>(get_buffer().data);
+    result.length = capacitances.size();
+    std::copy(capacitances.begin(), capacitances.end(), result.data);
+    return result;
+  }
+
   UInt8Array neighbours() {
     UInt8Array result = get_buffer();
     result.length = 4 * MAX_NUMBER_OF_CHANNELS;
