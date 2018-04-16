@@ -10,6 +10,7 @@
 #include <set>
 #include <vector>
 #include <Arduino.h>
+#include <Eigen/Dense>
 
 #include <NadaMQ.h>
 #include <CArrayDefs.h>
@@ -2327,6 +2328,7 @@ public:
     return false;
   }
   void enable_events() { state_._.event_mask |= EVENT_ENABLE; }
+
   /**
   * @brief Synchronize specified timestamp to current milliseconds counter.
   *
@@ -2380,6 +2382,91 @@ public:
     on_state_hv_output_enabled_changed(false);
     // Turn off all channels.
     channels_.disable_all_channels();
+  }
+
+  float _benchmark_eigen_inverse_double(uint32_t N, uint32_t repeats) {
+    /*
+    *  Benchmark Eigen library for computing $Y = (S_T S)^{-1} S_T M$
+    *  using `double` matrix data types.
+    */
+    return _benchmark_eigen_inverse<double>(N, repeats);
+  }
+
+  float _benchmark_eigen_inverse_float(uint32_t N, uint32_t repeats) {
+    /*
+    *  Benchmark Eigen library for computing $Y = (S_T S)^{-1} S_T M$
+    *  using `float` matrix data types.
+    */
+    return _benchmark_eigen_inverse<float>(N, repeats);
+  }
+
+  template <typename Float>
+  float _benchmark_eigen_inverse(uint32_t N, uint32_t repeats) {
+    /*
+    * Benchmark Eigen library for computing $Y = (S_T S)^{-1} S_T M$
+    *
+    * where:
+    *
+    *  - $S$ is a $N \times N$ switching matrix encoding the actuation state of
+    *    each channel during each measurement window in a measuring sequence,
+    *    such that each row of $S$ corresponds to a window within a measurement
+    *    period and each column corresponds to a _sensitive_ channel;
+    *  - $Y$ is a $N \times 1$ matrix encoding the electrical admittance of
+    *    each channel (where admittance is the inverse of the impedance) during
+    *    each measurement period;
+    *  - $M$ is a $N \times 1$ matrix M, containing a combined measurement for
+    *    each row in $S$, corresponding to the _actuated_ channels in the row.
+    *    Note that $SY = M$.
+    *
+    * Benchmarking steps:
+    *
+    *  1. Create a representative $N \times N$ switching matrix, $S$.
+    *  2. Create a representative electrical admittance $N \times 1$ matrix, $Y$.
+    *  3. Compute a mock capacitance measurement $N \times 1$ matrix, $M$,
+    *     containing simulated a combined measurement for each row in $S$,
+    *     corresponding to the actuated channels in the row.
+    *  4. Compute $S_T S$.
+    *  5. **Compute the inverse of $S S_T$** in 3 loops, repeating ``repeats``
+    *     times in each loop and recording the duration of each loop.
+    *  6. Return the minimum duration of a single inverse computation.
+    */
+    using namespace Eigen;
+
+    typedef Matrix<Float, Dynamic, Dynamic> MatrixF;
+
+    MatrixXi S = MatrixXi::Ones(N, N);
+
+    for (auto i = 0; i < S.cols(); i++) {
+        S(i, i) = 0;
+    }
+
+    MatrixF Y(S.cols(), 1);
+
+    for (auto i = 0; i < Y.rows(); i++) {
+        Y(i) = i + 1;
+    }
+
+    MatrixF M = S.cast<Float>() * Y;
+
+    auto S_TS = (S.transpose() * S).cast<Float>();
+
+    std::array<uint32_t, 3> durations;
+    std::fill(durations.begin(), durations.end(),
+              std::numeric_limits<uint32_t>::max());
+
+    for (auto it_duration = durations.begin(); it_duration != durations.end();
+         it_duration++) {
+      auto &duration = *it_duration;
+
+      auto start = micros();
+      for (uint32_t i = 0; i < repeats; i++) {
+        S_TS.inverse();
+      }
+      auto end = micros();
+      duration = end - start;
+    }
+    return (float(*std::min_element(durations.begin(), durations.end())) /
+            durations.size() * 1e-6);
   }
 };
 }  // namespace dropbot
