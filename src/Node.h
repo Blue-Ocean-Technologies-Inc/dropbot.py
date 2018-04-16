@@ -1605,6 +1605,19 @@ public:
     }
     return true;
   }
+
+  float benchmark_analog_read(uint8_t pin, uint32_t n_samples) {
+    return analog::benchmark_analog_read(pin, n_samples);
+  }
+
+  float benchmmark_u16_percentile_diff(uint8_t pin, uint16_t n_samples,
+                                       float low_percentile,
+                                       float high_percentile,
+                                       uint32_t n_repeats) {
+    return analog::benchmmark_u16_percentile_diff(pin, n_samples,
+                                                  low_percentile,
+                                                  high_percentile, n_repeats);
+  }
 };
 }  // namespace dropbot
 
