@@ -83,6 +83,11 @@ extern void dma_ch15_isr(void);
 
 namespace dropbot {
 
+const uint32_t EVENT_ACTUATED_CHANNEL_CAPACITANCES = (1 << 31);
+const uint32_t EVENT_CHANNELS_UPDATED              = (1 << 30);
+const uint32_t EVENT_SHORTS_DETECTED               = (1 << 29);
+const uint32_t EVENT_ENABLE                        = (1 << 0);
+
 // Define the array that holds the conversions here.
 // The buffer is stored with the correct alignment in the DMAMEM section
 // the +0 in the aligned attribute is necessary b/c of a bug in gcc.
@@ -219,7 +224,6 @@ public:
   UInt8Array dma_data_;
   uint16_t dma_stream_id_;
   bool watchdog_disable_request_;
-  bool disable_events_;
   Channels channels_;
   std::array<ChannelNeighbours, MAX_NUMBER_OF_CHANNELS> channel_neighbours_;
   base_node_rpc::FastAnalogWrite fast_analog_;
@@ -242,7 +246,6 @@ public:
            adc_count_(0), dma_adc_active_(false), dma_channel_done_(-1),
            last_dma_channel_done_(-1), adc_read_active_(false),
            dma_stream_id_(0), watchdog_disable_request_(false),
-           disable_events_(false),
            channels_(0, dropbot_Config_switching_board_i2c_address_default),
            output_enable_input(*this, -1, DEFAULT_INPUT_DEBOUNCE_DELAY,
                                InputDebounce::PinInMode::PIM_EXT_PULL_UP_RES,
@@ -459,7 +462,8 @@ public:
     // Restore the HV output selection
     on_state_hv_output_selected_changed(state_._.hv_output_selected);
 
-    {
+    if (event_enabled(EVENT_SHORTS_DETECTED)) {
+      // Shorts-detected event is enabled.
       UInt8Array buffer =
         UInt8Array_init(0, &shorts.data[shorts.length]);
 
@@ -1488,11 +1492,10 @@ public:
       restore_required = true;
     }
 
-    // Save current state
-    const bool disable_events = disable_events_;
-    // Disable `channels-updated` signal while measuring channel capacitances.
-    disable_events_ = true;
-
+    // Disable events while measuring capacitances.  This prevents noise and
+    // improves performance by not sending an event for each channel that is
+    // set during the capacitance scan.
+    auto events_disabled = disable_events();
     auto capacitances =
         channels_.channel_capacitances(channels.data, channels.data +
                                        channels.length,
@@ -1502,9 +1505,7 @@ public:
     output_capacitances.data = reinterpret_cast<float *>(get_buffer().data);
     std::copy(capacitances.begin(), capacitances.end(),
               output_capacitances.data);
-
-    // Restore original `channels-updated` signal state.
-    disable_events_ = disable_events;
+    if (events_disabled) { enable_events(); }
 
     // Restore the original high-votage (HV) output state.
     if (restore_required) {
@@ -1516,14 +1517,9 @@ public:
   }
 
   float _benchmark_channel_update(uint32_t count) {
-    // Save current state
-    const bool disable_events = disable_events_;
-    disable_events_ = true;
-
+    auto events_disabled = disable_events();
     float seconds_per_update = channels_._benchmark_channel_update(count);
-
-    // Restore original `channels-updated` signal state.
-    disable_events_ = disable_events;
+    if (events_disabled) { enable_events(); }
     return seconds_per_update;
   }
 
@@ -1573,7 +1569,7 @@ public:
     }
     const unsigned long end = microseconds();
 
-    if (!disable_events_) {
+    if (event_enabled(EVENT_CHANNELS_UPDATED)) {
       // Stream `channels-updated` event packet.
       UInt8Array result = get_buffer();
       char * const data = reinterpret_cast<char *>(result.data);
@@ -1618,6 +1614,27 @@ public:
                                                   low_percentile,
                                                   high_percentile, n_repeats);
   }
+
+  bool event_enabled(uint32_t event) {
+    return (state_._.event_mask & (event | EVENT_ENABLE)) == (event |
+                                                              EVENT_ENABLE);
+  }
+  void enable_event(uint32_t event) { state_._.event_mask |= event; }
+  bool disable_event(uint32_t event) {
+    if (state_._.event_mask & event) {
+      state_._.event_mask &= ~event;
+      return true;
+    }
+    return false;
+  }
+  bool disable_events() {
+    if (state_._.event_mask & EVENT_ENABLE) {
+      state_._.event_mask &= ~EVENT_ENABLE;
+      return true;
+    }
+    return false;
+  }
+  void enable_events() { state_._.event_mask |= EVENT_ENABLE; }
 };
 }  // namespace dropbot
 
