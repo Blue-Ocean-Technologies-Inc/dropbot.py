@@ -74,7 +74,7 @@ requirements:
     # ..versionchanged:: 1.41
     - base-node-rpc >=0.46.2
     - future
-    #: ..versionadded:: X.X.X
+    #: ..versionadded:: 1.49
     - hv-switching-board >=0.10
     - json-tricks
     #: .. versionadded:: 1.47
@@ -100,7 +100,7 @@ requirements:
     - python
     # ..versionchanged:: 1.33
     - serial-device >=0.9
-    #: ..versionadded:: X.X.X
+    #: ..versionadded:: 1.49
     - tabulate
     # ..versionchanged:: 1.37.3
     - teensy-minimal-rpc >=0.6.1
@@ -132,7 +132,7 @@ outputs:
         - {{ pin_subpackage(PKG_NAME + '-dev', max_pin='x.x') }}
         - base-node >=0.13.1
         - conda-helpers >=0.20
-        #: ..versionadded:: X.X.X
+        #: ..versionadded:: 1.49
         - hv-switching-board >=0.10
         - json-tricks
         #: .. versionadded:: 1.47
@@ -150,7 +150,7 @@ outputs:
         - python
         # ..versionchanged:: 1.33
         - serial-device >=0.9
-        #: ..versionadded:: X.X.X
+        #: ..versionadded:: 1.49
         - tabulate
         # ..versionchanged:: 1.37.3
         - teensy-minimal-rpc >=0.8.2
