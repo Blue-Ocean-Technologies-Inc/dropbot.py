@@ -249,22 +249,23 @@ public:
     return C2;
   }
 
-  template <typename Iterator>
-  std::vector<float> channel_capacitances(Iterator channels_begin,
-                                          const Iterator channels_end,
-                                          uint16_t n_samples) {
+  template <typename InIterator, typename OutIterator>
+  void channel_capacitances(InIterator channels_begin,
+                            const InIterator channels_end, uint16_t n_samples,
+                            OutIterator capacitances_begin) {
     auto original_state_of_channels = state_of_channels_;
-    std::vector<float> capacitances;
-    capacitances.reserve(MAX_NUMBER_OF_CHANNELS);
 
-    auto i = 0;
-    for (auto it = channels_begin; it != channels_end; i++, it++) {
-      const uint8_t port_i = *it / 8;
-      const uint8_t mask_i = 1 << (*it % 8);
+    auto it_channel = channels_begin;
+    auto it_capacitance = capacitances_begin;
+
+    for (; it_channel != channels_end; it_channel++, it_capacitance++) {
+      const uint8_t port_i = *it_channel / 8;
+      const uint8_t mask_i = 1 << (*it_channel % 8);
+      auto &capacitance_i = *it_capacitance;
 
       if (!(mask_i & ~disabled_channels_mask_[port_i])) {
         // Channel is disabled.
-        capacitances.push_back(0);
+        capacitance_i = 0;
         continue;
       }
 
@@ -277,7 +278,7 @@ public:
       // Apply channel states
       _update_channels();
 
-      capacitances.push_back(capacitance(n_samples));
+      capacitance_i = capacitance(n_samples);
     }
 
     // Restore the previous channel state
@@ -285,8 +286,15 @@ public:
 
     // Apply channel states
     _update_channels();
+  }
 
-    capacitances.shrink_to_fit();
+  template <typename Iterator>
+  std::vector<float> channel_capacitances(Iterator channels_begin,
+                                          const Iterator channels_end,
+                                          uint16_t n_samples) {
+    std::vector<float> capacitances(channels_end - channels_begin);
+    channel_capacitances(channels_begin, channels_end, n_samples,
+                         capacitances.begin());
     return capacitances;
   }
 

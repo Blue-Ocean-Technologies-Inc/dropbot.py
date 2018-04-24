@@ -6,6 +6,7 @@
 #include <numeric>
 #include <stdint.h>
 #include <string.h>
+#include <set>
 #include <vector>
 #include <Arduino.h>
 
@@ -45,6 +46,8 @@
 #include "kxsort.h"
 #include "analog.h"
 #include "channels.h"
+#include "drops.h"
+#include "format.h"
 
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
 #define CPU_RESTART_VAL 0x5FA0004
@@ -85,7 +88,8 @@ namespace dropbot {
 
 const uint32_t EVENT_ACTUATED_CHANNEL_CAPACITANCES = (1 << 31);
 const uint32_t EVENT_CHANNELS_UPDATED              = (1 << 30);
-const uint32_t EVENT_SHORTS_DETECTED               = (1 << 29);
+const uint32_t EVENT_SHORTS_DETECTED               = (1 << 28);
+const uint32_t EVENT_DROPS_DETECTED                = (1 << 27);
 const uint32_t EVENT_ENABLE                        = (1 << 0);
 
 // Define the array that holds the conversions here.
@@ -227,6 +231,7 @@ public:
   Channels channels_;
   std::array<ChannelNeighbours, MAX_NUMBER_OF_CHANNELS> channel_neighbours_;
   base_node_rpc::FastAnalogWrite fast_analog_;
+  std::vector<std::vector<uint8_t> > drops_;
 
   // Detect chip insertion/removal.
   OutputEnableDebounce output_enable_input;
@@ -237,6 +242,10 @@ public:
   uint32_t capacitance_timestamp_ms_;
 
   uint8_t target_count_;
+  //: .. versionadded:: X.X.X
+  //
+  // Time of most recent drops detection.
+  uint32_t drops_timestamp_ms_;
 
   Node() : BaseNode(),
            BaseNodeConfig<config_t>(dropbot_Config_fields),
@@ -250,7 +259,8 @@ public:
            output_enable_input(*this, -1, DEFAULT_INPUT_DEBOUNCE_DELAY,
                                InputDebounce::PinInMode::PIM_EXT_PULL_UP_RES,
                                0),
-           capacitance_timestamp_ms_(0), target_count_(0) {
+           capacitance_timestamp_ms_(0), target_count_(0),
+           drops_timestamp_ms_(0) {
     pinMode(LED_BUILTIN, OUTPUT);
     dma_data_ = UInt8Array_init_default();
     output_enable_input.setup(OE_PIN);
@@ -746,6 +756,12 @@ public:
       watchdog_disable_request_ = false;
       watchdog_auto_refresh(false);
       __watchdog_disable__();
+    }
+    if (state_._.drops_update_interval_ms > 0 &&
+        (state_._.drops_update_interval_ms < now - drops_timestamp_ms_) &&
+        event_enabled(EVENT_DROPS_DETECTED)) {
+      refresh_drops(0);
+      drops_timestamp_ms_ = millis();
     }
     if (dma_channel_done_ >= 0) {
       // DMA channel has completed.
@@ -1423,6 +1439,156 @@ public:
      */
     fast_analog_.set_pin(pin);
     fast_analog_.configure(duty_cycle, period_us);
+  }
+
+  FloatArray scatter_channels_capacitances(UInt8Array channels) {
+    auto capacitances =
+      channels_.scatter_channels_capacitances(std::set<uint8_t>(channels.data,
+                                                                channels.data +
+                                                                channels
+                                                                .length),
+                                              config_._.capacitance_n_samples);
+
+    FloatArray result;
+    result.data = reinterpret_cast<float *>(get_buffer().data);
+    result.length = capacitances.size();
+    std::copy(capacitances.begin(), capacitances.end(), result.data);
+    return result;
+  }
+
+  UInt8Array get_channels_drops(UInt8Array channels, float c_threshold) {
+    /*
+    * Parameters
+    * ----------
+    * channels : UInt8Array
+    *     List of channels to measure for drop detection.
+    * c_threshold : float
+    *     Minimum capacitance (in farads) to consider as liquid present on a
+    *     channel electrode.
+    *
+    *     If set to 0, a default of 3 pF is used.
+    *
+    * Returns
+    * -------
+    * UInt8Array
+    *     List of channels where threshold capacitance was met, grouped by
+    *     contiguous electrode regions (i.e., sets of electrodes that are
+    *     connected by neighbours where capacitance threshold was also met).
+    *
+    *     Format:
+    *
+    *         [drop 0 channel count][drop 0: channel 0, channel 1, ...][drop 1 channel count][drop 1: channel 0, channel 1, ...]
+    */
+    std::set<uint8_t> channels_v(channels.data, channels.data +
+                                 channels.length);
+    auto drops = get_channels_drops(channels_v, c_threshold);
+    UInt8Array result = UInt8Array_init(0, get_buffer().data);
+    drops::pack_drops(drops, result);
+    return result;
+  }
+
+  template <typename T>
+  std::vector<std::vector<uint8_t> > get_channels_drops(T channels, float c_threshold) {
+    /*
+    * Parameters
+    * ----------
+    * channels : STL container
+    *     Channels to measure for drop detection - **MUST** be sorted.
+    * c_threshold : float
+    *     Minimum capacitance (in farads) to consider as liquid present on a
+    *     channel electrode.
+    *
+    *     If set to 0, a default of 3 pF is used.
+    *
+    * Returns
+    * -------
+    * std::vector<std::vector<uint8_t> >
+    *     List of channels where threshold capacitance was met, grouped by
+    *     contiguous electrode regions (i.e., sets of electrodes that are
+    *     connected by neighbours where capacitance threshold was also met).
+    */
+    c_threshold = c_threshold ? c_threshold : drops::C_THRESHOLD;
+    const unsigned long start = microseconds();
+
+    // Only measure capacitance of specified channels.
+    std::vector<float> capacitances =
+        channels_.scatter_channels_capacitances(channels, config_._
+                                                .capacitance_n_samples);
+    auto drops = drops::get_drops(channel_neighbours_, capacitances, channels,
+                                  c_threshold);
+    const unsigned long end = microseconds();
+
+    if (event_enabled(EVENT_DROPS_DETECTED)) {
+      /*
+      * Stream `drops-detected` event in the form:
+      *
+      *     {"event": "drops-detected",
+      *      "drops": {"channels": [[<drop 0 ch 0>, <drop 0 ch 1>, ...],
+      *                             [<drop 1 ch 0>, <drop 1 ch 1>, ...], ...],
+      *                "capacitances": [[<drop 0 cap 0>, <drop 0 cap 1>, ...],
+      *                                 [<drop 1 cap 0>, <drop 1 cap 1>, ...],
+      *                                 ...]},
+      *      "start": <start microseconds>, "end": <end microseconds>}
+      */
+      UInt8Array buffer = UInt8Array_init(0, get_buffer().data);
+      sprintf_drops_detected(capacitances, drops, start, end, buffer);
+
+      {
+        PacketStream output;
+        output.start(Serial, buffer.length);
+        output.write(Serial, reinterpret_cast<char *>(buffer.data),
+                     buffer.length);
+        output.end(Serial);
+      }
+    }
+    return drops;
+  }
+
+  UInt8Array get_all_drops(float c_threshold) {
+    /*
+    * Parameters
+    * ----------
+    * c_threshold : float
+    *     Minimum capacitance (in farads) to consider as liquid present on a
+    *     channel electrode.
+    *
+    *     If set to 0, a default of 3 pF is used.
+    *
+    * Returns
+    * -------
+    * UInt8Array
+    *     List of channels where threshold capacitance was met, grouped by
+    *     contiguous electrode regions (i.e., sets of electrodes that are
+    *     connected by neighbours where capacitance threshold was also met).
+    *
+    *     Format:
+    *
+    *         [drop 0 channel count][drop 0: channel 0, channel 1, ...][drop 1 channel count][drop 1: channel 0, channel 1, ...]
+    */
+    // Fill `channels` with range `(0, <channel_count_>)`.
+    std::vector<uint8_t> channels(state_._.channel_count);
+    std::iota(channels.begin(), channels.end(), 0);
+    drops_ = get_channels_drops(channels, c_threshold);
+
+    UInt8Array result = UInt8Array_init(0, get_buffer().data);
+    drops::pack_drops(drops_, result);
+    return result;
+  }
+
+  void refresh_drops(float c_threshold) {
+    if (drops_.size() > 0) {
+      drops_ = get_channels_drops(drops::drop_channels(drops_,
+                                                       channel_neighbours_),
+                                  c_threshold);
+    } else {
+      get_all_drops(c_threshold);
+    }
+  }
+
+  UInt8Array drops() {
+    UInt8Array result = UInt8Array_init(0, get_buffer().data);
+    drops::pack_drops(drops_, result);
+    return result;
   }
 
   UInt8Array neighbours() {
