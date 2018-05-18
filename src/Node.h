@@ -2468,6 +2468,59 @@ public:
     return (float(*std::min_element(durations.begin(), durations.end())) /
             durations.size() * 1e-6);
   }
+
+  void set_sensitive_channels(UInt8Array packed_channels) {
+    constexpr uint8_t CMD_SET_SENSITIVE_CHANNELS = 0xA9;
+    // XXX Stop the timer (which toggles the HV square-wave driver) during i2c
+    // communication.
+    //
+    // See https://gitlab.com/sci-bots/dropbot.py/issues/26
+    Timer1.stop(); // stop the timer during i2c transmission
+    // Broadcast message to **all** switching boards, using _general call_
+    // address, 0.
+    Wire.beginTransmission(0);
+    Wire.write(CMD_SET_SENSITIVE_CHANNELS);
+    Wire.write(packed_channels.data, packed_channels.length);
+    Wire.endTransmission();
+    delayMicroseconds(100); // needed when using Teensy
+    Timer1.restart();
+  }
+
+  UInt8Array get_sensitive_channels() {
+    auto packed_channels = get_buffer();
+    packed_channels.length = 0;
+
+    constexpr uint8_t CMD_GET_SENSITIVE_CHANNELS = 0xAA;
+    // XXX Stop the timer (which toggles the HV square-wave driver) during i2c
+    // communication.
+    //
+    // See https://gitlab.com/sci-bots/dropbot.py/issues/26
+    Timer1.stop(); // stop the timer during i2c transmission
+    // Broadcast sensitive channels request to all switching boards.
+    Wire.beginTransmission(0);
+    Wire.write(CMD_GET_SENSITIVE_CHANNELS);
+    Wire.endTransmission();
+
+    delayMicroseconds(100); // needed when using Teensy
+
+    // Read response from each board individually.
+    for (int board_id = 0; board_id < 3; board_id++) {
+      const auto i2c_address = (channels_.switching_board_i2c_address_ +
+                                board_id);
+      Wire.requestFrom(i2c_address, 1);
+      if (Wire.available()) {
+        auto payload_length = Wire.read();
+        Wire.requestFrom(i2c_address, payload_length);
+        payload_length = Wire.available();
+        for (auto i = 0; i < payload_length; i++) {
+          auto port_i = Wire.read();
+          packed_channels.data[packed_channels.length++] = port_i;
+        }
+      }
+    }
+    Timer1.restart();
+    return packed_channels;
+  }
 };
 }  // namespace dropbot
 
