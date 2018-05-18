@@ -751,6 +751,32 @@ try:
                                                  capacitance_threshold))
             return _unpack_drops(drops_raw)
 
+        def pack_channels(self, channels):
+            channel_mask = np.zeros(self.number_of_channels, dtype=int)
+            channel_mask[channels] = 1
+            return np.packbits(channel_mask[::-1])[::-1]
+
+        def set_sensitive_channels(self, channels):
+            packed_channels = self.pack_channels(channels)
+            super(ProxyMixin, self).set_sensitive_channels(packed_channels)
+
+        def get_sensitive_channels(self):
+            packed_channels = super(ProxyMixin, self).get_sensitive_channels()
+            global_sensitive_mask = \
+                np.unpackbits(packed_channels[::-1])[::-1]
+            if max(global_sensitive_mask) < 1:
+                return np.array([])
+            else:
+                return np.where(global_sensitive_mask)[0]
+
+        @property
+        def sensitive_channels(self):
+            return self.get_sensitive_channels()
+
+        @sensitive_channels.setter
+        def sensitive_channels(self, channels):
+            self.set_sensitive_channels(channels)
+
 
     class Proxy(ProxyMixin, _Proxy):
         pass
