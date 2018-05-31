@@ -2663,6 +2663,19 @@ public:
 
     Timer1.restart();
   }
+
+  float _benchmark_switching_matrix_row(uint8_t row_count, float delay_s,
+                                        uint32_t repeats) {
+    auto start = micros();
+    for (auto i = 0; i < repeats; i++) {
+      for (auto j = 0; j < row_count; j++) {
+        set_switching_matrix_row(j, row_count);
+        delayMicroseconds(delay_s * 1e6);
+      }
+    }
+    auto end = micros();
+    return (end - start) * 1e-6;
+  }
 };
 }  // namespace dropbot
 
