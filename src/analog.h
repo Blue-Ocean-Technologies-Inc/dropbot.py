@@ -78,9 +78,6 @@ uint16_t s16_percentile_diff(uint8_t pinP, uint8_t pinN, uint16_t n_samples,
  */
 float high_voltage();
 
-/*
-*/
-
 /**
  * @brief Measure the temperature (in degrees Celsius) of the MCU via its
  * internal sensor.
