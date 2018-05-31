@@ -18,8 +18,34 @@ constexpr uint8_t PIN_CHIP_LOAD_VOLTAGE = 11;
 
 extern float high_voltage_;
 
+/**
+ * @brief Read the specified number of samples from the specified analog pin.
+ *
+ * @param pin  Analog pin.
+ * @param n_samples  Number of analog samples.
+ *
+ * @return Analog samples read from the specified pin.
+ */
 std::vector<uint16_t> analog_reads_simple(uint8_t pin, uint16_t n_samples);
 
+/**
+ * @brief Measure samples from specified analog pin and compute difference
+ * between specified high and low percentiles.
+ *
+ * For example, `low_percentile` as 25 and `high_percentile` as 75 is
+ * equivalent to computing the [inter-quartile range][IQR].
+ *
+ * [IQR]: https://en.wikipedia.org/wiki/Interquartile_range
+ *
+ * @since **1.41**: Add function.
+ *
+ * @param pin  Analog pin number.
+ * @param n_samples  Number of samples to measure.
+ * @param low_percentile  Low percentile of range, in \f$[0, 100]\f$.
+ * @param high_percentile  High percentile of range, in \f$[0, 100]\f$.
+ *
+ * @return Difference between high and low percentiles.
+ */
 uint16_t u16_percentile_diff(uint8_t pin, uint16_t n_samples,
                              float low_percentile, float high_percentile);
 
@@ -52,8 +78,28 @@ uint16_t s16_percentile_diff(uint8_t pinP, uint8_t pinN, uint16_t n_samples,
  */
 float high_voltage();
 
+/*
+*/
+
+/**
+ * @brief Measure the temperature (in degrees Celsius) of the MCU via its
+ * internal sensor.
+ *
+ * More details available [here][1] and [here][2].
+ *
+ * [1]: https://forum.pjrc.com/threads/30480-Teensy-3-1-use-internal-Temp-Sensor
+ * [2]: https://github.com/LAtimes2/InternalTemperature
+ *
+ * @return
+ */
 float measure_temperature();
 
+/**
+ * @brief Measure the analog reference voltage by comparing it to the internal
+ * reference (1.195 V) accessible via analog pin 39.
+ *
+ * @return  Analog reference voltage.
+ */
 float measure_aref();
 
 /**
@@ -86,6 +132,15 @@ float measure_output_current_rms(uint32_t n=10);
 float measure_input_current(uint32_t n=1);
 float measure_input_current_rms(uint32_t n=10);
 
+/**
+ * @brief Measure the time required to read the specified number of samples
+ * from an analog pin.
+ *
+ * @param pin  Analog pin to read from.
+ * @param n_samples  Number of samples to read.
+ *
+ * @return Time (in seconds) to measure specified samples.
+ */
 float benchmark_analog_read(uint8_t pin, uint32_t n_samples);
 
 /**
@@ -247,7 +302,6 @@ void adc_context(Func func) {
   func(adc_config);
   load_config(adc_config, 0);
 }
-
 
 }  // namespace analog {
 }  // namespace dropbot {

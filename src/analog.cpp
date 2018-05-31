@@ -31,31 +31,6 @@ std::vector<int16_t> differential_reads_simple(uint8_t pinP, uint8_t pinN,
 
 uint16_t u16_percentile_diff(uint8_t pin, uint16_t n_samples,
                              float low_percentile, float high_percentile) {
-  /*
-    * ..versionadded:: 1.41
-    *
-    * Measure samples from specified analog pin and compute difference between
-    * specified high and low percentiles.
-    *
-    * For example, :data:`low_percentile` as 25 and :data:`high_percentile` as
-    * 75 is equivalent to computing the `inter-quartile range <https://en.wikipedia.org/wiki/Interquartile_range>`_.
-    *
-    * Parameters
-    * ----------
-    * pin : uint8_t
-    *     Analog pin number.
-    * n_samples : uint16_t
-    *     Number of samples to measure.
-    * low_percentile : float
-    *     Low percentile of range.
-    * high_percentile : float
-    *     High percentile of range.
-    *
-    * Returns
-    * -------
-    * uint16_t
-    *     Difference between high and low percentiles.
-    */
   auto result = analog_reads_simple(pin, n_samples);
   std::sort(result.begin(), result.end());
   const uint16_t high_i = (int)round((high_percentile / 100.) * n_samples);
@@ -115,15 +90,6 @@ float high_voltage() {
 }
 
 
-/*
-* Measure the temperature (in degrees Celsius) of the MCU
-* via it's internal sensor.
-*
-* More details available [here][1] and [here][2].
-*
-* [1]: https://forum.pjrc.com/threads/30480-Teensy-3-1-use-internal-Temp-Sensor
-* [2]: https://github.com/LAtimes2/InternalTemperature
-*/
 float measure_temperature() {
   float voltage = 0;
   constexpr uint8_t TEMPERATURE_PIN =
@@ -150,11 +116,6 @@ float measure_temperature() {
 }
 
 
-/*
- * Measure the analog reference voltage by comparing it
- * to the internal reference (1.195 V) accessible via
- * analog pin 39.
- */
 float measure_aref() {
   uint32_t sum = 0;
   for (uint8_t i = 0; i < 255; i++) {
