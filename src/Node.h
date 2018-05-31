@@ -201,6 +201,22 @@ public:
   static const uint8_t CAPACITANCE_10PF_PIN = 1;
   static const uint8_t CAPACITANCE_100PF_PIN = 2;
 
+  // High-voltage Output Enable pin
+  static const uint8_t OE_PIN = 22;
+
+  static const float R6;
+
+  static constexpr uint8_t CMD_GET_SENSITIVE_CHANNELS = 0xAA;
+  static constexpr uint8_t CMD_GET_SWITCHING_MATRIX_ROW = 0xA7;
+  static constexpr uint8_t CMD_SET_SENSITIVE_CHANNELS = 0xA9;
+  static constexpr uint8_t CMD_SET_SWITCHING_MATRIX_ROW = 0xA6;
+  static constexpr uint8_t PCA9505_CONFIG_IO_REGISTER_ = 0x18;
+  static constexpr uint8_t PCA9505_OUTPUT_PORT_REGISTER_ = 0x08;
+  static constexpr uint8_t CMD_GET_SENSITIVE_OFFSET = 0xAB;
+
+  static constexpr uint8_t CMD_GET_CHANNEL_DUTY_CYCLE = 0xAC;
+  static constexpr uint8_t CMD_SET_CHANNEL_DUTY_CYCLE = 0xAD;
+
   uint8_t buffer_[BUFFER_SIZE];
 
   uint32_t adc_period_us_;
@@ -2490,7 +2506,6 @@ public:
     auto packed_channels = get_buffer();
     packed_channels.length = 0;
 
-    constexpr uint8_t CMD_GET_SENSITIVE_CHANNELS = 0xAA;
     // XXX Stop the timer (which toggles the HV square-wave driver) during i2c
     // communication.
     //
@@ -2520,6 +2535,133 @@ public:
     }
     Timer1.restart();
     return packed_channels;
+  }
+
+  UInt8Array get_sensitive_offsets() {
+    auto sensitive_offsets = get_buffer();
+    sensitive_offsets.length = 0;
+
+    // XXX Stop the timer (which toggles the HV square-wave driver) during i2c
+    // communication.
+    //
+    // See https://gitlab.com/sci-bots/dropbot.py/issues/26
+    Timer1.stop(); // stop the timer during i2c transmission
+    // Broadcast sensitive offsets request to all switching boards.
+    Wire.beginTransmission(0);
+    Wire.write(CMD_GET_SENSITIVE_OFFSET);
+    Wire.endTransmission();
+
+    delayMicroseconds(100); // needed when using Teensy
+
+    // Read response from each board individually.
+    for (int board_id = 0; board_id < 3; board_id++) {
+      const auto i2c_address = (channels_.switching_board_i2c_address_ +
+                                board_id);
+      Wire.requestFrom(i2c_address, 1);
+      if (Wire.available()) {
+        auto payload_length = Wire.read();
+        Wire.requestFrom(i2c_address, payload_length);
+        payload_length = Wire.available();
+        if (payload_length > 0) {
+          auto sensitive_offset = Wire.read();
+          sensitive_offsets.data[sensitive_offsets.length++] = sensitive_offset;
+        }
+      }
+    }
+
+    Timer1.restart();
+    return sensitive_offsets;
+  }
+
+  void set_duty_cycle(float duty_cycle, UInt8Array channels) {
+    // Process channels in chunks to avoid overflowing maximum I2C message
+    // length.
+    auto chunks_count = static_cast<uint8_t>(ceil(channels.length / 22.));
+    auto chunk_size = static_cast<uint8_t>(ceil(channels.length /
+                                                static_cast<float>
+                                                (chunks_count)));
+
+    // XXX Stop the timer (which toggles the HV square-wave driver) during i2c
+    // communication.
+    //
+    // See https://gitlab.com/sci-bots/dropbot.py/issues/26
+    Timer1.stop(); // stop the timer during i2c transmission
+
+    // Send each chunk of channels list in separate I2C message.
+    for (auto chunk_i = 0; chunk_i < chunks_count; chunk_i++) {
+      auto start_i = chunk_i * chunk_size;
+      // Last chunk *may* be smaller than the rest if list channels does not
+      // divide evenly by the chunk size.
+      auto chunk_size_i = ((chunk_i + 1 < chunks_count) ? chunk_size
+                           : chunk_size - (chunks_count * chunk_size -
+                                           channels.length));
+
+      // Broadcast sensitive offsets request to all switching boards.
+      Wire.beginTransmission(0);
+      Wire.write(CMD_SET_CHANNEL_DUTY_CYCLE);
+      Wire.write(reinterpret_cast<uint8_t *>(&duty_cycle), sizeof(duty_cycle));
+      Wire.write(&channels.data[start_i], chunk_size_i);
+      Wire.endTransmission();
+    }
+    Timer1.restart();
+  }
+
+  float get_duty_cycle(uint8_t channel) {
+    // XXX Stop the timer (which toggles the HV square-wave driver) during i2c
+    // communication.
+    //
+    // See https://gitlab.com/sci-bots/dropbot.py/issues/26
+    Timer1.stop(); // stop the timer during i2c transmission
+    // Broadcast duty cycle request to all switching boards.
+    Wire.beginTransmission(0);
+    Wire.write(CMD_GET_CHANNEL_DUTY_CYCLE);
+    Wire.write(channel);
+    Wire.endTransmission();
+
+    delayMicroseconds(200); // needed when using Teensy
+
+    float duty_cycle = -1;
+
+    // Read response from each board individually.
+    for (int board_id = 0; board_id < 3; board_id++) {
+      const auto i2c_address = (channels_.switching_board_i2c_address_ +
+                                board_id);
+      Wire.requestFrom(i2c_address, 1);
+      if (Wire.available()) {
+        auto payload_length = Wire.read();
+        if (payload_length > 0) {
+          Wire.requestFrom(i2c_address, payload_length);
+          payload_length = Wire.available();
+          if (payload_length >= sizeof(duty_cycle)) {
+            auto duty_cycle_bytes = reinterpret_cast<uint8_t *>(&duty_cycle);
+            for (auto i = 0; i < sizeof(duty_cycle); i++) {
+              duty_cycle_bytes[i] = Wire.read();
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    Timer1.restart();
+    return duty_cycle;
+  }
+
+  void set_switching_matrix_row(uint8_t matrix_row_i, uint8_t row_count) {
+    // XXX Stop the timer (which toggles the HV square-wave driver) during i2c
+    // communication.
+    //
+    // See https://gitlab.com/sci-bots/dropbot.py/issues/26
+    Timer1.stop(); // stop the timer during i2c transmission
+
+    // Broadcast duty cycle request to all switching boards.
+    Wire.beginTransmission(0);
+    Wire.write(CMD_SET_SWITCHING_MATRIX_ROW);
+    Wire.write(matrix_row_i);
+    Wire.write(row_count);
+    Wire.endTransmission();
+
+    Timer1.restart();
   }
 };
 }  // namespace dropbot
