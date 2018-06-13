@@ -42,7 +42,7 @@ uint16_t u16_percentile_diff(uint8_t pin, uint16_t n_samples,
     *     Difference between high and low percentiles.
     */
   auto result = analog_reads_simple(pin, n_samples);
-  kx::radix_sort(result.begin(), result.end());
+  std::sort(result.begin(), result.end());
   const uint16_t high_i = (int)round((high_percentile / 100.) * n_samples);
   const uint16_t low_i = (int)round((low_percentile / 100.) * n_samples);
   return result[high_i] - result[low_i];
