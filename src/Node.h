@@ -54,6 +54,7 @@
 #include "Signal.h"
 #include "SignalTimer.h"
 #include <ADC_Module.h>
+#include "SwitchingMatrix.h"
 
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
 #define CPU_RESTART_VAL 0x5FA0004
@@ -91,6 +92,8 @@ extern void dma_ch14_isr(void);
 extern void dma_ch15_isr(void);
 
 namespace dropbot {
+
+using switching_matrix::SwitchingMatrixRowContoller;
 
 const uint32_t EVENT_ACTUATED_CHANNEL_CAPACITANCES = (1 << 31);
 const uint32_t EVENT_CHANNELS_UPDATED              = (1 << 30);
@@ -300,6 +303,14 @@ public:
   * \version added: 1.57
   */
   SignalTimer signal_timer_ms_;
+  /**
+  * @brief Switching matrix controller.
+  *
+  * Updated on every `loop()` iteration.
+  *
+  * \version added: X.X.X
+  */
+  SwitchingMatrixRowContoller matrix_controller_;
 
   /**
   * @brief Construct node.
@@ -1187,6 +1198,8 @@ public:
                                            dma_stream_id_);
       }
     }
+    matrix_controller_.update(*this, SwitchingMatrixRowContoller::TICK,
+                              micros());
   }
   /** Returns current contents of DMA result buffer. */
   UInt8Array dma_data() const { return dma_data_; }
@@ -2672,6 +2685,17 @@ public:
       Wire.write(row_count);
       Wire.endTransmission();
     });
+  }
+
+  void start_switching_matrix(uint32_t row_count, float t_settling_s) {
+    matrix_controller_ = SwitchingMatrixRowContoller(row_count, t_settling_s *
+                                                     1e6);
+    matrix_controller_.update(*this, SwitchingMatrixRowContoller::START,
+                              micros());
+  }
+
+  void stop_switching_matrix() {
+    matrix_controller_.stop(*this);
   }
 
   float _benchmark_switching_matrix_row(uint8_t row_count, float delay_s,
