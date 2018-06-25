@@ -619,7 +619,7 @@ public:
         start += strlen(start);
       }
 
-      sprintf(start, "]};");
+      sprintf(start, "]}");
       start += strlen(start);
       result.length = reinterpret_cast<uint8_t *>(start) - result.data;
 
