@@ -784,22 +784,28 @@ public:
     //adc_SYST_CVR_ = SYST_CVR;
   }
 
-  /** Called periodically from the main program loop. */
+  /**
+  * @brief Called periodically from the main program loop.
+  *
+  *
+  * \version 1.42
+  *     Add periodic capacitance measurement.  Each new value is sent as an
+  *     event stream packet to the serial interface.
+  *
+  * \version 1.43
+  *     Report `start` and `end` times of capacitance update events in
+  *     **microseconds** instead of **milliseconds**.
+  *
+  *     If target capacitance state field is non-zero, compare current device
+  *     load capacitance to the target capacitance.  If target capacitance has
+  *     been exceeded, stream `"capacitance-exceeded"` event packet to serial
+  *     interface.
+  *
+  * \version X.X.X
+  *     Add actuation voltage, `V_a`, to `capacitance-updated` event stream
+  *     packet.
+  */
   void loop() {
-    /*
-     * .. versionchanged:: 1.42
-     *     Add periodic capacitance measurement.  Each new value is sent as an
-     *     event stream packet to the serial interface.
-     *
-     * .. versionchanged:: 1.43
-     *     Report ``start`` and ``end`` times of capacitance update events in
-     *     **microseconds** instead of **milliseconds**.
-     *
-     *     If target capacitance state field is non-zero, compare current
-     *     device load capacitance to the target capacitance.  If target
-     *     capacitance has been exceeded, stream ``"capacitance-exceeded"``
-     *     event packet to serial interface.
-     */
     unsigned long now = millis();
 
     // poll button state
