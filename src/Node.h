@@ -156,6 +156,8 @@ class Node :
   public BaseNodeSerialHandler,
 #endif  // #ifndef DISABLE_SERIAL
   public BaseNodeI2cHandler<base_node_rpc::i2c_handler_t> {
+private:
+  float _high_voltage;  // Cached high-voltage reading.
 public:
   typedef PacketParser<FixedPacket> parser_t;
 
@@ -231,6 +233,7 @@ public:
   Node() : BaseNode(),
            BaseNodeConfig<config_t>(dropbot_Config_fields),
            BaseNodeState<state_t>(dropbot_State_fields),
+           _high_voltage(0),
            adc_period_us_(0), adc_timestamp_us_(0), adc_tick_tock_(false),
            adc_count_(0), dma_adc_active_(false), dma_channel_done_(-1),
            last_dma_channel_done_(-1), adc_read_active_(false),
@@ -445,15 +448,23 @@ public:
     return C2;
   }
 
+  /**
+  * @brief Measure high-side *root mean-squared (RMS)* voltage.
+  *
+  * See [`A1/HV_FB`][1] in DropBot boost converter schematic:
+  *
+  *  - `R8`: 2 Mohms
+  *  - `R9`: 20 Kohms
+  *  - `AREF`: 3.3 V
+  *
+  * [1]: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/boost-converter-boost-converter.pdf
+  *
+  *
+  * \version 1.51  Cache most recent RMS voltage as `_high_voltage`.
+  *
+  * @return High-side RMS voltage.
+  */
   float high_voltage() {
-    /* See [`A1/HV_FB`][1] in DropBot boost converter schematic:
-     *
-     *  - `R8`: 2 Mohms
-     *  - `R9`: 20 Kohms
-     *  - `AREF`: 3.3 V
-     *
-     * [1]: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/boost-converter-boost-converter.pdf
-     */
     // HV_FB = (float(A1) / MAX_ANALOG) * AREF
     const float hv_fb = (analogRead(A1) / float(1L << 16)) * 3.3;
     // HV peak-to-peak = HV_FB * R8 / R9
@@ -461,7 +472,8 @@ public:
     const float R9 = 20e3;
     const float hv_peak_to_peak = hv_fb * R8 / R9;
     // HV RMS = 0.5 * HV peak-to-peak
-    return 0.5 * hv_peak_to_peak;
+    _high_voltage = 0.5 * hv_peak_to_peak;
+    return _high_voltage;
   }
 
   UInt16Array analog_reads_simple(uint8_t pin, uint16_t n_samples) {
@@ -529,6 +541,23 @@ public:
     return true;
   }
 
+  /**
+  * @brief Detect shorts between channels.
+  *
+  * Apply low voltage (3.3 V) to each channel in isolation.  If the measured
+  * voltage is less than half of the applied voltage, mark channel as detected
+  * short.
+  *
+  * @param delay_ms  Amount of time to wait after sending updated channel
+  * states to switching boards before measuring applied voltage.
+  *
+  * @return Array of channel numbers where shorts were detected.
+  *
+  *
+  * \version 1.51
+  *     Send `shorts-detected` event stream packet containing:
+  *      - `"values"`: list of identifiers of shorted channels.
+  */
   UInt8Array detect_shorts(uint8_t delay_ms) {
     // Deselect the HV output
     on_state_hv_output_selected_changed(false);
@@ -557,9 +586,9 @@ public:
       // list of shorts and disable the channel
       if (analog_read(0) < 65535 / 2) {
         shorts.data[shorts.length++] = i;
-	disabled_channels_mask_[i / 8] |= 1 << i % 8;
+        disabled_channels_mask_[i / 8] |= 1 << i % 8;
       } else { // enable the channel
-	disabled_channels_mask_[i / 8] &= ~(1 << i % 8);
+        disabled_channels_mask_[i / 8] &= ~(1 << i % 8);
       }
     }
 
@@ -571,6 +600,36 @@ public:
 
     // Restore the HV output selection
     on_state_hv_output_selected_changed(state_._.hv_output_selected);
+
+    {
+      // Stream `shorts-detected` event packet.
+      UInt8Array result;
+      result.data = &shorts.data[shorts.length];
+
+      sprintf((char *)result.data, "{\"event\": \"shorts-detected\", \"values\": [");
+      result.length = strlen((char *)result.data);
+
+      char *start = reinterpret_cast<char *>(&result.data[result.length]);
+      for (int i = 0 ; i < shorts.length; i++) {
+        if (i > 0) {
+          sprintf(start, ", ");
+          start += 2;
+        }
+        sprintf(start, "%d", shorts.data[i]);
+        start += strlen(start);
+      }
+
+      sprintf(start, "]};");
+      start += strlen(start);
+      result.length = reinterpret_cast<uint8_t *>(start) - result.data;
+
+      {
+        PacketStream output;
+        output.start(Serial, result.length);
+        output.write(Serial, (char *)result.data, result.length);
+        output.end(Serial);
+      }
+    }
 
     return shorts;
   }
@@ -593,7 +652,7 @@ public:
         if (Wire.available()) {
           state_of_channels_[chip * 5 + port] = ~Wire.read();
         } else {
-	  Timer1.restart();
+          Timer1.restart();
           return UInt8Array_init_default();
         }
       }
@@ -630,12 +689,26 @@ public:
     return false;
   }
 
+  /**
+  * @brief Apply state of channels to switching boards.
+  *
+  * Turn off all channels that are marked in the disabled channels mask.
+  *
+  * \version 1.51
+  *     Send `channels-updated` event stream packet containing:
+  *      - `"n"`: number of actuated channel
+  *      - `"actuated"`: list of actuated channel identifiers.
+  *      - `"start"`: millisecond counter before setting shift registers
+  *      - `"end"`: millisecond counter after setting shift registers
+  *
+  */
   void _update_channels() {
     // XXX Stop the timer (which toggles the HV square-wave driver) during i2c
     // communication.
     //
     // See https://gitlab.com/sci-bots/dropbot.py/issues/26
     Timer1.stop(); // stop the timer during i2c transmission
+    const unsigned long start = microseconds();
     uint8_t data[2];
     // Each PCA9505 chip has 5 8-bit output registers for a total of 40 outputs
     // per chip. We can have up to 8 of these chips on an I2C bus, which means
@@ -655,7 +728,44 @@ public:
         delayMicroseconds(200);
       }
     }
+    const unsigned long end = microseconds();
     Timer1.restart();
+    {
+      // Stream `channels-updated` event packet.
+      UInt8Array result = get_buffer();
+      char * const data = reinterpret_cast<char *>(result.data);
+
+      result.length = sprintf((char *)result.data, "{\"event\": "
+                              "\"channels-updated\", \"actuated\": [");
+
+      // XXX LSB of chip 0 and port 0 is channel 0.
+      uint8_t actuated_count = 0;
+      for (uint8_t chip = 0; chip < state_._.channel_count / 40; chip++) {
+        for (uint8_t port = 0; port < 5; port++) {
+          const uint8_t byte_j = chip * 5 + port;
+          for (uint8_t i = 0; i < 8; i++) {
+            if (bitRead(state_of_channels_[byte_j] &
+                        ~disabled_channels_mask_[byte_j], i)) {
+              // Channel is actuated.
+              const uint8_t channel_id = 8 * byte_j + i;
+              if (actuated_count > 0) {
+                result.length += sprintf(&data[result.length], ", ");
+              }
+              actuated_count++;
+              result.length += sprintf(&data[result.length], "%d", channel_id);
+            }
+          }
+        }
+      }
+      result.length += sprintf(&data[result.length], "], \"start\": %lu, \"end\": %lu, \"n\": %d}", start, end, actuated_count);
+
+      {
+        PacketStream output;
+        output.start(Serial, result.length);
+        output.write(Serial, (char *)result.data, result.length);
+        output.end(Serial);
+      }
+    }
   }
 
   float min_waveform_voltage() {
@@ -780,22 +890,28 @@ public:
     //adc_SYST_CVR_ = SYST_CVR;
   }
 
-  /** Called periodically from the main program loop. */
+  /**
+  * @brief Called periodically from the main program loop.
+  *
+  *
+  * \version 1.42
+  *     Add periodic capacitance measurement.  Each new value is sent as an
+  *     event stream packet to the serial interface.
+  *
+  * \version 1.43
+  *     Report `start` and `end` times of capacitance update events in
+  *     **microseconds** instead of **milliseconds**.
+  *
+  *     If target capacitance state field is non-zero, compare current device
+  *     load capacitance to the target capacitance.  If target capacitance has
+  *     been exceeded, stream `"capacitance-exceeded"` event packet to serial
+  *     interface.
+  *
+  * \version 1.51
+  *     Add actuation voltage, `V_a`, to `capacitance-updated` and
+  *     `capacitance-exceeded` event stream packets.
+  */
   void loop() {
-    /*
-     * .. versionchanged:: 1.42
-     *     Add periodic capacitance measurement.  Each new value is sent as an
-     *     event stream packet to the serial interface.
-     *
-     * .. versionchanged:: 1.43
-     *     Report ``start`` and ``end`` times of capacitance update events in
-     *     **microseconds** instead of **milliseconds**.
-     *
-     *     If target capacitance state field is non-zero, compare current
-     *     device load capacitance to the target capacitance.  If target
-     *     capacitance has been exceeded, stream ``"capacitance-exceeded"``
-     *     event packet to serial interface.
-     */
     unsigned long now = millis();
 
     // poll button state
@@ -815,7 +931,14 @@ public:
         // Target capacitance has been met.
 
         // Stream "capacitance-updated" event to serial interface.
-        sprintf((char *)result.data, "{\"event\": \"capacitance-exceeded\", \"new_value\": %g, \"target\": %g, \"start\": %lu, \"end\": %lu, \"n_samples\": %lu}", value, state_._.target_capacitance, start, now, n_samples);
+        sprintf((char *)result.data, "{\"event\": \"capacitance-exceeded\", "
+                "\"new_value\": %g, "  // Capacitance value
+                "\"target\": %g, "  // Target capacitance value
+                " \"start\": %lu, \"end\": %lu, "  // start/end times in ms
+                "\"n_samples\": %lu",  // # of analog samples
+                "\"V_a\": %g}",  // Actuation voltage
+                value, state_._.target_capacitance,
+                start, now, n_samples, _high_voltage);
         result.length = strlen((char *)result.data);
         unsigned long now = microseconds();
 
@@ -849,7 +972,13 @@ public:
       now = microseconds();
 
       // Stream "capacitance-updated" event to serial interface.
-      sprintf((char *)result.data, "{\"event\": \"capacitance-updated\", \"new_value\": %g, \"start\": %lu, \"end\": %lu, \"n_samples\": %lu}", value, start, now, n_samples);
+      sprintf((char *)result.data,
+              "{\"event\": \"capacitance-updated\", "
+              "\"new_value\": %g, "  // Capacitance value
+              "\"start\": %lu, \"end\": %lu, "  // start/end times in ms
+              "\"n_samples\": %lu, "  // # of analog samples taken for reading
+              "\"V_a\": %g}",  // Actuation voltage
+              value, start, now, n_samples, _high_voltage);
       result.length = strlen((char *)result.data);
 
       {
