@@ -448,15 +448,23 @@ public:
     return C2;
   }
 
+  /**
+  * @brief Measure high-side *root mean-squared (RMS)* voltage.
+  *
+  * See [`A1/HV_FB`][1] in DropBot boost converter schematic:
+  *
+  *  - `R8`: 2 Mohms
+  *  - `R9`: 20 Kohms
+  *  - `AREF`: 3.3 V
+  *
+  * [1]: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/boost-converter-boost-converter.pdf
+  *
+  *
+  * \version X.X.X  Cache most recent RMS voltage as `_high_voltage`.
+  *
+  * @return High-side RMS voltage.
+  */
   float high_voltage() {
-    /* See [`A1/HV_FB`][1] in DropBot boost converter schematic:
-     *
-     *  - `R8`: 2 Mohms
-     *  - `R9`: 20 Kohms
-     *  - `AREF`: 3.3 V
-     *
-     * [1]: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/boost-converter-boost-converter.pdf
-     */
     // HV_FB = (float(A1) / MAX_ANALOG) * AREF
     const float hv_fb = (analogRead(A1) / float(1L << 16)) * 3.3;
     // HV peak-to-peak = HV_FB * R8 / R9
