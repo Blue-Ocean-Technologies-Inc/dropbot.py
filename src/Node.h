@@ -460,7 +460,7 @@ public:
   * [1]: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/boost-converter-boost-converter.pdf
   *
   *
-  * \version X.X.X  Cache most recent RMS voltage as `_high_voltage`.
+  * \version 1.51  Cache most recent RMS voltage as `_high_voltage`.
   *
   * @return High-side RMS voltage.
   */
@@ -541,12 +541,24 @@ public:
     return true;
   }
 
+  /**
+  * @brief Detect shorts between channels.
+  *
+  * Apply low voltage (3.3 V) to each channel in isolation.  If the measured
+  * voltage is less than half of the applied voltage, mark channel as detected
+  * short.
+  *
+  * @param delay_ms  Amount of time to wait after sending updated channel
+  * states to switching boards before measuring applied voltage.
+  *
+  * @return Array of channel numbers where shorts were detected.
+  *
+  *
+  * \version 1.51
+  *     Send `shorts-detected` event stream packet containing:
+  *      - `"values"`: list of identifiers of shorted channels.
+  */
   UInt8Array detect_shorts(uint8_t delay_ms) {
-    /*
-     * .. versionchanged:: X.X.X
-     *     Send ``shorts-detected`` event stream packet containing:
-     *      - ``"channels"``: list of identifiers of shorted channels.
-     */
     // Deselect the HV output
     on_state_hv_output_selected_changed(false);
 
@@ -677,15 +689,20 @@ public:
     return false;
   }
 
+  /**
+  * @brief Apply state of channels to switching boards.
+  *
+  * Turn off all channels that are marked in the disabled channels mask.
+  *
+  * \version 1.51
+  *     Send `channels-updated` event stream packet containing:
+  *      - `"n"`: number of actuated channel
+  *      - `"actuated"`: list of actuated channel identifiers.
+  *      - `"start"`: millisecond counter before setting shift registers
+  *      - `"end"`: millisecond counter after setting shift registers
+  *
+  */
   void _update_channels() {
-    /*
-     * .. versionchanged:: X.X.X
-     *     Send ``channels-updated`` event stream packet containing:
-     *      - ``"n"``: number of actuated channel
-     *      - ``"actuated"``: list of actuated channel identifiers.
-     *      - ``"start"``: millisecond counter before setting shift registers
-     *      - ``"end"``: millisecond counter after setting shift registers
-     */
     // XXX Stop the timer (which toggles the HV square-wave driver) during i2c
     // communication.
     //
@@ -890,7 +907,7 @@ public:
   *     been exceeded, stream `"capacitance-exceeded"` event packet to serial
   *     interface.
   *
-  * \version X.X.X
+  * \version 1.51
   *     Add actuation voltage, `V_a`, to `capacitance-updated` and
   *     `capacitance-exceeded` event stream packets.
   */
