@@ -910,6 +910,10 @@ public:
   * \version 1.51
   *     Add actuation voltage, `V_a`, to `capacitance-updated` and
   *     `capacitance-exceeded` event stream packets.
+  *
+  * \version 1.51.2
+  *     Only emit capacitance events is high voltage is both **selected** and
+  *     **enabled**.
   */
   void loop() {
     unsigned long now = millis();
@@ -917,33 +921,72 @@ public:
     // poll button state
     output_enable_input.process(now);
 
-    // Send event if target capacitance has been set and exceeded.
-    if (state_._.target_capacitance > 0) {
-      UInt8Array result = get_buffer();
-      result.length = 0;
+    if (state_._.hv_output_enabled && state_._.hv_output_selected) {
+      // High-voltage output is enabled and selected.
 
-      const unsigned long n_samples = config_._.capacitance_n_samples;
-      unsigned long start = microseconds();
-      float value = capacitance(n_samples);
-      now = microseconds();
+      // Send event if target capacitance has been set and exceeded.
+      if (state_._.target_capacitance > 0) {
+        UInt8Array result = get_buffer();
+        result.length = 0;
 
-      if (value > state_._.target_capacitance) {
-        // Target capacitance has been met.
+        const unsigned long n_samples = config_._.capacitance_n_samples;
+        unsigned long start = microseconds();
+        float value = capacitance(n_samples);
+        now = microseconds();
+
+        if (value > state_._.target_capacitance) {
+          // Target capacitance has been met.
+
+          // Stream "capacitance-updated" event to serial interface.
+          sprintf((char *)result.data, "{\"event\": \"capacitance-exceeded\", "
+                  "\"new_value\": %g, "  // Capacitance value
+                  "\"target\": %g, "  // Target capacitance value
+                  " \"start\": %lu, \"end\": %lu, "  // start/end times in ms
+                  "\"n_samples\": %lu",  // # of analog samples
+                  "\"V_a\": %g}",  // Actuation voltage
+                  value, state_._.target_capacitance,
+                  start, now, n_samples, _high_voltage);
+          result.length = strlen((char *)result.data);
+          unsigned long now = microseconds();
+
+          // Reset target capacitance.
+          state_._.target_capacitance = 0;
+
+          {
+            PacketStream output;
+            output.start(Serial, result.length);
+            output.write(Serial, (char *)result.data, result.length);
+            output.end(Serial);
+          }
+
+          // Reset periodic capacitance timestamp since there is no need to
+          // send `capacitance-updated` event since `capacitance-exceeded`
+          // event contains latest capacitance value.
+          capacitance_timestamp_ms_ = now;
+        }
+      }
+
+      // Send periodic capacitance value update events.
+      if ((state_._.capacitance_update_interval_ms > 0) &&
+          (state_._.capacitance_update_interval_ms < now -
+           capacitance_timestamp_ms_)) {
+        UInt8Array result = get_buffer();
+        result.length = 0;
+
+        unsigned long start = microseconds();
+        const unsigned long n_samples = config_._.capacitance_n_samples;
+        float value = capacitance(n_samples);
+        now = microseconds();
 
         // Stream "capacitance-updated" event to serial interface.
-        sprintf((char *)result.data, "{\"event\": \"capacitance-exceeded\", "
+        sprintf((char *)result.data,
+                "{\"event\": \"capacitance-updated\", "
                 "\"new_value\": %g, "  // Capacitance value
-                "\"target\": %g, "  // Target capacitance value
-                " \"start\": %lu, \"end\": %lu, "  // start/end times in ms
-                "\"n_samples\": %lu",  // # of analog samples
+                "\"start\": %lu, \"end\": %lu, "  // start/end times in ms
+                "\"n_samples\": %lu, "  // # of analog samples taken
                 "\"V_a\": %g}",  // Actuation voltage
-                value, state_._.target_capacitance,
-                start, now, n_samples, _high_voltage);
+                value, start, now, n_samples, _high_voltage);
         result.length = strlen((char *)result.data);
-        unsigned long now = microseconds();
-
-        // Reset target capacitance.
-        state_._.target_capacitance = 0;
 
         {
           PacketStream output;
@@ -952,43 +995,8 @@ public:
           output.end(Serial);
         }
 
-        // Reset periodic capacitance timestamp since there is no need to send
-        // `capacitance-updated` event since `capacitance-exceeded` event
-        // contains latest capacitance value.
-        capacitance_timestamp_ms_ = now;
+        capacitance_timestamp_ms_ = millis();
       }
-    }
-
-    // Send periodic capacitance value update events.
-    if ((state_._.capacitance_update_interval_ms > 0) &&
-        (state_._.capacitance_update_interval_ms < now -
-         capacitance_timestamp_ms_)) {
-      UInt8Array result = get_buffer();
-      result.length = 0;
-
-      unsigned long start = microseconds();
-      const unsigned long n_samples = config_._.capacitance_n_samples;
-      float value = capacitance(n_samples);
-      now = microseconds();
-
-      // Stream "capacitance-updated" event to serial interface.
-      sprintf((char *)result.data,
-              "{\"event\": \"capacitance-updated\", "
-              "\"new_value\": %g, "  // Capacitance value
-              "\"start\": %lu, \"end\": %lu, "  // start/end times in ms
-              "\"n_samples\": %lu, "  // # of analog samples taken for reading
-              "\"V_a\": %g}",  // Actuation voltage
-              value, start, now, n_samples, _high_voltage);
-      result.length = strlen((char *)result.data);
-
-      {
-        PacketStream output;
-        output.start(Serial, result.length);
-        output.write(Serial, (char *)result.data, result.length);
-        output.end(Serial);
-      }
-
-      capacitance_timestamp_ms_ = millis();
     }
 
     fast_analog_.update();
