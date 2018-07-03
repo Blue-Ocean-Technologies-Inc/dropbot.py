@@ -914,6 +914,13 @@ public:
   * \version 1.51.2
   *     Only emit capacitance events is high voltage is both **selected** and
   *     **enabled**.
+  *
+  * \version 1.51.3
+  *     Fix the `capacitance-updated` event handling:
+  *       - Fix truncated JSON message due to a misplaced "," typo in the
+  *         arguments of a call to `sprintf` (bug introduced in version 1.51).
+  *       - Set the capacitance update counter using the _millisecond_ counter
+  *         instead of _microsecond_ counter.
   */
   void loop() {
     unsigned long now = millis();
@@ -938,16 +945,16 @@ public:
           // Target capacitance has been met.
 
           // Stream "capacitance-updated" event to serial interface.
-          sprintf((char *)result.data, "{\"event\": \"capacitance-exceeded\", "
-                  "\"new_value\": %g, "  // Capacitance value
-                  "\"target\": %g, "  // Target capacitance value
-                  " \"start\": %lu, \"end\": %lu, "  // start/end times in ms
-                  "\"n_samples\": %lu",  // # of analog samples
-                  "\"V_a\": %g}",  // Actuation voltage
-                  value, state_._.target_capacitance,
-                  start, now, n_samples, _high_voltage);
-          result.length = strlen((char *)result.data);
-          unsigned long now = microseconds();
+          result.length =
+            sprintf((char *)result.data,
+                    "{\"event\": \"capacitance-exceeded\", "
+                    "\"new_value\": %g, "  // Capacitance value
+                    "\"target\": %g, "  // Target capacitance value
+                    "\"start\": %lu, \"end\": %lu, "  // start/end times in ms
+                    "\"n_samples\": %lu, "  // # of analog samples
+                    "\"V_a\": %g}",  // Actuation voltage
+                    value, state_._.target_capacitance, start, now, n_samples,
+                    _high_voltage);
 
           // Reset target capacitance.
           state_._.target_capacitance = 0;
@@ -962,7 +969,7 @@ public:
           // Reset periodic capacitance timestamp since there is no need to
           // send `capacitance-updated` event since `capacitance-exceeded`
           // event contains latest capacitance value.
-          capacitance_timestamp_ms_ = now;
+          capacitance_timestamp_ms_ = millis();
         }
       }
 
