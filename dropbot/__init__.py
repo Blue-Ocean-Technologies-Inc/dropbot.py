@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 from collections import OrderedDict
+import os.path
 import warnings
 
 from path_helpers import path
@@ -23,6 +24,14 @@ del get_versions
 NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS = pd.Series([0, 10e-12, 100e-12,
                                                      470e-12],
                                                     name='Capacitance (F)')
+
+# Resolve data directory path (with support for frozen Python apps).
+DATA_DIR = path(os.environ.get('DROPBOT_DATA_DIR', path(__file__).parent
+                               .joinpath('static'))).normpath()
+if not DATA_DIR.isdir() and any():
+    # Add support for frozen apps, where data may be stored in a zip file.
+    DATA_DIR = os.path.join(d for d in DATA_DIR.splitall()
+                            if not d.endswith('.zip'))
 
 
 def package_path():
@@ -89,7 +98,3 @@ def get_firmwares():
                                           board_dir.walkfiles('*.hex')])
                         for board_dir in
                         package_path().joinpath('firmware').dirs()])
-
-from ._version import get_versions
-__version__ = get_versions()['version']
-del get_versions

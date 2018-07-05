@@ -40,6 +40,7 @@ void Node::begin() {
   state_._.has_frequency = true;
   state_._.has_hv_output_enabled = true;
   state_._.has_hv_output_selected = true;
+  state_._.has_event_mask = true;
   // Validate state to trigger on-changed handling for state fields that are
   // set (which initializes the state to the default values supplied in the
   // state protocol buffer definition).
@@ -89,7 +90,7 @@ uint16_t Node::initialize_switching_boards() {
     const uint8_t address_i = base_address + chip_i;
 
     // Set IO ports as inputs.
-    buffer_[0] = PCA9505_CONFIG_IO_REGISTER;
+    buffer_[0] = channels_.PCA9505_CONFIG_IO_REGISTER;
     buffer_[1] = 0xFF;
     i2c_write(address_i, UInt8Array_init(2, (uint8_t *)&buffer_[0]));
     // XXX Delay required when operating with a 400kbps i2c clock.
@@ -104,7 +105,7 @@ uint16_t Node::initialize_switching_boards() {
       // Assume the device at I2C `address_i` is a PCA9505 chip.
       // Try setting all ports in output mode and initialize to ground.
       for (uint8_t port_ij = 0; port_ij < 5; port_ij++) {
-        buffer_[0] = PCA9505_CONFIG_IO_REGISTER + port_ij;
+        buffer_[0] = channels_.PCA9505_CONFIG_IO_REGISTER + port_ij;
         buffer_[1] = 0x00;
         i2c_write(address_i, UInt8Array_init(2, (uint8_t *)&buffer_[0]));
         // XXX Delay required when operating with a 400kbps i2c clock.
@@ -118,7 +119,7 @@ uint16_t Node::initialize_switching_boards() {
             // Verified all IO port pins set as output.
             // Set output pins to ground.  **N.B.** `PCA9505` outputs are
             // **active low**.
-            buffer_[0] = PCA9505_OUTPUT_PORT_REGISTER + port_ij;
+            buffer_[0] = channels_.PCA9505_OUTPUT_PORT_REGISTER + port_ij;
             buffer_[1] = 0xFF;
             i2c_write(address_i, UInt8Array_init(2, (uint8_t *)&buffer_[0]));
             // XXX Delay required when operating with a 400kbps i2c clock.
@@ -132,6 +133,8 @@ uint16_t Node::initialize_switching_boards() {
   // Update channel count according to the number of discovered channels.
   state_._.channel_count = number_of_channels;
   state_._.has_channel_count = true;
+  channels_.channel_count_ = state_._.channel_count;
+  channels_.switching_board_i2c_address_ = base_address;
   return state_._.channel_count;
 }
 

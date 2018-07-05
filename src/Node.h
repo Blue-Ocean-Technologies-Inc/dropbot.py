@@ -1,10 +1,15 @@
 #ifndef ___NODE__H___
 #define ___NODE__H___
 
+#include <array>
 #include <math.h>
-#include <string.h>
+#include <numeric>
 #include <stdint.h>
+#include <string.h>
+#include <set>
+#include <vector>
 #include <Arduino.h>
+
 #include <NadaMQ.h>
 #include <CArrayDefs.h>
 #include "RPCBuffer.h"  // Define packet sizes
@@ -39,6 +44,10 @@
 #include "Dropbot/state_pb.h"
 #include "packet_stream.h"
 #include "kxsort.h"
+#include "analog.h"
+#include "channels.h"
+#include "drops.h"
+#include "format.h"
 
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
 #define CPU_RESTART_VAL 0x5FA0004
@@ -50,6 +59,7 @@
  *
  * See https://forum.pjrc.com/threads/41761-float-to-string-issue?p=131683&viewfull=1#post131683 */
 asm(".global _printf_float");
+asm(".global _write");
 
 extern uint8_t watchdog_status_;
 extern bool watchdog_refresh_;
@@ -75,6 +85,12 @@ extern void dma_ch14_isr(void);
 extern void dma_ch15_isr(void);
 
 namespace dropbot {
+
+const uint32_t EVENT_ACTUATED_CHANNEL_CAPACITANCES = (1 << 31);
+const uint32_t EVENT_CHANNELS_UPDATED              = (1 << 30);
+const uint32_t EVENT_SHORTS_DETECTED               = (1 << 28);
+const uint32_t EVENT_DROPS_DETECTED                = (1 << 27);
+const uint32_t EVENT_ENABLE                        = (1 << 0);
 
 // Define the array that holds the conversions here.
 // The buffer is stored with the correct alignment in the DMAMEM section
@@ -166,8 +182,6 @@ public:
 
   static const uint32_t BUFFER_SIZE = 8192;  // >= longest property string
 
-  static const uint16_t MAX_NUMBER_OF_CHANNELS = 120;
-
   static const uint8_t DRIVER_HIGH_PIN = 6;
   static const uint8_t DRIVER_LOW_PIN = 7;
   static const uint8_t HV_OUTPUT_SELECT_PIN = 8;
@@ -192,15 +206,9 @@ public:
   // High-voltage Output Enable pin
   static const uint8_t OE_PIN = 22;
 
-  // PCA9505 (gpio) chip/register addresses
-  static const uint8_t PCA9505_CONFIG_IO_REGISTER = 0x18;
-  static const uint8_t PCA9505_OUTPUT_PORT_REGISTER = 0x08;
-
   static const float R6;
 
   uint8_t buffer_[BUFFER_SIZE];
-  uint8_t state_of_channels_[MAX_NUMBER_OF_CHANNELS / 8];
-  uint8_t disabled_channels_mask_[MAX_NUMBER_OF_CHANNELS / 8];
 
   ADC *adc_;
   uint32_t adc_period_us_;
@@ -220,7 +228,10 @@ public:
   UInt8Array dma_data_;
   uint16_t dma_stream_id_;
   bool watchdog_disable_request_;
+  Channels channels_;
+  std::array<ChannelNeighbours, MAX_NUMBER_OF_CHANNELS> channel_neighbours_;
   base_node_rpc::FastAnalogWrite fast_analog_;
+  std::vector<std::vector<uint8_t> > drops_;
 
   // Detect chip insertion/removal.
   OutputEnableDebounce output_enable_input;
@@ -231,6 +242,10 @@ public:
   uint32_t capacitance_timestamp_ms_;
 
   uint8_t target_count_;
+  //: .. versionadded:: X.X.X
+  //
+  // Time of most recent drops detection.
+  uint32_t drops_timestamp_ms_;
 
   Node() : BaseNode(),
            BaseNodeConfig<config_t>(dropbot_Config_fields),
@@ -240,13 +255,16 @@ public:
            adc_count_(0), dma_adc_active_(false), dma_channel_done_(-1),
            last_dma_channel_done_(-1), adc_read_active_(false),
            dma_stream_id_(0), watchdog_disable_request_(false),
+           channels_(0, dropbot_Config_switching_board_i2c_address_default),
            output_enable_input(*this, -1, DEFAULT_INPUT_DEBOUNCE_DELAY,
                                InputDebounce::PinInMode::PIM_EXT_PULL_UP_RES,
                                0),
-           capacitance_timestamp_ms_(0), target_count_(0) {
+           capacitance_timestamp_ms_(0), target_count_(0),
+           drops_timestamp_ms_(0) {
     pinMode(LED_BUILTIN, OUTPUT);
     dma_data_ = UInt8Array_init_default();
     output_enable_input.setup(OE_PIN);
+    clear_neighbours();
   }
 
   UInt8Array get_buffer() { return UInt8Array_init(sizeof(buffer_), buffer_); }
@@ -254,6 +272,7 @@ public:
    * `BaseNode...` classes. */
 
   void begin();
+
   /****************************************************************************
    * # User-defined methods #
    *
@@ -277,38 +296,9 @@ public:
     i2c.endTransmission();
   }
 
- /*
-  * Measure the temperature (in degrees Celsius) of the MCU
-  * via it's internal sensor.
-  *
-  * More details available [here][1] and [here][2].
-  *
-  * [1]: https://forum.pjrc.com/threads/30480-Teensy-3-1-use-internal-Temp-Sensor
-  * [2]: https://github.com/LAtimes2/InternalTemperature
-  */
-  float measure_temperature() {
-    analogReference(INTERNAL);
-    uint32_t sum = 0;
-    for (uint8_t i = 0; i < 255; i++) {
-        sum += analogRead(38);
-    }
-    analogReference(DEFAULT);
-    float voltage = (float)sum / 255.0 / 65535.0 * 1.2;
-    return 25.0 + 583.0904 * (0.719 - voltage);
-  }
+  float measure_temperature() { return analog::measure_temperature(); }
 
-  /*
-   * Measure the analog reference voltage by comparing it
-   * to the internal reference (1.195 V) accessible via
-   * analog pin 39.
-   */
-  float measure_aref() {
-    uint32_t sum = 0;
-    for (uint8_t i = 0; i < 255; i++) {
-        sum += analogRead(39);
-    }
-    return 1.195 * 65535.0 / (float)sum * 255.0;
-  }
+  float measure_aref() { return analog::measure_aref(); }
 
   UInt16Array kxsort_u16(UInt16Array data) {
     /*
@@ -358,96 +348,8 @@ public:
      * uint16_t
      *     Difference between high and low percentiles.
      */
-    UInt16Array result = analog_reads_simple(pin, n_samples);
-    kx::radix_sort(result.data, &result.data[result.length]);
-    const uint16_t high_i = (int)round((high_percentile / 100.) * n_samples);
-    const uint16_t low_i = (int)round((low_percentile / 100.) * n_samples);
-    return result.data[high_i] - result.data[low_i];
-  }
-
-  float capacitance(uint16_t n_samples) {
-    /*
-     * .. versionadded:: 1.41
-     *
-     * Measure device load capacitance based on the specified number of analog
-     * samples.
-     *
-     * Amplitude of measured square wave is calculated by computing the `inter-quartile range (IQR) <https://en.wikipedia.org/wiki/Interquartile_range>`_,
-     * i.e., the difference between the 75th percentile and the 25th
-     * percentile.
-     *
-     * See: https://gitlab.com/sci-bots/dropbot.py/issues/25
-     *
-     * Notes
-     * -----
-     *
-     * According to the figure below, the transfer function describes the
-     * following relationship::
-     *
-     *     V₂   Z₂
-     *     ── = ──
-     *     V₁   Z₁
-     *
-     * where $V_{1}$ denotes the high-voltage actuation signal and $V_{2}$
-     * denotes the signal sufficiently attenuated to fall within the measurable
-     * input range of the analog-to-digital converter *(approx. 3.3 V)*.  The
-     * feedback circuits for the control board is shown below.
-     *
-     * .. code-block:: none
-     *
-     *       V_1 @ frequency
-     *           ┯
-     *         ┌─┴─┐    ┌───┐
-     *         │Z_1│  ┌─┤Z_2├─┐
-     *         └─┬─┘  │ └───┘ │
-     *           │    │  │╲   ├───⊸ V_2
-     *           └────┴──│-╲__│
-     *                ┌──│+╱
-     *                │  │╱
-     *                │
-     *               ═╧═
-     *
-     * See `HVAC`_ in DropBot HV square wave driver and `A11` and `C16` in
-     * `feedback filter`_:
-     *
-     *  - `C16`: 0.15 uF
-     *
-     * Where ``V1`` and ``V2`` are root-mean-squared voltages, and Z1 == jwC1``
-     * and ``Z2 == jwC2``, ``C2 = V2 / V1 * C1``.
-     *
-     * Parameters
-     * ----------
-     * n_samples : uint16_t
-     *     Number of analog samples to measure.
-     *
-     *     If 0, use default from :attr:`config_._`.
-     *
-     * Returns
-     * -------
-     * float
-     *     Capacitance of device load in farads (F).
-     *
-     *
-     * .. versionchanged:: 1.41
-     *     If 0, use default from :attr:`config_._`.
-     *
-     * .. versionchanged:: 1.43
-     *     Fix equation to divide by actuation voltage.
-     *
-     * .. _`HVAC`: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/boost-converter-boost-converter.pdf
-     * .. _`feedback filter`: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/feedback-feedback.pdf
-     */
-
-    // Compute capacitance from measured square-wave RMS voltage amplitude.
-    n_samples = (n_samples) ? n_samples : config_._.capacitance_n_samples;
-    const uint16_t A11_raw = u16_percentile_diff(11, n_samples, 25, 75);
-
-    // Compute capacitance from measured square-wave RMS voltage amplitude.
-    // V2 = 0.5 * (float(A11) / MAX_ANALOG) * AREF
-    const float device_load_v = 0.5 * (A11_raw / float(1L << 16)) * 3.3;
-    // C2 = V2 * C16 / HVAC
-    const float C2 = device_load_v * 0.15e-6 / high_voltage();
-    return C2;
+    return analog::u16_percentile_diff(pin, n_samples, low_percentile,
+                                       high_percentile);
   }
 
   /**
@@ -467,26 +369,16 @@ public:
   * @return High-side RMS voltage.
   */
   float high_voltage() {
-    // HV_FB = (float(A1) / MAX_ANALOG) * AREF
-    const float hv_fb = (analogRead(A1) / float(1L << 16)) * 3.3;
-    // HV peak-to-peak = HV_FB * R8 / R9
-    const float R8 = 2e6;
-    const float R9 = 20e3;
-    const float hv_peak_to_peak = hv_fb * R8 / R9;
-    // HV RMS = 0.5 * HV peak-to-peak
-    _high_voltage = 0.5 * hv_peak_to_peak;
+    _high_voltage = analog::high_voltage();
     return _high_voltage;
   }
 
   UInt16Array analog_reads_simple(uint8_t pin, uint16_t n_samples) {
-    UInt8Array byte_buffer = get_buffer();
     UInt16Array output;
-    output.data = reinterpret_cast<uint16_t *>(byte_buffer.data);
-
-    for (uint16_t i = 0; i < n_samples; i++) {
-      output.data[i] = analogRead(pin);
-    }
+    output.data = reinterpret_cast<uint16_t *>(get_buffer().data);
     output.length = n_samples;
+    std::generate(output.data, output.data + output.length,
+                  [&] () { return analogRead(pin); });
     return output;
   }
 
@@ -502,6 +394,7 @@ public:
     output.length = n_bytes_read;
     return output;
   }
+
   UInt8Array soft_i2c_scan() {
     UInt8Array output = get_buffer();
     uint16_t count = 0;
@@ -561,213 +454,54 @@ public:
   *      - `"values"`: list of identifiers of shorted channels.
   */
   UInt8Array detect_shorts(uint8_t delay_ms) {
+    /*
+     * .. versionchanged:: X.X.X
+     *     Send ``shorts-detected`` event stream packet containing:
+     *      - ``"channels"``: list of identifiers of shorted channels.
+     */
     // Deselect the HV output
     on_state_hv_output_selected_changed(false);
 
-    // Eight channels per port
-    const uint8_t port_count = state_._.channel_count / 8;
-    uint8_t old_state[port_count];
-    memcpy(old_state, state_of_channels_, port_count);
-
     UInt8Array shorts = get_buffer();
-    shorts.length = 0;
-    for (uint8_t i = 0; i < state_._.channel_count; i++) {
-      // Initialize all channels in off state
-      memset(state_of_channels_, 0, port_count);
-
-      // Set bit to actuate channel i
-      state_of_channels_[i / 8] = 1 << i % 8;
-
-      // Apply channel states
-      _update_channels();
-
-      // A delay (e.g., 1-5 ms) may be necessary to detect some shorts
-      delay(delay_ms);
-
-      // If we read less than half of Vcc, append this channel to the
-      // list of shorts and disable the channel
-      if (analog_read(0) < 65535 / 2) {
-        shorts.data[shorts.length++] = i;
-        disabled_channels_mask_[i / 8] |= 1 << i % 8;
-      } else { // enable the channel
-        disabled_channels_mask_[i / 8] &= ~(1 << i % 8);
-      }
+    {
+      // Restrict scope of `detected_shorts` to free up memory after use.
+      auto detected_shorts = channels_.detect_shorts(delay_ms);
+      std::copy(detected_shorts.begin(), detected_shorts.end(), shorts.data);
+      shorts.length = detected_shorts.size();
     }
-
-    // Restore the previous channel state
-    memcpy(state_of_channels_, old_state, port_count);
-
-    // Apply channel states
-    _update_channels();
-
     // Restore the HV output selection
     on_state_hv_output_selected_changed(state_._.hv_output_selected);
 
-    {
+    if (event_enabled(EVENT_SHORTS_DETECTED)) {
+      // Shorts-detected event is enabled.
+      UInt8Array buffer =
+        UInt8Array_init(0, &shorts.data[shorts.length]);
+
       // Stream `shorts-detected` event packet.
-      UInt8Array result;
-      result.data = &shorts.data[shorts.length];
+      buffer.length += sprintf((char *)&buffer.data[buffer.length],
+                               "{\"event\": \"shorts-detected\", "
+                               "\"values\": [");
 
-      sprintf((char *)result.data, "{\"event\": \"shorts-detected\", \"values\": [");
-      result.length = strlen((char *)result.data);
-
-      char *start = reinterpret_cast<char *>(&result.data[result.length]);
       for (int i = 0 ; i < shorts.length; i++) {
         if (i > 0) {
-          sprintf(start, ", ");
-          start += 2;
+          buffer.length += sprintf((char *)&buffer.data[buffer.length], ", ");
         }
-        sprintf(start, "%d", shorts.data[i]);
-        start += strlen(start);
+        buffer.length += sprintf((char *)&buffer.data[buffer.length], "%d",
+                                 shorts.data[i]);
       }
 
-      sprintf(start, "]}");
-      start += strlen(start);
-      result.length = reinterpret_cast<uint8_t *>(start) - result.data;
+      buffer.length += sprintf((char *)&buffer.data[buffer.length], "]}");
 
       {
-        PacketStream output;
-        output.start(Serial, result.length);
-        output.write(Serial, (char *)result.data, result.length);
-        output.end(Serial);
+        PacketStream output_packet;
+        output_packet.start(Serial, buffer.length);
+        output_packet.write(Serial, (char *)buffer.data,
+                            buffer.length);
+        output_packet.end(Serial);
       }
     }
 
     return shorts;
-  }
-
-  UInt8Array state_of_channels() {
-    // XXX Stop the timer (which toggles the HV square-wave driver) during i2c
-    // communication.
-    //
-    // See https://gitlab.com/sci-bots/dropbot.py/issues/26
-    Timer1.stop(); // stop the timer during i2c transmission
-    for (uint8_t chip = 0; chip < state_._.channel_count / 40; chip++) {
-      for (uint8_t port = 0; port < 5; port++) {
-        Wire.beginTransmission((uint8_t)config_._.switching_board_i2c_address + chip);
-        Wire.write(PCA9505_OUTPUT_PORT_REGISTER + port);
-        Wire.endTransmission();
-
-        delayMicroseconds(100); // needed when using Teensy
-
-        Wire.requestFrom(config_._.switching_board_i2c_address + chip, 1);
-        if (Wire.available()) {
-          state_of_channels_[chip * 5 + port] = ~Wire.read();
-        } else {
-          Timer1.restart();
-          return UInt8Array_init_default();
-        }
-      }
-    }
-    Timer1.restart();
-    return UInt8Array_init(state_._.channel_count / 8,
-                           (uint8_t *)&state_of_channels_[0]);
-  }
-
-  UInt8Array disabled_channels_mask() {
-    return UInt8Array_init(state_._.channel_count / 8,
-                           (uint8_t *)&disabled_channels_mask_[0]);
-  }
-
-  bool set_disabled_channels_mask(UInt8Array disabled_channels_mask) {
-    if (disabled_channels_mask.length == state_._.channel_count / 8) {
-      for (uint16_t i = 0; i < disabled_channels_mask.length; i++) {
-        disabled_channels_mask_[i] = disabled_channels_mask.data[i];
-      }
-      _update_channels();
-      return true;
-    }
-    return false;
-  }
-
-  bool set_state_of_channels(UInt8Array channel_states) {
-    if (channel_states.length == state_._.channel_count / 8) {
-      for (uint16_t i = 0; i < channel_states.length; i++) {
-        state_of_channels_[i] = channel_states.data[i];
-      }
-      _update_channels();
-      return true;
-    }
-    return false;
-  }
-
-  /**
-  * @brief Apply state of channels to switching boards.
-  *
-  * Turn off all channels that are marked in the disabled channels mask.
-  *
-  * \version 1.51
-  *     Send `channels-updated` event stream packet containing:
-  *      - `"n"`: number of actuated channel
-  *      - `"actuated"`: list of actuated channel identifiers.
-  *      - `"start"`: millisecond counter before setting shift registers
-  *      - `"end"`: millisecond counter after setting shift registers
-  *
-  */
-  void _update_channels() {
-    // XXX Stop the timer (which toggles the HV square-wave driver) during i2c
-    // communication.
-    //
-    // See https://gitlab.com/sci-bots/dropbot.py/issues/26
-    Timer1.stop(); // stop the timer during i2c transmission
-    const unsigned long start = microseconds();
-    uint8_t data[2];
-    // Each PCA9505 chip has 5 8-bit output registers for a total of 40 outputs
-    // per chip. We can have up to 8 of these chips on an I2C bus, which means
-    // we can control up to 320 channels.
-    //   Each register represent 8 channels (i.e. the first register on the
-    // first PCA9505 chip stores the state of channels 0-7, the second register
-    // represents channels 8-15, etc.).
-    for (uint8_t chip = 0; chip < state_._.channel_count / 40; chip++) {
-      for (uint8_t port = 0; port < 5; port++) {
-        data[0] = PCA9505_OUTPUT_PORT_REGISTER + port;
-        data[1] = ~(state_of_channels_[chip * 5 + port] &
-                    ~disabled_channels_mask_[chip * 5 + port]);
-        i2c_write(config_._.switching_board_i2c_address + chip,
-                  UInt8Array_init(2, (uint8_t *)&data[0]));
-        // XXX Need the following delay if we are operating with a 400kbps
-        // i2c clock.
-        delayMicroseconds(200);
-      }
-    }
-    const unsigned long end = microseconds();
-    Timer1.restart();
-    {
-      // Stream `channels-updated` event packet.
-      UInt8Array result = get_buffer();
-      char * const data = reinterpret_cast<char *>(result.data);
-
-      result.length = sprintf((char *)result.data, "{\"event\": "
-                              "\"channels-updated\", \"actuated\": [");
-
-      // XXX LSB of chip 0 and port 0 is channel 0.
-      uint8_t actuated_count = 0;
-      for (uint8_t chip = 0; chip < state_._.channel_count / 40; chip++) {
-        for (uint8_t port = 0; port < 5; port++) {
-          const uint8_t byte_j = chip * 5 + port;
-          for (uint8_t i = 0; i < 8; i++) {
-            if (bitRead(state_of_channels_[byte_j] &
-                        ~disabled_channels_mask_[byte_j], i)) {
-              // Channel is actuated.
-              const uint8_t channel_id = 8 * byte_j + i;
-              if (actuated_count > 0) {
-                result.length += sprintf(&data[result.length], ", ");
-              }
-              actuated_count++;
-              result.length += sprintf(&data[result.length], "%d", channel_id);
-            }
-          }
-        }
-      }
-      result.length += sprintf(&data[result.length], "], \"start\": %lu, \"end\": %lu, \"n\": %d}", start, end, actuated_count);
-
-      {
-        PacketStream output;
-        output.start(Serial, result.length);
-        output.write(Serial, (char *)result.data, result.length);
-        output.end(Serial);
-      }
-    }
   }
 
   float min_waveform_voltage() {
@@ -886,29 +620,6 @@ public:
   bool on_state_channel_count_changed(int32_t value) {
       // XXX This value is ready-only.
       return false;
-  }
-
-  void on_tick() {
-    if (adc_read_active_) return;
-    uint8_t channel;
-    switch(adc_count_ & 0x01) {
-      case(0): channel = A0; break;
-      case(1): channel = A1; break;
-      //case(2): channel = A2;
-      //case(3): channel = A3;
-      default: channel = A0;
-    }
-    adc_->startSingleRead(channel, ADC_0);
-  }
-
-  void on_adc_done() {
-    if (adc_read_active_) return;
-    adc_count_++;
-    //adc_tick_tock_ = !adc_tick_tock_;
-    //digitalWriteFast(LED_BUILTIN, adc_tick_tock_);
-    //adc_SYST_CVR_prev_ = adc_SYST_CVR_;
-    //adc_millis_ = millis();
-    //adc_SYST_CVR_ = SYST_CVR;
   }
 
   /**
@@ -1045,6 +756,12 @@ public:
       watchdog_disable_request_ = false;
       watchdog_auto_refresh(false);
       __watchdog_disable__();
+    }
+    if (state_._.drops_update_interval_ms > 0 &&
+        (state_._.drops_update_interval_ms < now - drops_timestamp_ms_) &&
+        event_enabled(EVENT_DROPS_DETECTED)) {
+      refresh_drops(0);
+      drops_timestamp_ms_ = millis();
     }
     if (dma_channel_done_ >= 0) {
       // DMA channel has completed.
@@ -1626,6 +1343,11 @@ public:
     return on_board_capacitance();
   }
 
+  float capacitance(uint16_t n_samples) {
+    n_samples = n_samples ? n_samples : config_._.capacitance_n_samples;
+    return channels_.capacitance(n_samples);
+  }
+
   float on_board_capacitance() {
     /*
      * Returns
@@ -1718,6 +1440,367 @@ public:
     fast_analog_.set_pin(pin);
     fast_analog_.configure(duty_cycle, period_us);
   }
+
+  FloatArray scatter_channels_capacitances(UInt8Array channels) {
+    auto capacitances =
+      channels_.scatter_channels_capacitances(std::set<uint8_t>(channels.data,
+                                                                channels.data +
+                                                                channels
+                                                                .length),
+                                              config_._.capacitance_n_samples);
+
+    FloatArray result;
+    result.data = reinterpret_cast<float *>(get_buffer().data);
+    result.length = capacitances.size();
+    std::copy(capacitances.begin(), capacitances.end(), result.data);
+    return result;
+  }
+
+  UInt8Array get_channels_drops(UInt8Array channels, float c_threshold) {
+    /*
+    * Parameters
+    * ----------
+    * channels : UInt8Array
+    *     List of channels to measure for drop detection.
+    * c_threshold : float
+    *     Minimum capacitance (in farads) to consider as liquid present on a
+    *     channel electrode.
+    *
+    *     If set to 0, a default of 3 pF is used.
+    *
+    * Returns
+    * -------
+    * UInt8Array
+    *     List of channels where threshold capacitance was met, grouped by
+    *     contiguous electrode regions (i.e., sets of electrodes that are
+    *     connected by neighbours where capacitance threshold was also met).
+    *
+    *     Format:
+    *
+    *         [drop 0 channel count][drop 0: channel 0, channel 1, ...][drop 1 channel count][drop 1: channel 0, channel 1, ...]
+    */
+    std::set<uint8_t> channels_v(channels.data, channels.data +
+                                 channels.length);
+    auto drops = get_channels_drops(channels_v, c_threshold);
+    UInt8Array result = UInt8Array_init(0, get_buffer().data);
+    drops::pack_drops(drops, result);
+    return result;
+  }
+
+  template <typename T>
+  std::vector<std::vector<uint8_t> > get_channels_drops(T channels, float c_threshold) {
+    /*
+    * Parameters
+    * ----------
+    * channels : STL container
+    *     Channels to measure for drop detection - **MUST** be sorted.
+    * c_threshold : float
+    *     Minimum capacitance (in farads) to consider as liquid present on a
+    *     channel electrode.
+    *
+    *     If set to 0, a default of 3 pF is used.
+    *
+    * Returns
+    * -------
+    * std::vector<std::vector<uint8_t> >
+    *     List of channels where threshold capacitance was met, grouped by
+    *     contiguous electrode regions (i.e., sets of electrodes that are
+    *     connected by neighbours where capacitance threshold was also met).
+    */
+    c_threshold = c_threshold ? c_threshold : drops::C_THRESHOLD;
+    const unsigned long start = microseconds();
+
+    // Only measure capacitance of specified channels.
+    std::vector<float> capacitances =
+        channels_.scatter_channels_capacitances(channels, config_._
+                                                .capacitance_n_samples);
+    auto drops = drops::get_drops(channel_neighbours_, capacitances, channels,
+                                  c_threshold);
+    const unsigned long end = microseconds();
+
+    if (event_enabled(EVENT_DROPS_DETECTED)) {
+      /*
+      * Stream `drops-detected` event in the form:
+      *
+      *     {"event": "drops-detected",
+      *      "drops": {"channels": [[<drop 0 ch 0>, <drop 0 ch 1>, ...],
+      *                             [<drop 1 ch 0>, <drop 1 ch 1>, ...], ...],
+      *                "capacitances": [[<drop 0 cap 0>, <drop 0 cap 1>, ...],
+      *                                 [<drop 1 cap 0>, <drop 1 cap 1>, ...],
+      *                                 ...]},
+      *      "start": <start microseconds>, "end": <end microseconds>}
+      */
+      UInt8Array buffer = UInt8Array_init(0, get_buffer().data);
+      sprintf_drops_detected(capacitances, drops, start, end, buffer);
+
+      {
+        PacketStream output;
+        output.start(Serial, buffer.length);
+        output.write(Serial, reinterpret_cast<char *>(buffer.data),
+                     buffer.length);
+        output.end(Serial);
+      }
+    }
+    return drops;
+  }
+
+  UInt8Array get_all_drops(float c_threshold) {
+    /*
+    * Parameters
+    * ----------
+    * c_threshold : float
+    *     Minimum capacitance (in farads) to consider as liquid present on a
+    *     channel electrode.
+    *
+    *     If set to 0, a default of 3 pF is used.
+    *
+    * Returns
+    * -------
+    * UInt8Array
+    *     List of channels where threshold capacitance was met, grouped by
+    *     contiguous electrode regions (i.e., sets of electrodes that are
+    *     connected by neighbours where capacitance threshold was also met).
+    *
+    *     Format:
+    *
+    *         [drop 0 channel count][drop 0: channel 0, channel 1, ...][drop 1 channel count][drop 1: channel 0, channel 1, ...]
+    */
+    // Fill `channels` with range `(0, <channel_count_>)`.
+    std::vector<uint8_t> channels(state_._.channel_count);
+    std::iota(channels.begin(), channels.end(), 0);
+    drops_ = get_channels_drops(channels, c_threshold);
+
+    UInt8Array result = UInt8Array_init(0, get_buffer().data);
+    drops::pack_drops(drops_, result);
+    return result;
+  }
+
+  void refresh_drops(float c_threshold) {
+    if (drops_.size() > 0) {
+      drops_ = get_channels_drops(drops::drop_channels(drops_,
+                                                       channel_neighbours_),
+                                  c_threshold);
+    } else {
+      get_all_drops(c_threshold);
+    }
+  }
+
+  UInt8Array drops() {
+    UInt8Array result = UInt8Array_init(0, get_buffer().data);
+    drops::pack_drops(drops_, result);
+    return result;
+  }
+
+  UInt8Array neighbours() {
+    UInt8Array result = get_buffer();
+    result.length = 4 * MAX_NUMBER_OF_CHANNELS;
+
+    // Copy channel neighbour assignments from array to
+    memcpy(result.data, reinterpret_cast<uint8_t *>(&channel_neighbours_[0]),
+           result.length);
+    return result;
+  }
+
+  void clear_neighbours() {
+    mem_fill(reinterpret_cast<uint8_t *>(&channel_neighbours_[0]),
+             static_cast<uint8_t>(255), 4 * MAX_NUMBER_OF_CHANNELS);
+  }
+
+  int8_t assign_neighbours(UInt8Array packed_channel_neighbours) {
+    if (packed_channel_neighbours.length != 4 * MAX_NUMBER_OF_CHANNELS) {
+      // Invalid payload size.
+      return -1;
+    }
+    for (uint32_t i = 0; i < 4 * MAX_NUMBER_OF_CHANNELS; i++) {
+      const uint8_t channel_i = packed_channel_neighbours.data[i];
+      if ((channel_i > MAX_NUMBER_OF_CHANNELS - 1) && (channel_i != 255)) {
+        // Invalid channel number.
+        return -2;
+      }
+    }
+    // Copy channel neighbour assignments from array to
+    memcpy(reinterpret_cast<uint8_t *>(&channel_neighbours_[0]),
+           packed_channel_neighbours.data,
+           packed_channel_neighbours.length);
+    return 0;
+  }
+
+  FloatArray all_channel_capacitances() {
+    // Fill `channels` with range `(0, <channel_count_>)`.
+    std::vector<uint8_t> channels(state_._.channel_count);
+    std::iota(channels.begin(), channels.end(), 0);
+    return channel_capacitances(UInt8Array_init(channels.size(),
+                                                &channels[0]));
+  }
+
+  UInt8Array all_channels() {
+    // Fill `channels` with range `(0, <channel_count_>)`.
+    std::vector<uint8_t> channels(state_._.channel_count);
+    std::iota(channels.begin(), channels.end(), 0);
+    UInt8Array result = get_buffer();
+    std::copy(channels.begin(), channels.end(), result.data);
+    result.length = channels.size();
+    return result;
+  }
+
+  FloatArray channel_capacitances(UInt8Array channels) {
+    // High voltage (HV) output is required to perform capacitance
+    // measurements.
+    // XXX Since selecting and enabling the high voltage output take about
+    // ~200 ms each, only select and enable it if necessary.
+    bool restore_required = false;
+    if (!state_._.hv_output_enabled) {
+      on_state_hv_output_enabled_changed(true);
+      restore_required = true;
+    }
+    if (!state_._.hv_output_selected) {
+      on_state_hv_output_selected_changed(true);
+      restore_required = true;
+    }
+
+    // Disable events while measuring capacitances.  This prevents noise and
+    // improves performance by not sending an event for each channel that is
+    // set during the capacitance scan.
+    auto events_disabled = disable_events();
+    auto capacitances =
+        channels_.channel_capacitances(channels.data, channels.data +
+                                       channels.length,
+                                       config_._.capacitance_n_samples);
+    FloatArray output_capacitances;
+    output_capacitances.length = capacitances.size();
+    output_capacitances.data = reinterpret_cast<float *>(get_buffer().data);
+    std::copy(capacitances.begin(), capacitances.end(),
+              output_capacitances.data);
+    if (events_disabled) { enable_events(); }
+
+    // Restore the original high-votage (HV) output state.
+    if (restore_required) {
+      on_state_hv_output_selected_changed(state_._.hv_output_selected);
+      on_state_hv_output_enabled_changed(state_._.hv_output_enabled);
+    }
+
+    return output_capacitances;
+  }
+
+  float _benchmark_channel_update(uint32_t count) {
+    auto events_disabled = disable_events();
+    float seconds_per_update = channels_._benchmark_channel_update(count);
+    if (events_disabled) { enable_events(); }
+    return seconds_per_update;
+  }
+
+  UInt8Array state_of_channels() {
+    auto &state_of_channels = channels_.state_of_channels();
+    UInt8Array output = get_buffer();
+    output.length = state_of_channels.size();
+    std::copy(state_of_channels.begin(), state_of_channels.end(), output.data);
+    return output;
+  }
+
+  void set_disabled_channels_mask(UInt8Array disabled_channels_mask) {
+    // Copy from raw array to packed channels vector.
+    std::vector<uint8_t> disabled_mask(disabled_channels_mask.data,
+                                       disabled_channels_mask.data +
+                                       disabled_channels_mask.length);
+    channels_.set_disabled_channels_mask(disabled_mask);
+  }
+
+  UInt8Array disabled_channels_mask() {
+    auto &mask = channels_.disabled_channels_mask();
+    UInt8Array output = get_buffer();
+    output.length = mask.size();
+    std::copy(mask.begin(), mask.end(), output.data);
+    return output;
+  }
+
+  bool set_state_of_channels(UInt8Array channel_states) {
+    /*
+     * .. versionchanged:: X.X.X
+     *     Send ``channels-updated`` event stream packet containing:
+     *      - ``"n"``: number of actuated channel
+     *      - ``"actuated"``: list of actuated channel identifiers.
+     *      - ``"start"``: millisecond counter before setting shift registers
+     *      - ``"end"``: millisecond counter after setting shift registers
+     */
+    const unsigned long start = microseconds();
+    {
+      Channels::packed_channels_t states;
+
+      if (channel_states.length != states.size()) {
+        return false;
+      }
+      std::copy(channel_states.data, channel_states.data +
+                channel_states.length, states.begin());
+      channels_.set_state_of_channels(states);
+    }
+    const unsigned long end = microseconds();
+
+    if (event_enabled(EVENT_CHANNELS_UPDATED)) {
+      // Stream `channels-updated` event packet.
+      UInt8Array result = get_buffer();
+      char * const data = reinterpret_cast<char *>(result.data);
+
+      result.length = sprintf(data, "{\"event\": \"channels-updated\", "
+                              "\"actuated\": [");
+
+      auto actuated_channels = channels_.actuated_channels();
+
+      // XXX LSB of chip 0 and port 0 is channel 0.
+      for (auto i = 0; i < actuated_channels.size(); i++) {
+        if (i > 0) {
+          result.length += sprintf(&data[result.length], ", ");
+        }
+        result.length += sprintf(&data[result.length], "%d",
+                                 actuated_channels[i]);
+      }
+
+      result.length += sprintf(&data[result.length], "], \"start\": %lu, "
+                               "\"end\": %lu, \"n\": %d}", start, end,
+                               actuated_channels.size());
+
+      {
+        PacketStream output;
+        output.start(Serial, result.length);
+        output.write(Serial, (char *)result.data, result.length);
+        output.end(Serial);
+      }
+    }
+    return true;
+  }
+
+  float benchmark_analog_read(uint8_t pin, uint32_t n_samples) {
+    return analog::benchmark_analog_read(pin, n_samples);
+  }
+
+  float benchmmark_u16_percentile_diff(uint8_t pin, uint16_t n_samples,
+                                       float low_percentile,
+                                       float high_percentile,
+                                       uint32_t n_repeats) {
+    return analog::benchmmark_u16_percentile_diff(pin, n_samples,
+                                                  low_percentile,
+                                                  high_percentile, n_repeats);
+  }
+
+  bool event_enabled(uint32_t event) {
+    return (state_._.event_mask & (event | EVENT_ENABLE)) == (event |
+                                                              EVENT_ENABLE);
+  }
+  void enable_event(uint32_t event) { state_._.event_mask |= event; }
+  bool disable_event(uint32_t event) {
+    if (state_._.event_mask & event) {
+      state_._.event_mask &= ~event;
+      return true;
+    }
+    return false;
+  }
+  bool disable_events() {
+    if (state_._.event_mask & EVENT_ENABLE) {
+      state_._.event_mask &= ~EVENT_ENABLE;
+      return true;
+    }
+    return false;
+  }
+  void enable_events() { state_._.event_mask |= EVENT_ENABLE; }
 };
 }  // namespace dropbot
 
