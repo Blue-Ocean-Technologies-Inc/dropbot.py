@@ -230,6 +230,8 @@ public:
   // Time of most recent capacitance measurement.
   uint32_t capacitance_timestamp_ms_;
 
+  uint8_t target_count_;
+
   Node() : BaseNode(),
            BaseNodeConfig<config_t>(dropbot_Config_fields),
            BaseNodeState<state_t>(dropbot_State_fields),
@@ -241,7 +243,7 @@ public:
            output_enable_input(*this, -1, DEFAULT_INPUT_DEBOUNCE_DELAY,
                                InputDebounce::PinInMode::PIM_EXT_PULL_UP_RES,
                                0),
-           capacitance_timestamp_ms_(0) {
+           capacitance_timestamp_ms_(0), target_count_(0) {
     pinMode(LED_BUILTIN, OUTPUT);
     dma_data_ = UInt8Array_init_default();
     output_enable_input.setup(OE_PIN);
@@ -796,6 +798,25 @@ public:
   uint16_t initialize_switching_boards();
 
   // # Callback methods
+
+  /**
+  * @brief Callback function called when `state_._.target_capacitance` has been
+  * changed.
+  *
+  * Reset the number of times the target capacitance has been exceeded, since
+  * the target capacitance has changed.
+  *
+  * \version X.X.X  Add function.
+  *
+  * @param target_capacitance
+  *
+  * @return
+  */
+  bool on_state_target_capacitance_changed(float target_capacitance) {
+    target_count_ = 0;
+    return true;
+  }
+
   bool on_state_frequency_changed(float frequency) {
     /* This method is triggered whenever a frequency is included in a state
      * update. */
@@ -921,6 +942,12 @@ public:
   *         arguments of a call to `sprintf` (bug introduced in version 1.51).
   *       - Set the capacitance update counter using the _millisecond_ counter
   *         instead of _microsecond_ counter.
+  *
+  * \version X.X.X
+  *     Require capacitance to exceed target capacitance for multiple
+  *     consecutive readings before triggering a `capacitance-exceeded` event.
+  *     The number of required consecutive readings is set by
+  *     `state_._.target_count`.
   */
   void loop() {
     unsigned long now = millis();
@@ -941,7 +968,13 @@ public:
         float value = capacitance(n_samples);
         now = microseconds();
 
-        if (value > state_._.target_capacitance) {
+        if (value >= state_._.target_capacitance) {
+          target_count_ += 1;
+        } else {
+          target_count_ = 0;
+        }
+
+        if (target_count_ >= state_._.target_count) {
           // Target capacitance has been met.
 
           // Stream "capacitance-updated" event to serial interface.
@@ -952,9 +985,10 @@ public:
                     "\"target\": %g, "  // Target capacitance value
                     "\"start\": %lu, \"end\": %lu, "  // start/end times in ms
                     "\"n_samples\": %lu, "  // # of analog samples
+                    "\"count\": %lu, "  // # of consecutive readings > target
                     "\"V_a\": %g}",  // Actuation voltage
                     value, state_._.target_capacitance, start, now, n_samples,
-                    _high_voltage);
+                    target_count_, _high_voltage);
 
           // Reset target capacitance.
           state_._.target_capacitance = 0;

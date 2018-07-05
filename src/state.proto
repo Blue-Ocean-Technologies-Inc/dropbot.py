@@ -17,5 +17,7 @@ message State {
   optional uint32 capacitance_update_interval_ms = 6 [default = 0];
   //: .. versionadded:: 1.43
   optional float target_capacitance = 7 [default = 0];
+  //: .. versionadded:: X.X.X
+  optional float target_count = 8 [default = 10];
 }
 
