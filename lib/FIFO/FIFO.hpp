@@ -107,11 +107,10 @@ class FIFO{
 	 *	@param	No Parameters.
 	 *	@return	Oldest Data
 	 */
-	operator int(void){
+	operator T(void){
 		return get();
 	}
-	
+
 };
 
 #endif
-
