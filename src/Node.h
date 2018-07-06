@@ -172,8 +172,6 @@ class Node :
   public BaseNodeSerialHandler,
 #endif  // #ifndef DISABLE_SERIAL
   public BaseNodeI2cHandler<base_node_rpc::i2c_handler_t> {
-private:
-  float _high_voltage;  // Cached high-voltage reading.
 public:
   typedef PacketParser<FixedPacket> parser_t;
 
@@ -250,7 +248,6 @@ public:
   Node() : BaseNode(),
            BaseNodeConfig<config_t>(dropbot_Config_fields),
            BaseNodeState<state_t>(dropbot_State_fields),
-           _high_voltage(0),
            adc_period_us_(0), adc_timestamp_us_(0), adc_tick_tock_(false),
            adc_count_(0), dma_adc_active_(false), dma_channel_done_(-1),
            last_dma_channel_done_(-1), adc_read_active_(false),
@@ -355,22 +352,15 @@ public:
   /**
   * @brief Measure high-side *root mean-squared (RMS)* voltage.
   *
-  * See [`A1/HV_FB`][1] in DropBot boost converter schematic:
-  *
-  *  - `R8`: 2 Mohms
-  *  - `R9`: 20 Kohms
-  *  - `AREF`: 3.3 V
-  *
-  * [1]: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/boost-converter-boost-converter.pdf
-  *
-  *
   * \version 1.51  Cache most recent RMS voltage as `_high_voltage`.
+  *
+  * \version X.X.X  Deprecate cached `_high_voltage`.  Most recent value is now
+  * cached as `analog::high_voltage_`.
   *
   * @return High-side RMS voltage.
   */
   float high_voltage() {
-    _high_voltage = analog::high_voltage();
-    return _high_voltage;
+    return analog::high_voltage();
   }
 
   UInt16Array analog_reads_simple(uint8_t pin, uint16_t n_samples) {
