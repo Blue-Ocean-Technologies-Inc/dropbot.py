@@ -130,3 +130,70 @@ def target_capacitance(self, channels, target_capacitance, timeout_s=1.5,
             event.cancel(None)
     else:
         raise RuntimeError('Timed out waiting for target capacitance')
+
+
+def execute_actuation(self, chip_info_, specific_capacitance, channels,
+                      duration_s=1.5, volume_threshold=None, **kwargs):
+    '''
+    High-level wrapper around threshold event to:
+
+     - Compute target capacitance based on electrode geometries, specific
+       capacitance, and volume threshold.
+     - Support case where no volume threshold is specified, i.e., simply delay
+       for specified duration.
+
+    Parameters
+    ----------
+    chip_info_ : dict
+        Chip information, as returned by :func:`dropbot.chip.chip_info`.
+    specific_capacitance : float
+        Specific capacitance, i.e., capacitance per unit area.
+    channels : `list`-like
+        Numbers of channels to actuate or electrode IDs (e.g., `"electrode001",
+        ...`).
+    duration_s : float
+        Time to wait for execution.
+
+    Returns
+    -------
+    `OrderedDict` or `None`
+        If a :data:`volume_threshold` was specified, return
+        ``capacitance-exceeded`` DropBot event message with the fields:
+
+            - ``start``: start timestamp.
+            - ``end``: end timestamp.
+            - ``timeout_s``: number of seconds to wait before retrying.
+            - ``retries``: number of retries before success.
+            - ``new_value``: capacitance reached.
+            - ``target``: target capacitance.
+            - ``V_a``: actuation voltage.
+
+        Otherwise, return `None`.
+
+    Raises
+    ------
+    RuntimeError
+        If target capacitance was not reached after maximum number of retries.
+    '''
+    if len(channels) < 1:
+        return None
+    elif isinstance(channels[0], types.IntType):
+        # Channels were specified.
+        electrodes = chip_info_['channel_electrodes'].loc[channels]
+    else:
+        # Assume electrode IDs (e.g., `"electrode001", ...`) were specified.
+        electrodes = channels
+        channels = chip_info_['electrode_channels'].loc[electrodes].astype(int)
+
+    area = chip_info_['electrode_shapes']['area'].loc[electrodes].sum()
+
+    if volume_threshold is not None and volume_threshold > 0:
+        target_capacitance_ = volume_threshold * specific_capacitance * area
+        return target_capacitance(self, channels, target_capacitance_,
+                                  timeout_s=duration_s, **kwargs)
+    else:
+        state_of_channels = np.zeros_like(self.state_of_channels, dtype=int)
+        state_of_channels[channels] = 1
+        self.state_of_channels = state_of_channels
+        time.sleep(duration_s)
+        return None
