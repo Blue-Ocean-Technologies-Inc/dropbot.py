@@ -10,6 +10,8 @@
 namespace dropbot {
 namespace analog {
 
+extern float high_voltage_;
+
 std::vector<uint16_t> analog_reads_simple(uint8_t pin, uint16_t n_samples);
 
 uint16_t u16_percentile_diff(uint8_t pin, uint16_t n_samples,
