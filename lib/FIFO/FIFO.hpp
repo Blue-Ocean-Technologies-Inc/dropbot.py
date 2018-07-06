@@ -2,36 +2,25 @@
 /**
  @file		FIFO.hpp
  @brief	 	Variable Length Ring Buffer
- 
+
  This library provides variable length ring buffering with software FIFO(First-in, First-out).
  This library overwrites when the buffer is full.
- 
+
  @author	T.Kawamura
  @version	2.1
  @date		2016-11-20	T.Kawamura	Written for AVR.
  @date		2017-03-28	T.Kawamura	Fork for mbed/C++.
  @date		2017-03-29	T.Kawamura	Add template.
 
- @see 
+ @see
  Copyright (C) 2016-2017 T.Kawamura.
  Released under the MIT license.
  http://opensource.org/licenses/mit-license.php
- 
+
 */
 
 #ifndef FIFO_H
 #define FIFO_H
-
-/**
-	 Disable all interuupts and save the status of interrupts.
-	 This macro is usable at ONLY Cortex-M Series. 
-*/
-#define DISABLE_INTERRUPTS uint32_t primask = __get_PRIMASK();	__disable_irq()
-/**
-	 Enable all interuupts when the status of interrupts is ENABLED.
-	 This macro is usable at ONLY Cortex-M Series. 
-*/
-#define RESTORE_INTERUUPTS if( !(primask & 1) )	__enable_irq()
 
 /**
 	@class	FIFO
@@ -45,7 +34,7 @@ class FIFO{
   volatile uint32_t getindex;	// Index for Getting Data
   volatile uint32_t putindex;	// Index for Putting Data
   volatile uint32_t count;	// Size of Data
-	
+
  public:
 	/**
 		@brief	Create a new FIFO.
@@ -86,9 +75,9 @@ class FIFO{
 	  @param	No Parameters.
 	  @retval	All Data
 	  @retval	0	Error.
-	*/	
+	*/
 	virtual T peek(void);
-	
+
 	/**
   @brief	Put byte to the buffer
   @param	No Parameters.
