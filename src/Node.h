@@ -667,7 +667,7 @@ public:
         const unsigned long n_samples = config_._.capacitance_n_samples;
         unsigned long start = microseconds();
         float value = capacitance(n_samples);
-        now = microseconds();
+        uint32_t end = microseconds();
 
         if (value >= state_._.target_capacitance) {
           target_count_ += 1;
@@ -688,8 +688,8 @@ public:
                     "\"n_samples\": %lu, "  // # of analog samples
                     "\"count\": %lu, "  // # of consecutive readings > target
                     "\"V_a\": %g}",  // Actuation voltage
-                    value, state_._.target_capacitance, start, now, n_samples,
-                    target_count_, _high_voltage);
+                    value, state_._.target_capacitance, start, end, n_samples,
+                    target_count_, analog::high_voltage_);
 
           // Reset target capacitance.
           state_._.target_capacitance = 0;
@@ -718,7 +718,7 @@ public:
         unsigned long start = microseconds();
         const unsigned long n_samples = config_._.capacitance_n_samples;
         float value = capacitance(n_samples);
-        now = microseconds();
+        uint32_t end = microseconds();
 
         // Stream "capacitance-updated" event to serial interface.
         sprintf((char *)result.data,
@@ -727,7 +727,7 @@ public:
                 "\"start\": %lu, \"end\": %lu, "  // start/end times in ms
                 "\"n_samples\": %lu, "  // # of analog samples taken
                 "\"V_a\": %g}",  // Actuation voltage
-                value, start, now, n_samples, _high_voltage);
+                value, start, end, n_samples, analog::high_voltage_);
         result.length = strlen((char *)result.data);
 
         {
