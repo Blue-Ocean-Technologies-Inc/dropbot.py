@@ -266,3 +266,44 @@ def get_channel_neighbours(svg_source,
                           .loc[[i for c in range(120)
                                 for i in zip(it.cycle([c]), directions)]])
     return channel_neighbours
+
+
+def chip_info(svg_source):
+    '''
+    Parameters
+    ----------
+    svg_source : `str` or file-like or `pandas.DataFrame`
+        File path, URI, or file-like object for SVG device file.
+
+        If specified as ``pandas.DataFrame``, assume argument is in format
+        returned by :func:`svg_model.svg_shapes_to_df`.
+
+    Returns
+    -------
+    `dict`
+        Chip info with fields:
+
+        - ``electrode_shapes``: ``x``, ``y``, ``width``, ``height``, and
+          ``area`` for each electrode (`pandas.DataFrame`).
+        - ``electrode_channels``: mapping from channel number to electrode ID
+          (`pandas.Series`).
+        - ``channel_electrodes``: mapping from electrode ID to channel number
+          (`pandas.Series`).
+
+
+    .. versionadded:: X.X.X
+    '''
+    if not isinstance(svg_source, pd.DataFrame):
+        df_shapes = svg_model.svg_shapes_to_df(svg_source)
+    else:
+        df_shapes = svg_source
+
+    electrode_shapes = svg_model.data_frame.get_shape_infos(df_shapes, 'id')
+    electrode_channels = (df_shapes.drop_duplicates(['id', 'data-channels'])
+                          .set_index('id')['data-channels'].map(int))
+    channel_electrodes = pd.Series(electrode_channels.index,
+                                   index=electrode_channels.values)
+
+    return {'electrode_shapes': electrode_shapes,
+            'electrode_channels': electrode_channels,
+            'channel_electrodes': channel_electrodes}
