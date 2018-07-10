@@ -21,6 +21,13 @@ del get_versions
 
 logger = logging.getLogger(__name__)
 
+# Event mask flags
+EVENT_ACTUATED_CHANNEL_CAPACITANCES = (1 << 31)
+EVENT_CHANNELS_UPDATED              = (1 << 30)
+EVENT_SHORTS_DETECTED               = (1 << 28)
+EVENT_DROPS_DETECTED                = (1 << 27)
+EVENT_ENABLE                        = (1 << 0)
+
 
 class I2cAddressNotSet(Exception):
     pass
