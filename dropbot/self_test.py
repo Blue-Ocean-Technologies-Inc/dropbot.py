@@ -1,10 +1,13 @@
 from __future__ import absolute_import
 import datetime as dt
 import logging
+import pkgutil
 import subprocess as sp
 import tempfile
 
+import bs4
 import jinja2
+import json_tricks
 import matplotlib as mpl
 import matplotlib.pyplot
 import matplotlib.ticker
@@ -641,6 +644,12 @@ def generate_report(results, output_path=None, force=False):
         :data:`results` dictionary contained data existed for **all tests** in
         :data:`ALL_TESTS` .
 
+    .. versionchanged:: X.X.X
+        If output extension is ``.html``, output self-contained HTML report
+        with ``<script id="results">...</script>`` tag containing JSON report
+        results.
+
+
     Generate summary report of :func:`self_test` results either as Markdown or
     a Word document.
 
@@ -654,6 +663,10 @@ def generate_report(results, output_path=None, force=False):
         If not specified, a text-only Markdown report is generated.
 
         If extension of output path is ``docx``, write output as Word document.
+
+        If extension of output path is ``html``, write output as self-contained
+        HTML report with ``<script id="results">...</script>`` tag containing
+        JSON report results.
 
         Otherwise, output path is interpreted as a directory path and a
         Markdown file is written to the output directory, along with ``.png``
@@ -681,6 +694,8 @@ def generate_report(results, output_path=None, force=False):
                 raise IOError('Output directory already exists and is '
                               'non-empty.  Use `force` to overwrite.')
             elif output_path.ext.lower() == '.docx':
+                raise IOError('Output path exists.  Use `force` to overwrite.')
+            elif output_path.ext.lower() == '.html':
                 raise IOError('Output path exists.  Use `force` to overwrite.')
             elif output_path.isfile():
                 raise IOError('Output path exists and is a file.  Output path '
@@ -713,7 +728,7 @@ def generate_report(results, output_path=None, force=False):
         # No output path was specified.  Return text-only Markdown report.
         return md_report
 
-    if output_path.ext.lower() == '.docx':
+    if output_path.ext.lower() in ('.docx', '.html'):
         output_path.parent.makedirs_p()
         parent_dir = ph.path(tempfile.mkdtemp(prefix='dropbot-self-test'))
     else:
@@ -742,6 +757,26 @@ def generate_report(results, output_path=None, force=False):
         if output_path.ext.lower() == '.docx':
             sp.check_call(['pandoc', markdown_path, '-o', output_path],
                           shell=True)
+        elif output_path.ext.lower() == '.html':
+            # Write template to file for use with `pandoc`.
+            template = pkgutil.get_data('dropbot', 'static/templates/'
+                                        'SelfTestTemplate.html5')
+            template_path = parent_dir.joinpath('SelfTestTemplate.html5')
+            template_path.write_text(template)
+            # Use `pandoc` to create self-contained `.html` report.
+            sp.check_call(['pandoc', markdown_path, '-o', output_path,
+                           '--standalone', '--self-contained', '--template',
+                           template_path], shell=True, stderr=sp.PIPE)
+            with output_path.open('r') as input_:
+                data = input_.read()
+
+            # Inject JSON result data into HTML report.
+            soup = bs4.BeautifulSoup(data, 'lxml')
+            results_script = soup.select_one('script#results')
+            json_data = json_tricks.dumps(results)
+            results_script.string = bs4.NavigableString(json_data)
+            with output_path.open('w') as output:
+                output.write(unicode(soup).encode('utf8'))
     finally:
-        if output_path.ext.lower() == '.docx':
+        if output_path.ext.lower() in ('.docx', '.html'):
             parent_dir.rmtree()
