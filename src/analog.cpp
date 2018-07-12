@@ -64,7 +64,7 @@ uint16_t u16_percentile_diff(uint8_t pin, uint16_t n_samples,
 * [1]: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/boost-converter-boost-converter.pdf
 *
 *
-* \version X.X.X  Cache most recent RMS voltage as `high_voltage_`.
+* \version 1.53  Cache most recent RMS voltage as `high_voltage_`.
 *
 * @return High-side RMS voltage.
 */

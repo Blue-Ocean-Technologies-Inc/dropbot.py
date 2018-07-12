@@ -240,7 +240,7 @@ public:
   uint32_t capacitance_timestamp_ms_;
 
   uint8_t target_count_;
-  //: .. versionadded:: X.X.X
+  //: .. versionadded:: 1.53
   //
   // Time of most recent drops detection.
   uint32_t drops_timestamp_ms_;
@@ -354,7 +354,7 @@ public:
   *
   * \version 1.51  Cache most recent RMS voltage as `_high_voltage`.
   *
-  * \version X.X.X  Deprecate cached `_high_voltage`.  Most recent value is now
+  * \version 1.53  Deprecate cached `_high_voltage`.  Most recent value is now
   * cached as `analog::high_voltage_`.
   *
   * @return High-side RMS voltage.
@@ -445,7 +445,7 @@ public:
   */
   UInt8Array detect_shorts(uint8_t delay_ms) {
     /*
-     * .. versionchanged:: X.X.X
+     * .. versionchanged:: 1.53
      *     Send ``shorts-detected`` event stream packet containing:
      *      - ``"channels"``: list of identifiers of shorted channels.
      */
@@ -530,7 +530,7 @@ public:
   * Reset the number of times the target capacitance has been exceeded, since
   * the target capacitance has changed.
   *
-  * \version X.X.X  Add function.
+  * \version 1.53  Add function.
   *
   * @param target_capacitance
   *
@@ -644,7 +644,7 @@ public:
   *       - Set the capacitance update counter using the _millisecond_ counter
   *         instead of _microsecond_ counter.
   *
-  * \version X.X.X
+  * \version 1.53
   *     Require capacitance to exceed target capacitance for multiple
   *     consecutive readings before triggering a `capacitance-exceeded` event.
   *     The number of required consecutive readings is set by
@@ -1705,7 +1705,7 @@ public:
 
   bool set_state_of_channels(UInt8Array channel_states) {
     /*
-     * .. versionchanged:: X.X.X
+     * .. versionchanged:: 1.53
      *     Send ``channels-updated`` event stream packet containing:
      *      - ``"n"``: number of actuated channel
      *      - ``"actuated"``: list of actuated channel identifiers.
