@@ -3,13 +3,15 @@
 
 namespace dropbot {
 
+/**
+ * @brief Called when output is **enabled**.
+ *
+ * \version 1.37.1  Migrate to `OutputEnableDebounce.cpp` and toggle HV output
+ * to address issue #23.
+ *
+ * \version X.X.X  Call connected callbacks.
+ */
 void OutputEnableDebounce::pressed() {
-    /* .. versionchanged:: 1.37.1
-     *     Migrate to ``OutputEnableDebounce.cpp``.
-     *
-     *     Toggle HV output to address issue #23.
-     */
-
     // The **output enable** pin has been pulled LOW, i.e., a DMF chip has been
     // **inserted**.
     PacketStream output;
@@ -35,13 +37,20 @@ void OutputEnableDebounce::pressed() {
         parent_.on_state_hv_output_enabled_changed(false);
         parent_.on_state_hv_output_enabled_changed(true);
     }
+    for (auto callback : callbacks_) {
+        // Call callback indicating chip is inserted.
+        callback(true);
+    }
 }
 
+/**
+ * @brief Called when output is **disabled**.
+ *
+ * \version 1.37.1  Migrate to `OutputEnableDebounce.cpp`.
+ *
+ * \version X.X.X  Call connected callbacks.
+ */
 void OutputEnableDebounce::released() {
-    /* .. versionchanged:: 1.37.1
-     *     Migrate to ``OutputEnableDebounce.cpp``.
-     */
-
     // The **output enable** pin has been pulled HIGH, i.e., a DMF chip has been
     // **removed**.
     PacketStream output;
@@ -49,6 +58,10 @@ void OutputEnableDebounce::released() {
     output.start(Serial, sizeof(data) - 1);
     output.write(Serial, data, sizeof(data) - 1);
     output.end(Serial);
+    for (auto callback : callbacks_) {
+        // Call callback indicating chip has been removed.
+        callback(false);
+    }
 }
 
 }

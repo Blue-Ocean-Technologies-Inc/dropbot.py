@@ -2,6 +2,7 @@
 #define ___NODE__H___
 
 #include <array>
+#include <functional>
 #include <math.h>
 #include <numeric>
 #include <stdint.h>
@@ -155,8 +156,12 @@ public:
                        unsigned long pressedDuration=0)
     : InputDebounce(pinIn, debDelay, pinInMode, pressedDuration),
       parent_(parent) {}
+  typedef std::function<void(bool)> callback_t;
+  void connect(callback_t callback) { callbacks_.push_back(callback); }
+  void clear() { callbacks_.clear(); }
   virtual ~OutputEnableDebounce() {}
 protected:
+  std::vector<callback_t> callbacks_;
   virtual void pressed();
   virtual void released();
 private:
@@ -263,6 +268,7 @@ public:
   * \version X.X.X
   *     Send `output_enabled`/`output_disabled` serial event when change in
   *     chip status occurs and remains stable for 1 second.
+  *     Run shorts detection whenever a chip is inserted.
   */
   Node() : BaseNode(),
            BaseNodeConfig<config_t>(dropbot_Config_fields),
@@ -280,6 +286,13 @@ public:
     pinMode(LED_BUILTIN, OUTPUT);
     dma_data_ = UInt8Array_init_default();
     clear_neighbours();
+
+    // Run shorts detection whenever a chip is inserted.
+    output_enable_input.connect([&](bool chip_inserted) {
+      if (chip_inserted) {
+        detect_shorts(5);
+      }
+    });
   }
 
   UInt8Array get_buffer() { return UInt8Array_init(sizeof(buffer_), buffer_); }
