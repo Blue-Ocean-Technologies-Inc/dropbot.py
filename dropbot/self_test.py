@@ -773,7 +773,11 @@ def generate_report(results, output_path=None, force=False):
             # Inject JSON result data into HTML report.
             soup = bs4.BeautifulSoup(data, 'lxml')
             results_script = soup.select_one('script#results')
-            json_data = json_tricks.dumps(results)
+            # Format JSON with indents.  Works around [`json_tricks`
+            # issue][i51].
+            #
+            # [i51]: https://github.com/mverleg/pyjson_tricks/issues/51
+            json_data = json_tricks.dumps(results, indent=4)
             results_script.string = bs4.NavigableString(json_data)
             with output_path.open('w') as output:
                 output.write(unicode(soup).encode('utf8'))
