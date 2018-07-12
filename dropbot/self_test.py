@@ -644,7 +644,7 @@ def generate_report(results, output_path=None, force=False):
         :data:`results` dictionary contained data existed for **all tests** in
         :data:`ALL_TESTS` .
 
-    .. versionchanged:: X.X.X
+    .. versionchanged:: 1.54
         If output extension is ``.html``, output self-contained HTML report
         with ``<script id="results">...</script>`` tag containing JSON report
         results.
