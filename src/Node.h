@@ -1829,6 +1829,21 @@ public:
    * \version added: X.X.X
    */
   void disable_all_channels() { channels_.disable_all_channels(); }
+  /**
+  * @brief Disable all channels and disable high voltage.
+  *
+  * Emergency shutdown of all high-voltage actuation.  Useful, e.g., when
+  * current limit has been exceeded.
+  *
+  * \See high_side_current_exceeded_
+  */
+  void halt() {
+    // Disable high voltage.
+    state_._.hv_output_enabled = false;
+    on_state_hv_output_enabled_changed(false);
+    // Turn off all channels.
+    channels_.disable_all_channels();
+  }
 };
 }  // namespace dropbot
 
