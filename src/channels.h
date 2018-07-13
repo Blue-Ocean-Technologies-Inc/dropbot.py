@@ -134,6 +134,23 @@ public:
     _update_channels();
   }
 
+  /**
+   * @brief Turn off all channels.
+   */
+  void turn_off_all_channels() {
+    std::fill(state_of_channels_.begin(), state_of_channels_.end(), 0);
+    _update_channels();
+  }
+
+  /**
+   * @brief Disable all channels.
+   */
+  void disable_all_channels() {
+    std::fill(disabled_channels_mask_.begin(), disabled_channels_mask_.end(),
+              0xff);
+    _update_channels();
+  }
+
   const auto &disabled_channels_mask() { return disabled_channels_mask_; }
 
   template <typename T>
