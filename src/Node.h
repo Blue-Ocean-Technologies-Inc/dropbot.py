@@ -268,6 +268,14 @@ public:
                             float /* actuation voltage */)> >
       capacitance_measured_;
   /**
+  * @brief High-side current exceeded signal.
+  *
+  * Sent when output current measurement exceeds specified threshold.
+  *
+  * \version added: X.X.X
+  */
+  Signal<std::function<void(float)> > high_side_current_exceeded_;
+  /**
   * @brief Time-based signal callback handler.
   *
   * Current time is updated on every `loop()` iteration.
@@ -421,6 +429,40 @@ public:
         }
 
         capacitance_timestamp_ms_ = millis();
+      }
+    });
+
+    // XXX Connect periodic callback to check output current.
+    signal_timer_ms_.connect([&] (auto now) {
+      auto output_current = analog::measure_output_current(10);
+
+      if (output_current > state_._.output_current_limit) {
+        high_side_current_exceeded_.send(output_current);
+      }
+    }, 1000);  // Check current every 1 second
+
+    // XXX Halt (i.e., disable all channels and turn off high-voltage) when
+    // current threshold is exceeded.
+    high_side_current_exceeded_.connect([&] (float current) { halt(); });
+
+    // Publish `halted` event when current threshold is exceeded.
+    high_side_current_exceeded_.connect([&] (float current) {
+      UInt8Array buffer = this->get_buffer();
+      buffer.length = 0;
+
+      buffer.length += sprintf((char *)&buffer.data[buffer.length],
+                              "{\"event\": \"halted\", \"wall_time\": %.6f, "
+                               "\"error\": {\"name\": "
+                               "\"output-current-exceeded\", "
+                               "\"output_current\": %g}}", time::wall_time(),
+                               current);
+
+      {
+        PacketStream output_packet;
+        output_packet.start(Serial, buffer.length);
+        output_packet.write(Serial, (char *)buffer.data,
+                            buffer.length);
+        output_packet.end(Serial);
       }
     });
   }
