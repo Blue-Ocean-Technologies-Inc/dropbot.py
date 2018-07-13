@@ -117,6 +117,35 @@ float measure_aref() {
 }
 
 
+uint16_t read_max(uint8_t pin, uint32_t n) {
+  uint16_t max_value = 0;
+
+  for (uint32_t i = 0; i < n; i++) {
+    const uint16_t value = analogRead(pin);
+    if (value > max_value) { max_value = value; }
+  }
+  return max_value;
+}
+
+
+float measure_output_current(uint32_t n) {
+  // Normalize 16-bit resolution to range `[0..1]` and multiply by 3.3 V
+  // reference.
+  const float voltage = static_cast<float>(read_max(2, n)) / (1L << 16) * 3.3;
+  // TODO Explain this calculation.
+  return (voltage / (51e3 / 5.1e3 * 1));
+}
+
+
+float measure_input_current(uint32_t n) {
+  // Normalize 16-bit resolution to range `[0..1]` and multiply by 3.3 V
+  // reference.
+  const float voltage = static_cast<float>(read_max(3, n)) / (1L << 16) * 3.3;
+  // TODO Explain this calculation.
+  return voltage / 0.03;
+}
+
+
 float benchmark_analog_read(uint8_t pin, uint32_t n_samples) {
   std::vector<uint16_t> values(1);
   const unsigned long start = micros();
