@@ -258,6 +258,16 @@ public:
   */
   Signal<std::function<void(bool /* chip inserted */)> > chip_status_changed_;
   /**
+  * @brief Capacitance measured signal.
+  *
+  * Sent when a capacitance measurement has been read.
+  *
+  * \version added: 1.59
+  */
+  Signal<std::function<void(float /* capacitance */,
+                            float /* actuation voltage */)> >
+      capacitance_measured_;
+  /**
   * @brief Time-based signal callback handler.
   *
   * Current time is updated on every `loop()` iteration.
@@ -275,6 +285,11 @@ public:
   *     Connect callback to `chip_status_changed_` event to send
   *     `output_enabled`/`output_disabled` serial events.
   *     Run shorts detection whenever a chip is inserted.
+  *
+  * \version 1.59
+  *     Measure capacitance every 25 ms and send `capacitance_measured_`
+  *     signal.  Connect to `capacitance_measured_` to evaluate capacitance
+  *     update events.
   */
   Node() : BaseNode(),
            BaseNodeConfig<config_t>(dropbot_Config_fields),
@@ -317,6 +332,95 @@ public:
     chip_status_changed_.connect([&](bool chip_inserted) {
       if (chip_inserted) {
         detect_shorts(5);
+      }
+    });
+
+    // Measure capacitance every 25 ms and send `capacitance_measured_` signal.
+    signal_timer_ms_.connect([&] (auto now) {
+      if (state_._.hv_output_enabled && state_._.hv_output_selected) {
+        // High-voltage output is enabled and selected.
+        float value = this->capacitance(config_._.capacitance_n_samples);
+        capacitance_measured_.send(value, analog::high_voltage_);
+      }
+    }, 25);
+
+    capacitance_measured_.connect([&] (float capacitance,
+                                        float actuation_voltage) {
+      // Send event if target capacitance has been set and exceeded.
+      if (state_._.target_capacitance > 0) {
+        if (capacitance >= state_._.target_capacitance) {
+          target_count_ += 1;
+        } else {
+          target_count_ = 0;
+          return;
+        }
+
+        UInt8Array result = get_buffer();
+        result.length = 0;
+
+        uint32_t time_us = microseconds();
+
+        if (target_count_ >= state_._.target_count) {
+          // Target capacitance has been met.
+
+          // Stream "capacitance-updated" event to serial interface.
+          result.length =
+            sprintf((char *)result.data,
+                    "{\"event\": \"capacitance-exceeded\", "
+                    "\"new_value\": %g, "  // Capacitance value
+                    "\"target\": %g, "  // Target capacitance value
+                    "\"time_us\": %lu, "  // end times in us
+                    "\"n_samples\": %lu, "  // # of analog samples
+                    "\"count\": %lu, "  // # of consecutive readings > target
+                    "\"V_a\": %g}",  // Actuation voltage
+                    capacitance, state_._.target_capacitance, time_us,
+                    config_._.capacitance_n_samples, target_count_,
+                    actuation_voltage);
+
+          // Reset target capacitance.
+          state_._.target_capacitance = 0;
+
+          {
+            PacketStream output;
+            output.start(Serial, result.length);
+            output.write(Serial, (char *)result.data, result.length);
+            output.end(Serial);
+          }
+        }
+      }
+    });
+
+    capacitance_measured_.connect([&] (float capacitance,
+                                       float actuation_voltage) {
+      unsigned long now = millis();
+      // Send periodic capacitance value update events.
+      if ((state_._.capacitance_update_interval_ms > 0) &&
+          (state_._.capacitance_update_interval_ms < now -
+           capacitance_timestamp_ms_)) {
+        UInt8Array result = get_buffer();
+        result.length = 0;
+
+        uint32_t time_us = microseconds();
+
+        // Stream "capacitance-updated" event to serial interface.
+        sprintf((char *)result.data,
+                "{\"event\": \"capacitance-updated\", "
+                "\"new_value\": %g, "  // Capacitance value
+                "\"time_us\": %lu, "  // end times in us
+                "\"n_samples\": %lu, "  // # of analog samples taken
+                "\"V_a\": %g}",  // Actuation voltage
+                capacitance, time_us, config_._.capacitance_n_samples,
+                actuation_voltage);
+        result.length = strlen((char *)result.data);
+
+        {
+          PacketStream output;
+          output.start(Serial, result.length);
+          output.write(Serial, (char *)result.data, result.length);
+          output.end(Serial);
+        }
+
+        capacitance_timestamp_ms_ = millis();
       }
     });
   }
@@ -717,92 +821,8 @@ public:
     // poll button state
     output_enable_input.process(now);
 
+    // Update signal timer counter.
     signal_timer_ms_.update(now);
-
-    if (state_._.hv_output_enabled && state_._.hv_output_selected) {
-      // High-voltage output is enabled and selected.
-
-      // Send event if target capacitance has been set and exceeded.
-      if (state_._.target_capacitance > 0) {
-        UInt8Array result = get_buffer();
-        result.length = 0;
-
-        const unsigned long n_samples = config_._.capacitance_n_samples;
-        unsigned long start = microseconds();
-        float value = capacitance(n_samples);
-        uint32_t end = microseconds();
-
-        if (value >= state_._.target_capacitance) {
-          target_count_ += 1;
-        } else {
-          target_count_ = 0;
-        }
-
-        if (target_count_ >= state_._.target_count) {
-          // Target capacitance has been met.
-
-          // Stream "capacitance-updated" event to serial interface.
-          result.length =
-            sprintf((char *)result.data,
-                    "{\"event\": \"capacitance-exceeded\", "
-                    "\"new_value\": %g, "  // Capacitance value
-                    "\"target\": %g, "  // Target capacitance value
-                    "\"start\": %lu, \"end\": %lu, "  // start/end times in ms
-                    "\"n_samples\": %lu, "  // # of analog samples
-                    "\"count\": %lu, "  // # of consecutive readings > target
-                    "\"V_a\": %g}",  // Actuation voltage
-                    value, state_._.target_capacitance, start, end, n_samples,
-                    target_count_, analog::high_voltage_);
-
-          // Reset target capacitance.
-          state_._.target_capacitance = 0;
-
-          {
-            PacketStream output;
-            output.start(Serial, result.length);
-            output.write(Serial, (char *)result.data, result.length);
-            output.end(Serial);
-          }
-
-          // Reset periodic capacitance timestamp since there is no need to
-          // send `capacitance-updated` event since `capacitance-exceeded`
-          // event contains latest capacitance value.
-          capacitance_timestamp_ms_ = millis();
-        }
-      }
-
-      // Send periodic capacitance value update events.
-      if ((state_._.capacitance_update_interval_ms > 0) &&
-          (state_._.capacitance_update_interval_ms < now -
-           capacitance_timestamp_ms_)) {
-        UInt8Array result = get_buffer();
-        result.length = 0;
-
-        unsigned long start = microseconds();
-        const unsigned long n_samples = config_._.capacitance_n_samples;
-        float value = capacitance(n_samples);
-        uint32_t end = microseconds();
-
-        // Stream "capacitance-updated" event to serial interface.
-        sprintf((char *)result.data,
-                "{\"event\": \"capacitance-updated\", "
-                "\"new_value\": %g, "  // Capacitance value
-                "\"start\": %lu, \"end\": %lu, "  // start/end times in ms
-                "\"n_samples\": %lu, "  // # of analog samples taken
-                "\"V_a\": %g}",  // Actuation voltage
-                value, start, end, n_samples, analog::high_voltage_);
-        result.length = strlen((char *)result.data);
-
-        {
-          PacketStream output;
-          output.start(Serial, result.length);
-          output.write(Serial, (char *)result.data, result.length);
-          output.end(Serial);
-        }
-
-        capacitance_timestamp_ms_ = millis();
-      }
-    }
 
     fast_analog_.update();
     if (watchdog_disable_request_) {
