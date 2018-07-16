@@ -25,4 +25,5 @@ message State {
   optional uint32 drops_update_interval_ms = 10 [default = 0];
   //: .. versionadded:: X.X.X
   optional float output_current_limit = 11 [default = 0.025];
+  optional float chip_load_range_margin = 12 [default = 0.05];
 }
