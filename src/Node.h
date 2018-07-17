@@ -48,6 +48,7 @@
 #include "channels.h"
 #include "drops.h"
 #include "format.h"
+#include "Time.h"
 
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
 #define CPU_RESTART_VAL 0x5FA0004
@@ -1791,6 +1792,27 @@ public:
     return false;
   }
   void enable_events() { state_._.event_mask |= EVENT_ENABLE; }
+  /**
+  * @brief Synchronize specified timestamp to current milliseconds counter.
+  *
+  * @param wall_time  Unix timestamp, i.e., seconds since the epoch; January 1,
+  * 1970 00:00:00.
+  *
+  * @return  Milliseconds count synced against.
+  *
+  * \See wall_time()
+  */
+  uint32_t sync_time(double wall_time) { return time::sync_time(wall_time); }
+  /**
+  * @brief Return last synchronized time plus the number of seconds since time
+  * was synced.
+  *
+  * @return  Number of seconds since time was last synchronized plus the
+  * synchronized time.
+  *
+  * \See sync_time()
+  */
+  double wall_time() { return time::wall_time(); }
 };
 }  // namespace dropbot
 
