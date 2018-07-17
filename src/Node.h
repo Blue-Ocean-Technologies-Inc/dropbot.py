@@ -1817,6 +1817,18 @@ public:
   * \Version added: 1.55
   */
   double wall_time() { return time::wall_time(); }
+  /**
+   * @brief Turn off all channels.
+   *
+   * \version added: X.X.X
+   */
+  void turn_off_all_channels() { channels_.turn_off_all_channels(); }
+  /**
+   * @brief Disable all channels.
+   *
+   * \version added: X.X.X
+   */
+  void disable_all_channels() { channels_.disable_all_channels(); }
 };
 }  // namespace dropbot
 
