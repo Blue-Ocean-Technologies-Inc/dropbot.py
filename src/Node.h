@@ -1801,6 +1801,8 @@ public:
   * @return  Milliseconds count synced against.
   *
   * \See wall_time()
+  *
+  * \Version added: 1.55
   */
   uint32_t sync_time(double wall_time) { return time::sync_time(wall_time); }
   /**
@@ -1811,6 +1813,8 @@ public:
   * synchronized time.
   *
   * \See sync_time()
+  *
+  * \Version added: 1.55
   */
   double wall_time() { return time::wall_time(); }
 };

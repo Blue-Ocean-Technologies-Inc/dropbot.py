@@ -72,7 +72,7 @@ requirements:
     # ..versionchanged:: 1.40
     # ..versionchanged:: 1.40.3
     # ..versionchanged:: 1.41
-    # ..versionchanged:: X.X.X
+    # ..versionchanged:: 1.55
     - base-node-rpc >=0.49
     - future
     #: ..versionadded:: 1.49

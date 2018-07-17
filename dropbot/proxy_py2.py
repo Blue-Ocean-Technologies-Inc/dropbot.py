@@ -101,7 +101,7 @@ try:
             .. versionchanged:: 1.34.1
                 Add message to :class:`NoPower` exception.
 
-            .. versionchanged:: X.X.X
+            .. versionchanged:: 1.55
                 Synchronize device millisecond counter to UTC time upon making
                 a connection (and on any subsequent *reconnection*).
 
@@ -175,7 +175,7 @@ try:
 
         def _connect(self, *args, **kwargs):
             '''
-            .. versionadded:: X.X.X
+            .. versionadded:: 1.55
                 Send ``connected`` event each time a connection has been
                 established. Note that the first ``connected`` event is sent
                 before any receivers have a chance to connect to the signal,
@@ -190,7 +190,7 @@ try:
             Synchronize device millisecond counter to UTC time.
 
 
-            .. versionadded:: X.X.X
+            .. versionadded:: 1.55
             '''
             now = dt.datetime.utcnow()
             utc_timestamp = (calendar.timegm(now.utctimetuple()) +
@@ -203,7 +203,7 @@ try:
             Device UTC wall-clock time.
 
 
-            .. versionadded:: X.X.X
+            .. versionadded:: 1.55
             '''
             wall_time = super(ProxyMixin, self).wall_time()
             return dt.datetime.utcfromtimestamp(wall_time)

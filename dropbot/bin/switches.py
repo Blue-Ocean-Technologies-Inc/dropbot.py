@@ -1,6 +1,6 @@
 # coding: utf-8
 '''
-.. versionadded:: X.X.X
+.. versionadded:: 1.49
 '''
 from __future__ import (absolute_import, print_function, division,
                         unicode_literals)
