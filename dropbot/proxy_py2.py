@@ -103,7 +103,7 @@ try:
 
             .. versionchanged:: X.X.X
                 Synchronize device millisecond counter to UTC time upon making
-                a connection.
+                a connection (and on any subsequent *reconnection*).
 
 
             Parameters
@@ -160,12 +160,30 @@ try:
                     self.initialize_switching_boards()
                 elif I2cAddressNotSet not in ignore:
                     raise I2cAddressNotSet()
-                # Synchronize device millisecond counter to UTC time.
-                self.sync_time()
+
+                # Synchronize device millisecond counter to UTC time upon
+                # connection.
+                self.signals.signal('connected').connect(lambda *args:
+                                                         self.sync_time(),
+                                                         weak=False)
+
+                self.signals.signal('connected').send({'event': 'connected'})
             except Exception:
                 logger.debug('Error connecting to device.', exc_info=True)
                 self.terminate()
                 raise
+
+        def _connect(self, *args, **kwargs):
+            '''
+            .. versionadded:: X.X.X
+                Send ``connected`` event each time a connection has been
+                established. Note that the first ``connected`` event is sent
+                before any receivers have a chance to connect to the signal,
+                but subsequent restored connection events after connecting to
+                the ``connected`` signal will be received.
+            '''
+            super(ProxyMixin, self)._connect(*args, **kwargs)
+            self.signals.signal('connected').send({'event': 'connected'})
 
         def sync_time(self):
             '''
