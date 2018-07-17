@@ -1,4 +1,6 @@
 from __future__ import absolute_import
+import calendar
+import datetime as dt
 import logging
 import math
 import time
@@ -99,6 +101,11 @@ try:
             .. versionchanged:: 1.34.1
                 Add message to :class:`NoPower` exception.
 
+            .. versionchanged:: X.X.X
+                Synchronize device millisecond counter to UTC time upon making
+                a connection.
+
+
             Parameters
             ----------
             ignore : bool or list, optional
@@ -153,10 +160,35 @@ try:
                     self.initialize_switching_boards()
                 elif I2cAddressNotSet not in ignore:
                     raise I2cAddressNotSet()
+                # Synchronize device millisecond counter to UTC time.
+                self.sync_time()
             except Exception:
                 logger.debug('Error connecting to device.', exc_info=True)
                 self.terminate()
                 raise
+
+        def sync_time(self):
+            '''
+            Synchronize device millisecond counter to UTC time.
+
+
+            .. versionadded:: X.X.X
+            '''
+            now = dt.datetime.utcnow()
+            utc_timestamp = (calendar.timegm(now.utctimetuple()) +
+                             now.microsecond * 1e-6)
+            super(ProxyMixin, self).sync_time(utc_timestamp)
+
+        @property
+        def wall_time(self):
+            '''
+            Device UTC wall-clock time.
+
+
+            .. versionadded:: X.X.X
+            '''
+            wall_time = super(ProxyMixin, self).wall_time()
+            return dt.datetime.utcfromtimestamp(wall_time)
 
         @property
         def signals(self):
