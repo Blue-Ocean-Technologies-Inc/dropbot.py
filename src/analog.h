@@ -41,6 +41,7 @@ uint16_t read_max(uint8_t pin, uint32_t n);
  * @return  Maximum current reading.
  */
 float measure_output_current(uint32_t n=1);
+float measure_output_current_rms(uint32_t n=10);
 
 /**
  * @brief Measure input current.

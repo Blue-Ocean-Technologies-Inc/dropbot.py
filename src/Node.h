@@ -434,8 +434,7 @@ public:
 
     // XXX Connect periodic callback to check output current.
     signal_timer_ms_.connect([&] (auto now) {
-      auto output_current = analog::measure_output_current(10);
-
+      const float output_current = analog::measure_output_current_rms(20);
       if (output_current > state_._.output_current_limit) {
         high_side_current_exceeded_.send(output_current);
       }

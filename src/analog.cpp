@@ -1,3 +1,4 @@
+#include <math.h>
 #include <Arduino.h>
 
 #include "analog.h"
@@ -128,10 +129,30 @@ uint16_t read_max(uint8_t pin, uint32_t n) {
 }
 
 
+uint16_t read_rms(uint8_t pin, uint32_t n) {
+  float sum2 = 0;
+
+  for (uint32_t i = 0; i < n; i++) {
+    const uint16_t value = analogRead(pin);
+    sum2 += value * value;
+  }
+  return sqrt(sum2 / n);
+}
+
+
 float measure_output_current(uint32_t n) {
   // Normalize 16-bit resolution to range `[0..1]` and multiply by 3.3 V
   // reference.
   const float voltage = static_cast<float>(read_max(2, n)) / (1L << 16) * 3.3;
+  // TODO Explain this calculation.
+  return (voltage / (51e3 / 5.1e3 * 1));
+}
+
+
+float measure_output_current_rms(uint32_t n) {
+  // Normalize 16-bit resolution to range `[0..1]` and multiply by 3.3 V
+  // reference.
+  const float voltage = static_cast<float>(read_rms(2, n)) / (1L << 16) * 3.3;
   // TODO Explain this calculation.
   return (voltage / (51e3 / 5.1e3 * 1));
 }
