@@ -644,6 +644,25 @@ public:
   }
 
   /**
+  * @brief Read samples from differential pair of pins as fast as possible.
+  *
+  * @param pinP  Positive pin.
+  * @param pinN  Negative pin.
+  * @param n_samples  Number of samples to read.
+  *
+  * @return Array of signed integer differential reading.
+  */
+  Int16Array differential_reads_simple(uint8_t pinP, uint8_t pinN,
+                                       uint16_t n_samples) {
+    Int16Array output;
+    output.data = reinterpret_cast<int16_t *>(get_buffer().data);
+    output.length = n_samples;
+    std::generate(output.data, output.data + output.length,
+                  [&] () { return analogReadDifferential(pinP, pinN, 0); });
+    return output;
+  }
+
+  /**
   * @brief Read an array of bytes from the specified device on the software I2C
   * bus.
   *
