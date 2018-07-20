@@ -268,6 +268,15 @@ public:
                             float /* actuation voltage */)> >
       capacitance_measured_;
   /**
+  * @brief Chip load feedback saturated signal.
+  *
+  * Sent when chip load feedback voltage is within the specified margin from
+  * either the high end or the low end of the input range.
+  *
+  * \version added: 1.61
+  */
+  Signal<std::function<void(uint16_t, uint16_t)> > chip_load_saturated_;
+  /**
   * @brief High-side current exceeded signal.
   *
   * Sent when output current measurement exceeds specified threshold.
@@ -295,14 +304,22 @@ public:
   *     Run shorts detection whenever a chip is inserted.
   *
   * \version 1.59
-  *     Measure capacitance every 25 ms and send `capacitance_measured_`
+  *     Measure **capacitance** every 25 ms and send `capacitance_measured_`
   *     signal.  Connect to `capacitance_measured_` to evaluate capacitance
   *     update events.
   *
   * \version 1.60
-  *   Periodically measure output RMS current and send
+  *   Periodically measure **output RMS current** and send
   *   `high_side_current_exceeded_` signal when current threshold is exceeded.
   *   Connect callbacks to `high_side_current_exceeded_` signal to halt (i.e.,
+  *   disable all channels and turn off high-voltage) and send `halted` serial
+  *   event.
+  *
+  * \version 1.61
+  *   Periodically measure **chip load feedback voltage** and send
+  *   `chip_load_saturated_` signal when measured voltage is within the
+  *   specified margin from either the high end or the low end of the ADC input
+  *   range. Connect callbacks to `chip_load_saturated_` signal to halt (i.e.,
   *   disable all channels and turn off high-voltage) and send `halted` serial
   *   event.
   */
@@ -462,6 +479,49 @@ public:
                                "\"output-current-exceeded\", "
                                "\"output_current\": %g}}", time::wall_time(),
                                current);
+
+      {
+        PacketStream output_packet;
+        output_packet.start(Serial, buffer.length);
+        output_packet.write(Serial, (char *)buffer.data,
+                            buffer.length);
+        output_packet.end(Serial);
+      }
+    });
+
+    // Measure chip load voltage every 25 ms.  If measured voltage is within
+    // specified margin at high end or low end of analog input range, send
+    // `chip_load_saturated_` signal.
+    signal_timer_ms_.connect([&] (auto now) {
+      if (state_._.hv_output_enabled && state_._.hv_output_selected) {
+        // High-voltage output is enabled and selected.
+        constexpr uint16_t max_analog = std::numeric_limits<uint16_t>::max();
+        const uint16_t chip_load = analogRead(analog::PIN_CHIP_LOAD_VOLTAGE);
+        const uint16_t margin = state_._.chip_load_range_margin * max_analog;
+        if ((chip_load > (max_analog - margin)) || (chip_load < margin)) {
+          chip_load_saturated_.send(chip_load, margin);
+        }
+      }
+    }, 25);
+
+    // XXX Halt (i.e., disable all channels and turn off high-voltage) when
+    // chip load analog measurement has saturated (either upper or lower end of
+    // analog scale).
+    chip_load_saturated_.connect([&] (uint16_t chip_load, uint16_t margin) {
+      halt();
+    });
+
+    // Publish `halted` event when chip load analog measurement is saturated.
+    chip_load_saturated_.connect([&] (uint16_t chip_load, uint16_t margin) {
+      UInt8Array buffer = this->get_buffer();
+      buffer.length = 0;
+
+      buffer.length += sprintf((char *)&buffer.data[buffer.length],
+                              "{\"event\": \"halted\", \"wall_time\": %lu, "
+                               "\"error\": {\"name\": "
+                               "\"chip-load-saturated\", "
+                               "\"chip_load\": %hu, \"margin\": %hu}}",
+                               time::wall_time(), chip_load, margin);
 
       {
         PacketStream output_packet;

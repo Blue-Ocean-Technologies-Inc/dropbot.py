@@ -10,6 +10,8 @@
 namespace dropbot {
 namespace analog {
 
+constexpr uint8_t PIN_CHIP_LOAD_VOLTAGE = 11;
+
 extern float high_voltage_;
 
 std::vector<uint16_t> analog_reads_simple(uint8_t pin, uint16_t n_samples);
