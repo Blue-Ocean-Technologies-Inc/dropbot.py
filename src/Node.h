@@ -2,6 +2,7 @@
 #define ___NODE__H___
 
 #include <array>
+#include <functional>
 #include <math.h>
 #include <numeric>
 #include <stdint.h>
@@ -249,6 +250,14 @@ public:
   uint32_t drops_timestamp_ms_;
 
   /**
+  * @brief Chip status changed event.
+  *
+  * Sent when chip is inserted or removed.
+  *
+  * \version added: 1.58
+  */
+  Signal<std::function<void(bool /* chip inserted */)> > chip_status_changed_;
+  /**
   * @brief Time-based signal callback handler.
   *
   * Current time is updated on every `loop()` iteration.
@@ -257,6 +266,16 @@ public:
   */
   SignalTimer signal_timer_ms_;
 
+  /**
+  * @brief Construct node.
+  *
+  * \version 1.58
+  *     Send `output_enabled`/`output_disabled` serial event when change in
+  *     chip status occurs and remains stable for 1 second.
+  *     Connect callback to `chip_status_changed_` event to send
+  *     `output_enabled`/`output_disabled` serial events.
+  *     Run shorts detection whenever a chip is inserted.
+  */
   Node() : BaseNode(),
            BaseNodeConfig<config_t>(dropbot_Config_fields),
            BaseNodeState<state_t>(dropbot_State_fields),
@@ -265,15 +284,41 @@ public:
            last_dma_channel_done_(-1), adc_read_active_(false),
            dma_stream_id_(0), watchdog_disable_request_(false),
            channels_(0, dropbot_Config_switching_board_i2c_address_default),
-           output_enable_input(*this, -1, DEFAULT_INPUT_DEBOUNCE_DELAY,
+           output_enable_input(*this, OE_PIN, 1000,
                                InputDebounce::PinInMode::PIM_EXT_PULL_UP_RES,
                                0),
            capacitance_timestamp_ms_(0), target_count_(0),
            drops_timestamp_ms_(0) {
     pinMode(LED_BUILTIN, OUTPUT);
     dma_data_ = UInt8Array_init_default();
-    output_enable_input.setup(OE_PIN);
     clear_neighbours();
+
+    // Send `output_enabled`/`output_disabled` event when change in chip status
+    // occurs.
+    chip_status_changed_.connect([] (bool chip_inserted) {
+      PacketStream output;
+      stream_byte_type message[] = "{\"event\": \"%s\"}";
+
+      // Compute length of buffer required to store message.
+      // See https://stackoverflow.com/a/35036033/345236
+      const auto length = snprintf(NULL, 0, message, (chip_inserted) ?
+                                   "output_enabled" : "output_disabled");
+
+      char data[length];
+      sprintf(data, message, (chip_inserted) ? "output_enabled" :
+              "output_disabled");
+      output.start(Serial, length);
+      output.write(Serial, reinterpret_cast<stream_byte_type *>(&data[0]),
+                   length);
+      output.end(Serial);
+    });
+
+    // Run shorts detection whenever a chip is inserted.
+    chip_status_changed_.connect([&](bool chip_inserted) {
+      if (chip_inserted) {
+        detect_shorts(5);
+      }
+    });
   }
 
   UInt8Array get_buffer() { return UInt8Array_init(sizeof(buffer_), buffer_); }
