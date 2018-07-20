@@ -528,7 +528,7 @@ try:
         def state_of_channels(self):
             '''
             Retrieve the state bytes from the device and unpack them into an
-            array with one entry per channel.  Return unpacked array.
+            array with one entry per channel.
 
             Notes
             -----
@@ -536,9 +536,18 @@ try:
             State of each channel is binary, 0 or 1.  On device, states are
             stored in bytes, where each byte corresponds to the state of eight
             channels.
+
+            Returns
+            -------
+            `pandas.Series`
+                Boolean channel states indexed by channel number.
+
+
+            .. versionchanged:: 1.56
+                Return channels as `pandas.Series` instance.
             '''
-            return np.unpackbits(super(ProxyMixin, self)
-                                 .state_of_channels()[::-1])[::-1]
+            return pd.Series(np.unpackbits(super(ProxyMixin, self)
+                                           .state_of_channels()[::-1])[::-1])
 
         @state_of_channels.setter
         def state_of_channels(self, states):
