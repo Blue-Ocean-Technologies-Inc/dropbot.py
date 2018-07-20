@@ -1820,13 +1820,13 @@ public:
   /**
    * @brief Turn off all channels.
    *
-   * \version added: X.X.X
+   * \version added: 1.56
    */
   void turn_off_all_channels() { channels_.turn_off_all_channels(); }
   /**
    * @brief Disable all channels.
    *
-   * \version added: X.X.X
+   * \version added: 1.56
    */
   void disable_all_channels() { channels_.disable_all_channels(); }
   /**
@@ -1835,7 +1835,9 @@ public:
   * Emergency shutdown of all high-voltage actuation.  Useful, e.g., when
   * current limit has been exceeded.
   *
-  * \See high_side_current_exceeded_
+  * \see high_side_current_exceeded_
+  *
+  * \version added: 1.56
   */
   void halt() {
     // Disable high voltage.

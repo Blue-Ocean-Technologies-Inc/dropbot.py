@@ -543,7 +543,7 @@ try:
                 Boolean channel states indexed by channel number.
 
 
-            .. versionchanged:: X.X.X
+            .. versionchanged:: 1.56
                 Return channels as `pandas.Series` instance.
             '''
             return pd.Series(np.unpackbits(super(ProxyMixin, self)
