@@ -257,6 +257,13 @@ public:
   */
   SignalTimer signal_timer_ms_;
 
+  /**
+  * @brief Construct node.
+  *
+  * \version X.X.X
+  *     Send `output_enabled`/`output_disabled` serial event when change in
+  *     chip status occurs and remains stable for 1 second.
+  */
   Node() : BaseNode(),
            BaseNodeConfig<config_t>(dropbot_Config_fields),
            BaseNodeState<state_t>(dropbot_State_fields),
@@ -265,14 +272,13 @@ public:
            last_dma_channel_done_(-1), adc_read_active_(false),
            dma_stream_id_(0), watchdog_disable_request_(false),
            channels_(0, dropbot_Config_switching_board_i2c_address_default),
-           output_enable_input(*this, -1, DEFAULT_INPUT_DEBOUNCE_DELAY,
+           output_enable_input(*this, OE_PIN, 1000,
                                InputDebounce::PinInMode::PIM_EXT_PULL_UP_RES,
                                0),
            capacitance_timestamp_ms_(0), target_count_(0),
            drops_timestamp_ms_(0) {
     pinMode(LED_BUILTIN, OUTPUT);
     dma_data_ = UInt8Array_init_default();
-    output_enable_input.setup(OE_PIN);
     clear_neighbours();
   }
 
