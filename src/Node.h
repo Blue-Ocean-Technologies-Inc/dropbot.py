@@ -156,12 +156,8 @@ public:
                        unsigned long pressedDuration=0)
     : InputDebounce(pinIn, debDelay, pinInMode, pressedDuration),
       parent_(parent) {}
-  typedef std::function<void(bool)> callback_t;
-  void connect(callback_t callback) { callbacks_.push_back(callback); }
-  void clear() { callbacks_.clear(); }
   virtual ~OutputEnableDebounce() {}
 protected:
-  std::vector<callback_t> callbacks_;
   virtual void pressed();
   virtual void released();
 private:
@@ -254,6 +250,14 @@ public:
   uint32_t drops_timestamp_ms_;
 
   /**
+  * @brief Chip status changed event.
+  *
+  * Sent when chip is inserted or removed.
+  *
+  * \version added: X.X.X
+  */
+  Signal<std::function<void(bool /* chip inserted */)> > chip_status_changed_;
+  /**
   * @brief Time-based signal callback handler.
   *
   * Current time is updated on every `loop()` iteration.
@@ -268,6 +272,8 @@ public:
   * \version X.X.X
   *     Send `output_enabled`/`output_disabled` serial event when change in
   *     chip status occurs and remains stable for 1 second.
+  *     Connect callback to `chip_status_changed_` event to send
+  *     `output_enabled`/`output_disabled` serial events.
   *     Run shorts detection whenever a chip is inserted.
   */
   Node() : BaseNode(),
@@ -287,8 +293,28 @@ public:
     dma_data_ = UInt8Array_init_default();
     clear_neighbours();
 
+    // Send `output_enabled`/`output_disabled` event when change in chip status
+    // occurs.
+    chip_status_changed_.connect([] (bool chip_inserted) {
+      PacketStream output;
+      stream_byte_type message[] = "{\"event\": \"%s\"}";
+
+      // Compute length of buffer required to store message.
+      // See https://stackoverflow.com/a/35036033/345236
+      const auto length = snprintf(NULL, 0, message, (chip_inserted) ?
+                                   "output_enabled" : "output_disabled");
+
+      char data[length];
+      sprintf(data, message, (chip_inserted) ? "output_enabled" :
+              "output_disabled");
+      output.start(Serial, length);
+      output.write(Serial, reinterpret_cast<stream_byte_type *>(&data[0]),
+                   length);
+      output.end(Serial);
+    });
+
     // Run shorts detection whenever a chip is inserted.
-    output_enable_input.connect([&](bool chip_inserted) {
+    chip_status_changed_.connect([&](bool chip_inserted) {
       if (chip_inserted) {
         detect_shorts(5);
       }

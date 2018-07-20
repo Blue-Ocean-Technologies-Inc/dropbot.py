@@ -9,16 +9,12 @@ namespace dropbot {
  * \version 1.37.1  Migrate to `OutputEnableDebounce.cpp` and toggle HV output
  * to address issue #23.
  *
- * \version X.X.X  Call connected callbacks.
+ * \version X.X.X  Send `chip_status_changed_` event, rather than calling
+ *   callbacks directly.
  */
 void OutputEnableDebounce::pressed() {
     // The **output enable** pin has been pulled LOW, i.e., a DMF chip has been
     // **inserted**.
-    PacketStream output;
-    stream_byte_type data[] = "{\"event\": \"output_enabled\"}";
-    output.start(Serial, sizeof(data) - 1);
-    output.write(Serial, data, sizeof(data) - 1);
-    output.end(Serial);
 
     // High voltage is disabled if the chip is not inserted regardless of the
     // *high voltage output enable* setting due to a hardware interlock (i.e.,
@@ -37,10 +33,7 @@ void OutputEnableDebounce::pressed() {
         parent_.on_state_hv_output_enabled_changed(false);
         parent_.on_state_hv_output_enabled_changed(true);
     }
-    for (auto callback : callbacks_) {
-        // Call callback indicating chip is inserted.
-        callback(true);
-    }
+    parent_.chip_status_changed_.send(true);
 }
 
 /**
@@ -48,20 +41,13 @@ void OutputEnableDebounce::pressed() {
  *
  * \version 1.37.1  Migrate to `OutputEnableDebounce.cpp`.
  *
- * \version X.X.X  Call connected callbacks.
+ * \version X.X.X  Send `chip_status_changed_` event, rather than calling
+ *   callbacks directly.
  */
 void OutputEnableDebounce::released() {
     // The **output enable** pin has been pulled HIGH, i.e., a DMF chip has been
     // **removed**.
-    PacketStream output;
-    stream_byte_type data[] = "{\"event\": \"output_disabled\"}";
-    output.start(Serial, sizeof(data) - 1);
-    output.write(Serial, data, sizeof(data) - 1);
-    output.end(Serial);
-    for (auto callback : callbacks_) {
-        // Call callback indicating chip has been removed.
-        callback(false);
-    }
+    parent_.chip_status_changed_.send(false);
 }
 
 }
