@@ -272,7 +272,7 @@ public:
   *
   * Sent when output current measurement exceeds specified threshold.
   *
-  * \version added: X.X.X
+  * \version added: 1.60
   */
   Signal<std::function<void(float)> > high_side_current_exceeded_;
   /**
@@ -298,6 +298,13 @@ public:
   *     Measure capacitance every 25 ms and send `capacitance_measured_`
   *     signal.  Connect to `capacitance_measured_` to evaluate capacitance
   *     update events.
+  *
+  * \version 1.60
+  *   Periodically measure output RMS current and send
+  *   `high_side_current_exceeded_` signal when current threshold is exceeded.
+  *   Connect callbacks to `high_side_current_exceeded_` signal to halt (i.e.,
+  *   disable all channels and turn off high-voltage) and send `halted` serial
+  *   event.
   */
   Node() : BaseNode(),
            BaseNodeConfig<config_t>(dropbot_Config_fields),
