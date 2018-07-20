@@ -254,7 +254,7 @@ public:
   *
   * Sent when chip is inserted or removed.
   *
-  * \version added: X.X.X
+  * \version added: 1.58
   */
   Signal<std::function<void(bool /* chip inserted */)> > chip_status_changed_;
   /**
@@ -269,7 +269,7 @@ public:
   /**
   * @brief Construct node.
   *
-  * \version X.X.X
+  * \version 1.58
   *     Send `output_enabled`/`output_disabled` serial event when change in
   *     chip status occurs and remains stable for 1 second.
   *     Connect callback to `chip_status_changed_` event to send

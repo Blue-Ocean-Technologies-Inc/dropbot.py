@@ -9,7 +9,7 @@ namespace dropbot {
  * \version 1.37.1  Migrate to `OutputEnableDebounce.cpp` and toggle HV output
  * to address issue #23.
  *
- * \version X.X.X  Send `chip_status_changed_` event, rather than calling
+ * \version 1.58  Send `chip_status_changed_` event, rather than calling
  *   callbacks directly.
  */
 void OutputEnableDebounce::pressed() {
@@ -41,7 +41,7 @@ void OutputEnableDebounce::pressed() {
  *
  * \version 1.37.1  Migrate to `OutputEnableDebounce.cpp`.
  *
- * \version X.X.X  Send `chip_status_changed_` event, rather than calling
+ * \version 1.58  Send `chip_status_changed_` event, rather than calling
  *   callbacks directly.
  */
 void OutputEnableDebounce::released() {
