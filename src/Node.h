@@ -248,6 +248,13 @@ public:
   // Time of most recent drops detection.
   uint32_t drops_timestamp_ms_;
 
+  /**
+  * @brief Time-based signal callback handler.
+  *
+  * Current time is updated on every `loop()` iteration.
+  *
+  * \version added: 1.57
+  */
   SignalTimer signal_timer_ms_;
 
   Node() : BaseNode(),
@@ -654,6 +661,10 @@ public:
   *     consecutive readings before triggering a `capacitance-exceeded` event.
   *     The number of required consecutive readings is set by
   *     `state_._.target_count`.
+  *
+  * \version 1.57
+  *     Update `signal_timer_ms_` with current time, triggering any waiting
+  *     callbacks with expired intervals.
   */
   void loop() {
     unsigned long now = millis();
