@@ -273,7 +273,7 @@ public:
   * Sent when chip load feedback voltage is within the specified margin from
   * either the high end or the low end of the input range.
   *
-  * \version added: X.X.X
+  * \version added: 1.61
   */
   Signal<std::function<void(uint16_t, uint16_t)> > chip_load_saturated_;
   /**
@@ -304,14 +304,22 @@ public:
   *     Run shorts detection whenever a chip is inserted.
   *
   * \version 1.59
-  *     Measure capacitance every 25 ms and send `capacitance_measured_`
+  *     Measure **capacitance** every 25 ms and send `capacitance_measured_`
   *     signal.  Connect to `capacitance_measured_` to evaluate capacitance
   *     update events.
   *
   * \version 1.60
-  *   Periodically measure output RMS current and send
+  *   Periodically measure **output RMS current** and send
   *   `high_side_current_exceeded_` signal when current threshold is exceeded.
   *   Connect callbacks to `high_side_current_exceeded_` signal to halt (i.e.,
+  *   disable all channels and turn off high-voltage) and send `halted` serial
+  *   event.
+  *
+  * \version 1.61
+  *   Periodically measure **chip load feedback voltage** and send
+  *   `chip_load_saturated_` signal when measured voltage is within the
+  *   specified margin from either the high end or the low end of the ADC input
+  *   range. Connect callbacks to `chip_load_saturated_` signal to halt (i.e.,
   *   disable all channels and turn off high-voltage) and send `halted` serial
   *   event.
   */
