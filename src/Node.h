@@ -49,6 +49,8 @@
 #include "drops.h"
 #include "format.h"
 #include "Time.h"
+#include "Signal.h"
+#include "SignalTimer.h"
 
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
 #define CPU_RESTART_VAL 0x5FA0004
@@ -245,6 +247,15 @@ public:
   //
   // Time of most recent drops detection.
   uint32_t drops_timestamp_ms_;
+
+  /**
+  * @brief Time-based signal callback handler.
+  *
+  * Current time is updated on every `loop()` iteration.
+  *
+  * \version added: 1.57
+  */
+  SignalTimer signal_timer_ms_;
 
   Node() : BaseNode(),
            BaseNodeConfig<config_t>(dropbot_Config_fields),
@@ -650,12 +661,18 @@ public:
   *     consecutive readings before triggering a `capacitance-exceeded` event.
   *     The number of required consecutive readings is set by
   *     `state_._.target_count`.
+  *
+  * \version 1.57
+  *     Update `signal_timer_ms_` with current time, triggering any waiting
+  *     callbacks with expired intervals.
   */
   void loop() {
     unsigned long now = millis();
 
     // poll button state
     output_enable_input.process(now);
+
+    signal_timer_ms_.update(now);
 
     if (state_._.hv_output_enabled && state_._.hv_output_selected) {
       // High-voltage output is enabled and selected.
