@@ -75,6 +75,8 @@ requirements:
     # ..versionchanged:: 1.55
     # ..versionchanged:: X.X.X
     - base-node-rpc >=0.50
+    # ..versionchanged:: X.X.X
+    - beautifulsoup4
     - future
     #: ..versionadded:: 1.49
     - hv-switching-board >=0.10
@@ -133,6 +135,8 @@ outputs:
       run:
         - {{ pin_subpackage(PKG_NAME + '-dev', max_pin='x.x') }}
         - base-node >=0.13.1
+        # ..versionchanged:: X.X.X
+        - beautifulsoup4
         - conda-helpers >=0.20
         #: ..versionadded:: 1.49
         - hv-switching-board >=0.10
