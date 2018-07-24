@@ -73,9 +73,9 @@ requirements:
     # ..versionchanged:: 1.40.3
     # ..versionchanged:: 1.41
     # ..versionchanged:: 1.55
-    # ..versionchanged:: X.X.X
+    # ..versionchanged:: 1.62
     - base-node-rpc >=0.50
-    # ..versionchanged:: X.X.X
+    # ..versionchanged:: 1.62
     - beautifulsoup4
     - future
     #: ..versionadded:: 1.49
@@ -135,7 +135,7 @@ outputs:
       run:
         - {{ pin_subpackage(PKG_NAME + '-dev', max_pin='x.x') }}
         - base-node >=0.13.1
-        # ..versionchanged:: X.X.X
+        # ..versionchanged:: 1.62
         - beautifulsoup4
         - conda-helpers >=0.20
         #: ..versionadded:: 1.49
