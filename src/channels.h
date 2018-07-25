@@ -255,7 +255,9 @@ public:
    *
    * @return  List of indexes of shorted channels.
    *
-   * \version X.X.X  test all channels, even those marked as disabled.
+   * \version X.X.X
+   *  - Test all channels, even those marked as disabled.
+   *  - Select 3.3 V output source for duration of test.
    */
   std::vector<uint8_t> detect_shorts(uint8_t delay_ms);
 

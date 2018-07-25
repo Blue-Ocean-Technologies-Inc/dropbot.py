@@ -3,6 +3,7 @@
 #include <Wire.h>
 
 #include "channels.h"
+#include "voltage_source.h"
 
 
 namespace dropbot {
@@ -130,10 +131,17 @@ void Channels::_update_channels(bool force) {
 std::vector<uint16_t> Channels::short_detection_voltages(uint8_t delay_ms) {
   std::vector<uint16_t> voltages(MAX_NUMBER_OF_CHANNELS);
 
+  const auto selected_output = voltage_source::selected_output();
+  // Select 3.3 V output voltage.
+  voltage_source::select_output(voltage_source::OUTPUT_3V3);
+
   // Execute channel scan to turn on each channel, one at a time.  Force
   // actuation of channels regardless of status in disabled channels mask.
   channel_scan([&] (uint8_t channel) { voltages[channel] = analogRead(0); },
                delay_ms, true);
+
+  // Restore originally selected voltage.
+  voltage_source::select_output(selected_output);
 
   return voltages;
 }
