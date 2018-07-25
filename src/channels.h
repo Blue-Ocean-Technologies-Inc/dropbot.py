@@ -190,6 +190,73 @@ public:
     return selected_channels;
   }
 
+  /**
+   * @brief Scan through all channels, actuating each channel one at a time.
+   *
+   * @param callback  Callback function to call for each channel.
+   * @param delay_ms  Delay (in milliseconds) after each actuation before
+   *     calling callback.
+   * @param force  If `true`, ignore the disabled channels mask, i.e., force
+   *     actuation of channels _even if they have been marked as disabled in
+   *     the `disabled_channels_mask_`_.
+   *
+   * \since X.X.X
+   */
+  template <typename T>
+  void channel_scan(T callback, uint8_t delay_ms, bool force=false) {
+    // Eight channels per port
+    auto original_state_of_channels = state_of_channels_;
+
+    for (uint8_t i = 0; i < channel_count_; i++) {
+      // Initialize all channels in off state
+      std::fill(state_of_channels_.begin(), state_of_channels_.end(), 0);
+
+      // Set bit to actuate channel i
+      state_of_channels_[i / 8] = 1 << (i % 8);
+
+      // Apply channel states
+      _update_channels(force);
+
+      // A delay (e.g., 1-5 ms) may be necessary to detect some shorts
+      delay(delay_ms);
+
+      callback(i);
+    }
+
+    // Restore the previous channel state
+    state_of_channels_ = original_state_of_channels;
+
+    // Apply channel states
+    _update_channels();
+  }
+
+  /**
+  * @brief Measure short detection voltage for each channel.
+  *
+  * Apply actuation voltage V) to each channel in isolation.  Record measured
+  * voltage on `A0`.  If voltage is ~3.3 V, the corresponding channel is not
+  * shorted to ground.
+  *
+  * @param delay_ms  Amount of time to wait after sending updated channel
+  *     states to switching boards before measuring applied voltage.
+  *
+  * @return Array of measured voltages, one per channel.
+  *
+  * \since X.X.X
+  */
+  std::vector<uint16_t> short_detection_voltages(uint8_t delay_ms);
+
+  /**
+   * @brief For each channel in isolation, apply 3.3 V and test if channel is
+   *    shorted to ground.
+   *
+   * @param delay_ms  Amount of time to wait after sending updated channel
+   *     states to switching boards before measuring test voltage.
+   *
+   * @return  List of indexes of shorted channels.
+   *
+   * \version X.X.X  test all channels, even those marked as disabled.
+   */
   std::vector<uint8_t> detect_shorts(uint8_t delay_ms);
 
   float capacitance(uint16_t n_samples) {
