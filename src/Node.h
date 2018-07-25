@@ -789,6 +789,38 @@ public:
   }
 
   /**
+  * @brief Measure short detection voltage for each channel.
+  *
+  * Apply low voltage (3.3 V) to each channel in isolation.  Record measured
+  * voltage on `A0`.  If voltage is ~3.3 V, the corresponding channel is not
+  * shorted to ground.
+  *
+  * @param delay_ms  Amount of time to wait after sending updated channel
+  *     states to switching boards before measuring applied voltage.
+  *
+  * @return Array of measured voltages, one per channel.
+  *
+  * \since X.X.X
+  */
+  UInt16Array short_detection_voltages(uint8_t delay_ms) {
+    UInt16Array voltages;
+    voltages.data = reinterpret_cast<uint16_t *>(get_buffer().data);
+
+    // Select 3.3 V output voltage.
+    voltage_source::select_output(voltage_source::OUTPUT_3V3);
+    {
+      // Restrict scope of `detected_shorts` to free up memory after use.
+      auto short_voltages = channels_.short_detection_voltages(delay_ms);
+      std::copy(short_voltages.begin(), short_voltages.end(), voltages.data);
+      voltages.length = short_voltages.size();
+    }
+    // Restore the HV output selection
+    on_state_hv_output_selected_changed(state_._.hv_output_selected);
+
+    return voltages;
+  }
+
+  /**
   * @return Minimum target high voltage output.
   *
   * \version 1.63  Refactor to use voltage_source::min_waveform_voltage()
