@@ -37,7 +37,6 @@
 #include <pb_eeprom.h>
 #include <LinkedList.h>
 #include <TimerOne.h>
-#include <SlowSoftWire.h>
 #include "FastAnalogWrite.h"
 #include "dropbot_config_validate.h"
 #include "dropbot_state_validate.h"
@@ -49,6 +48,7 @@
 #include "channels.h"
 #include "drops.h"
 #include "format.h"
+#include "voltage_source.h"
 #include "Time.h"
 #include "Signal.h"
 #include "SignalTimer.h"
@@ -166,6 +166,12 @@ private:
 
 
 // XXX For control-board hardware version v3.5
+
+/**
+* @brief Public interface for DropBot control board.
+*
+* \version X.X.X refactor to use `voltage_source` namespace functions.
+*/
 class Node :
   public BaseNode,
   public BaseNodeEeprom,
@@ -179,19 +185,7 @@ class Node :
 public:
   typedef PacketParser<FixedPacket> parser_t;
 
-  static void timer_callback();
-  static SlowSoftWire i2c;
-
   static const uint32_t BUFFER_SIZE = 8192;  // >= longest property string
-
-  static const uint8_t DRIVER_HIGH_PIN = 6;
-  static const uint8_t DRIVER_LOW_PIN = 7;
-  static const uint8_t HV_OUTPUT_SELECT_PIN = 8;
-
-  // pins connected to the boost converter
-  static const uint8_t SHDN_PIN = 10;
-  static const uint8_t SSDA_PIN = 4;
-  static const uint8_t SSCL_PIN = 5;
 
   // SPI pins
   static const uint8_t MOSI_PIN = 11;
@@ -207,8 +201,6 @@ public:
 
   // High-voltage Output Enable pin
   static const uint8_t OE_PIN = 22;
-
-  static const float R6;
 
   uint8_t buffer_[BUFFER_SIZE];
 
@@ -556,7 +548,20 @@ public:
    * [1]: https://github.com/wheeler-microfluidics/arduino_rpc
    * [2]: https://github.com/wheeler-microfluidics/base_node_rpc
    */
+
+  /**
+  * @brief Write an array of bytes to the specified device on the software I2C
+  * bus.
+  *
+  * @param address  Address of device on software I2C bus.
+  * @param data  Array of bytes to send to device.
+  *
+  *
+  * \version X.X.X refactor to use voltage_source::i2c
+  */
   void soft_i2c_write(uint8_t address, UInt8Array data) {
+    using namespace voltage_source;
+
     i2c.beginTransmission(address);
     i2c.write(data.data, data.length);
     i2c.endTransmission();
@@ -641,7 +646,20 @@ public:
     return output;
   }
 
+  /**
+  * @brief Read an array of bytes from the specified device on the software I2C
+  * bus.
+  *
+  * @param address  Address of device on software I2C bus.
+  * @param n_bytes_to_read  Number of bytes to read from device.
+  *
+  * @return  Array of bytes received from device.
+  *
+  * \version X.X.X refactor to use voltage_source::i2c
+  */
   UInt8Array soft_i2c_read(uint8_t address, uint8_t n_bytes_to_read) {
+    using namespace voltage_source;
+
     UInt8Array output = get_buffer();
     i2c.requestFrom(address, n_bytes_to_read);
     uint8_t n_bytes_read = 0;
@@ -654,7 +672,17 @@ public:
     return output;
   }
 
+
+  /**
+  * @brief Query addresses of available devices on the software I2C bus.
+  *
+  * @return  Array of addresses of discovered devices.
+  *
+  * \version X.X.X refactor to use voltage_source::i2c
+  */
   UInt8Array soft_i2c_scan() {
+    using namespace voltage_source;
+
     UInt8Array output = get_buffer();
     uint16_t count = 0;
 
@@ -719,7 +747,7 @@ public:
      *      - ``"channels"``: list of identifiers of shorted channels.
      */
     // Deselect the HV output
-    on_state_hv_output_selected_changed(false);
+    voltage_source::select_output(voltage_source::OUTPUT_3V3);
 
     UInt8Array shorts = get_buffer();
     {
@@ -763,29 +791,26 @@ public:
     return shorts;
   }
 
+  /**
+  * @return Minimum target high voltage output.
+  *
+  * \version X.X.X  Refactor to use voltage_source::min_waveform_voltage()
+  */
   float min_waveform_voltage() {
-    return 1.5 / 2.0 * (R6 / (config_._.pot_max + config_._.R7) + 1);
+    return voltage_source::min_waveform_voltage();
   }
 
+  /**
+  * @brief Set target high voltage.
+  *
+  * @param voltage  Target high voltage.
+  *
+  * @return `true` if voltage set successfully.
+  *
+  * \version X.X.X  Refactor to use voltage_source::_set_voltage()
+  */
   bool _set_voltage(float voltage) {
-    float pot_value = R6 / ( 2 * voltage / 1.5 - 1 ) - config_._.R7;
-    float wiper_value = pot_value / config_._.pot_max * 255;
-    if ( voltage <= config_._.max_voltage && \
-         wiper_value < 256 && pot_value >= 0 ) {
-      // This method is triggered whenever a voltage is included in a state
-      // update.
-      i2c.beginTransmission(44);
-      i2c.write(0);
-      i2c.write((uint8_t)wiper_value);
-      i2c.endTransmission();
-
-      // verify that we wrote the correct value to the pot
-      i2c.requestFrom(44, 1);
-      if (i2c.read() == (uint8_t)wiper_value) {
-        return true;
-      }
-    }
-    return false;
+    return voltage_source::_set_voltage(voltage);
   }
 
   uint16_t initialize_switching_boards();
@@ -810,75 +835,123 @@ public:
     return true;
   }
 
+  /**
+  * @param frequency  Target actuation frequency.
+  *
+  * @return  `true` if frequency successfully set.
+  *
+  * \version X.X.X  Refactor to use voltage_source::set_frequency()
+  */
   bool on_state_frequency_changed(float frequency) {
-    /* This method is triggered whenever a frequency is included in a state
-     * update. */
-    if (frequency == 0) { // DC mode
-      digitalWrite(DRIVER_HIGH_PIN, HIGH); // set voltage high
-      digitalWrite(DRIVER_LOW_PIN, LOW);
-      Timer1.stop(); // stop timer
-    } else if ((config_._.min_frequency <= frequency) &&
-                (frequency <= config_._.max_frequency)) {
-      Timer1.setPeriod(500000.0 / frequency); // set timer period in ms
-      Timer1.restart();
-    } else {
-      return false;
-    }
-    return true;
+    return voltage_source::set_frequency(frequency);
   }
 
+  /**
+  * @param voltage  Target actuation voltage.
+  *
+  * @return  `true` if voltage successfully set.
+  *
+  * \version X.X.X  Refactor to use voltage_source::_set_voltage()
+  */
   bool on_state_voltage_changed(float voltage) {
-    return _set_voltage(voltage);
+    return voltage_source::_set_voltage(voltage);
   }
 
+  /**
+  * @param value  If `true`, turn on high voltage driver.
+  *
+  * \version X.X.X  Refactor to use
+  *   voltage_source::enable_high_voltage_output() and
+  *   voltage_source::disable_high_voltage_output()
+  */
   bool on_state_hv_output_enabled_changed(bool value) {
     if (value) {
-      // If we're turning the output on, we need to start with a low voltage,
-      // enable the MAX1771, then increase the voltage. Otherwise, if the voltage
-      // is > ~100 the MAX1771 will not turn on.
-      _set_voltage(min_waveform_voltage());
-      delay(100);
-      digitalWrite(SHDN_PIN, !value);
-      delay(100);
-      _set_voltage(state_._.voltage);
-      Timer1.setPeriod(500000.0 / state_._.frequency); // set timer period in ms
-      Timer1.restart();
+      voltage_source::enable_high_voltage_output();
     } else {
-      digitalWrite(SHDN_PIN, !value);
-      Timer1.stop(); // stop timer
+      voltage_source::disable_high_voltage_output();
     }
     return true;
   }
 
+  /**
+  * @param value  If `true`, select high voltage output.  Otherwise, select
+  *     3.3 V output.
+  *
+  * \version X.X.X  Refactor to use voltage_source::select_output()
+  */
   bool on_state_hv_output_selected_changed(bool value) {
-    /* .. versionchanged:: 1.37.1
-     *     Toggle HV output to address issue #23.
-     */
-
-    digitalWrite(HV_OUTPUT_SELECT_PIN, !value);
-    if (value && state_._.hv_output_enabled) {
-        // If high voltage output is selected (as opposed to low short
-        // detection voltage), and high voltage output is enabled (i.e., the
-        // hardware interlock `OE_PIN` is pulled LOW and the boost converter is
-        // on), the high voltage should be connected to the switching boards.
-        // However, this currently does not happen.
-        //
-        // XXX As a workaround, force the high voltage to be turned off and on,
-        // to ensure high voltage is actually connected to the switching
-        // boards.
-        //
-        // See [issue #23][i23] for more information.
-        //
-        // [i23]: https://gitlab.com/sci-bots/dropbot.py/issues/23
-        on_state_hv_output_enabled_changed(false);
-        on_state_hv_output_enabled_changed(true);
-    }
-    return true;
+    const uint8_t output = (value ? voltage_source::OUTPUT_HIGH_VOLTAGE
+                            : voltage_source::OUTPUT_3V3);
+    return voltage_source::select_output(output);
   }
 
   bool on_state_channel_count_changed(int32_t value) {
       // XXX This value is ready-only.
       return false;
+  }
+
+  /**
+  * @brief Update voltage_source::R7 when respective config value is changed.
+  *
+  * @param value
+  *
+  * \since X.X.X
+  */
+  bool on_config_R7_changed(float value) {
+    voltage_source::R7 = value;
+    return true;
+  }
+
+  /**
+  * @brief Update voltage_source::pot_max when respective config value is
+  *     changed.
+  *
+  * @param value
+  *
+  * \since X.X.X
+  */
+  bool on_config_pot_max_changed(float value) {
+    voltage_source::pot_max = value;
+    return true;
+  }
+
+  /**
+  * @brief Update voltage_source::max_voltage when respective config value is
+  *     changed.
+  *
+  * @param value
+  *
+  * \since X.X.X
+  */
+  bool on_config_max_voltage_changed(float value) {
+    voltage_source::max_voltage = value;
+    return true;
+  }
+
+  /**
+  * @brief Update voltage_source::min_frequency when respective config value is
+  *     changed.
+  *
+  * @param value
+  *
+  * \since X.X.X
+  */
+  bool on_config_min_frequency_changed(float value) {
+    voltage_source::min_frequency = value;
+    return true;
+  }
+
+  /**
+  * @brief Update voltage_source::max_frequency when respective config value is
+  *     changed.
+  *
+  * @param value
+  *
+  * \since X.X.X
+  */
+  bool on_config_max_frequency_changed(float value) {
+    voltage_source::max_frequency = value;
+    return true;
   }
 
   /**
@@ -1824,18 +1897,30 @@ public:
     return result;
   }
 
+  /**
+  * @brief Read chip load capacitance associated with each specified channel.
+  *
+  * @param channels  Array of channel numbers corresponding to channels to
+  *     measure.
+  *
+  * @return Array of measured capacitances, one per specified channel.
+  *
+  * \version X.X.X  Refactor to use voltage_source namespace functions.
+  */
   FloatArray channel_capacitances(UInt8Array channels) {
+    using namespace voltage_source;
+
     // High voltage (HV) output is required to perform capacitance
     // measurements.
     // XXX Since selecting and enabling the high voltage output take about
     // ~200 ms each, only select and enable it if necessary.
     bool restore_required = false;
-    if (!state_._.hv_output_enabled) {
-      on_state_hv_output_enabled_changed(true);
+    if (!high_voltage_output_enabled()) {
+      enable_high_voltage_output();
       restore_required = true;
     }
-    if (!state_._.hv_output_selected) {
-      on_state_hv_output_selected_changed(true);
+    if (selected_output() != OUTPUT_HIGH_VOLTAGE) {
+      select_output(OUTPUT_HIGH_VOLTAGE);
       restore_required = true;
     }
 
