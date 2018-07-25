@@ -96,7 +96,7 @@ Channels::packed_channels_t const &Channels::state_of_channels() {
 }
 
 
-void Channels::_update_channels() {
+void Channels::_update_channels(bool force) {
   // XXX Stop the timer (which toggles the HV square-wave driver) during i2c
   // communication.
   //
@@ -113,7 +113,8 @@ void Channels::_update_channels() {
     for (uint8_t port = 0; port < 5; port++) {
       data[0] = PCA9505_OUTPUT_PORT_REGISTER + port;
       data[1] = ~(state_of_channels_[chip * 5 + port] &
-                  ~disabled_channels_mask_[chip * 5 + port]);
+                  (force ? std::numeric_limits<uint8_t>::max() :
+                   ~disabled_channels_mask_[chip * 5 + port]));
       Wire.beginTransmission(switching_board_i2c_address_ + chip);
       Wire.write(data, sizeof(data));
       Wire.endTransmission();

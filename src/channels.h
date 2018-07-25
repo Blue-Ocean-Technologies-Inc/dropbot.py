@@ -160,7 +160,17 @@ public:
     _update_channels();
   }
 
-  void _update_channels();
+  /**
+   * @brief Push configured state of channels to switching boards.
+   *
+   * @param force  If `true`, ignore the disabled channels mask, i.e., force
+   *   channels selected for actuation to turn on _even if they have been marked
+   *   as disabled in the `disabled_channels_mask_`_.
+   *
+   * \version X.X.X  add \p force to optionally override disabled channels
+   *   mask.
+   */
+  void _update_channels(bool force=false);
 
   std::vector<Switch> actuated_switches() {
     const uint8_t port_count = channel_count_ / 8;
