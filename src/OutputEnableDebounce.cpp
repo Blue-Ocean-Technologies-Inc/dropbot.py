@@ -13,7 +13,7 @@ namespace dropbot {
  * \version 1.58  Send `chip_status_changed_` event, rather than calling
  *   callbacks directly.
  *
- * \version X.X.X  Refactor to use voltage_source namespace functions.
+ * \version 1.63  Refactor to use voltage_source namespace functions.
  */
 void OutputEnableDebounce::pressed() {
     // The **output enable** pin has been pulled LOW, i.e., a DMF chip has been

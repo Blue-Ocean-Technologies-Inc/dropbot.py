@@ -170,7 +170,7 @@ private:
 /**
 * @brief Public interface for DropBot control board.
 *
-* \version X.X.X refactor to use `voltage_source` namespace functions.
+* \version 1.63 refactor to use `voltage_source` namespace functions.
 */
 class Node :
   public BaseNode,
@@ -554,7 +554,7 @@ public:
   * @param data  Array of bytes to send to device.
   *
   *
-  * \version X.X.X refactor to use voltage_source::i2c
+  * \version 1.63 refactor to use voltage_source::i2c
   */
   void soft_i2c_write(uint8_t address, UInt8Array data) {
     using namespace voltage_source;
@@ -652,7 +652,7 @@ public:
   *
   * @return  Array of bytes received from device.
   *
-  * \version X.X.X refactor to use voltage_source::i2c
+  * \version 1.63 refactor to use voltage_source::i2c
   */
   UInt8Array soft_i2c_read(uint8_t address, uint8_t n_bytes_to_read) {
     using namespace voltage_source;
@@ -675,7 +675,7 @@ public:
   *
   * @return  Array of addresses of discovered devices.
   *
-  * \version X.X.X refactor to use voltage_source::i2c
+  * \version 1.63 refactor to use voltage_source::i2c
   */
   UInt8Array soft_i2c_scan() {
     using namespace voltage_source;
@@ -791,7 +791,7 @@ public:
   /**
   * @return Minimum target high voltage output.
   *
-  * \version X.X.X  Refactor to use voltage_source::min_waveform_voltage()
+  * \version 1.63  Refactor to use voltage_source::min_waveform_voltage()
   */
   float min_waveform_voltage() {
     return voltage_source::min_waveform_voltage();
@@ -804,7 +804,7 @@ public:
   *
   * @return `true` if voltage set successfully.
   *
-  * \version X.X.X  Refactor to use voltage_source::_set_voltage()
+  * \version 1.63  Refactor to use voltage_source::_set_voltage()
   */
   bool _set_voltage(float voltage) {
     return voltage_source::_set_voltage(voltage);
@@ -837,7 +837,7 @@ public:
   *
   * @return  `true` if frequency successfully set.
   *
-  * \version X.X.X  Refactor to use voltage_source::set_frequency()
+  * \version 1.63  Refactor to use voltage_source::set_frequency()
   */
   bool on_state_frequency_changed(float frequency) {
     return voltage_source::set_frequency(frequency);
@@ -848,7 +848,7 @@ public:
   *
   * @return  `true` if voltage successfully set.
   *
-  * \version X.X.X  Refactor to use voltage_source::_set_voltage()
+  * \version 1.63  Refactor to use voltage_source::_set_voltage()
   */
   bool on_state_voltage_changed(float voltage) {
     return voltage_source::_set_voltage(voltage);
@@ -857,7 +857,7 @@ public:
   /**
   * @param value  If `true`, turn on high voltage driver.
   *
-  * \version X.X.X  Refactor to use
+  * \version 1.63  Refactor to use
   *   voltage_source::enable_high_voltage_output() and
   *   voltage_source::disable_high_voltage_output()
   */
@@ -874,7 +874,7 @@ public:
   * @param value  If `true`, select high voltage output.  Otherwise, select
   *     3.3 V output.
   *
-  * \version X.X.X  Refactor to use voltage_source::select_output()
+  * \version 1.63  Refactor to use voltage_source::select_output()
   */
   bool on_state_hv_output_selected_changed(bool value) {
     const uint8_t output = (value ? voltage_source::OUTPUT_HIGH_VOLTAGE
@@ -892,7 +892,7 @@ public:
   *
   * @param value
   *
-  * \since X.X.X
+  * \since 1.63
   */
   bool on_config_R7_changed(float value) {
     voltage_source::R7 = value;
@@ -905,7 +905,7 @@ public:
   *
   * @param value
   *
-  * \since X.X.X
+  * \since 1.63
   */
   bool on_config_pot_max_changed(float value) {
     voltage_source::pot_max = value;
@@ -918,7 +918,7 @@ public:
   *
   * @param value
   *
-  * \since X.X.X
+  * \since 1.63
   */
   bool on_config_max_voltage_changed(float value) {
     voltage_source::max_voltage = value;
@@ -931,7 +931,7 @@ public:
   *
   * @param value
   *
-  * \since X.X.X
+  * \since 1.63
   */
   bool on_config_min_frequency_changed(float value) {
     voltage_source::min_frequency = value;
@@ -944,7 +944,7 @@ public:
   *
   * @param value
   *
-  * \since X.X.X
+  * \since 1.63
   */
   bool on_config_max_frequency_changed(float value) {
     voltage_source::max_frequency = value;
@@ -1902,7 +1902,7 @@ public:
   *
   * @return Array of measured capacitances, one per specified channel.
   *
-  * \version X.X.X  Refactor to use voltage_source namespace functions.
+  * \version 1.63  Refactor to use voltage_source namespace functions.
   */
   FloatArray channel_capacitances(UInt8Array channels) {
     using namespace voltage_source;
