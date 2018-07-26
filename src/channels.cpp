@@ -3,6 +3,7 @@
 #include <Wire.h>
 
 #include "channels.h"
+#include "voltage_source.h"
 
 
 namespace dropbot {
@@ -96,7 +97,7 @@ Channels::packed_channels_t const &Channels::state_of_channels() {
 }
 
 
-void Channels::_update_channels() {
+void Channels::_update_channels(bool force) {
   // XXX Stop the timer (which toggles the HV square-wave driver) during i2c
   // communication.
   //
@@ -113,7 +114,8 @@ void Channels::_update_channels() {
     for (uint8_t port = 0; port < 5; port++) {
       data[0] = PCA9505_OUTPUT_PORT_REGISTER + port;
       data[1] = ~(state_of_channels_[chip * 5 + port] &
-                  ~disabled_channels_mask_[chip * 5 + port]);
+                  (force ? std::numeric_limits<uint8_t>::max() :
+                   ~disabled_channels_mask_[chip * 5 + port]));
       Wire.beginTransmission(switching_board_i2c_address_ + chip);
       Wire.write(data, sizeof(data));
       Wire.endTransmission();
@@ -126,43 +128,56 @@ void Channels::_update_channels() {
 }
 
 
+std::vector<uint16_t> Channels::short_detection_voltages(uint8_t delay_ms) {
+  std::vector<uint16_t> voltages(MAX_NUMBER_OF_CHANNELS);
+
+  const auto selected_output = voltage_source::selected_output();
+  // Select 3.3 V output voltage.
+  voltage_source::select_output(voltage_source::OUTPUT_3V3);
+
+  // Execute channel scan to turn on each channel, one at a time.  Force
+  // actuation of channels regardless of status in disabled channels mask.
+  channel_scan([&] (uint8_t channel) { voltages[channel] = analogRead(0); },
+               delay_ms, true);
+
+  // Restore originally selected voltage.
+  voltage_source::select_output(selected_output);
+
+  return voltages;
+}
+
+
 std::vector<uint8_t> Channels::detect_shorts(uint8_t delay_ms) {
-  // Eight channels per port
-  auto original_state_of_channels = state_of_channels_;
+  auto short_voltages = short_detection_voltages(delay_ms);
 
-  std::vector<uint8_t> shorts;
-  shorts.reserve(MAX_NUMBER_OF_CHANNELS);
+  constexpr uint16_t max_analog = std::numeric_limits<uint16_t>::max();
+  constexpr uint16_t short_threshold = max_analog / 2;
 
-  for (uint8_t i = 0; i < channel_count_; i++) {
-    // Initialize all channels in off state
-    std::fill(state_of_channels_.begin(), state_of_channels_.end(), 0);
+  // Count number of detected shorts to determine required size of output
+  // vector.
+  uint8_t short_count = 0;
+  for (auto voltage : short_voltages) {
+    if (voltage < short_threshold) {
+      short_count += 1;
+    }
+  }
 
-    // Set bit to actuate channel i
-    state_of_channels_[i / 8] = 1 << (i % 8);
-
-    // Apply channel states
-    _update_channels();
-
-    // A delay (e.g., 1-5 ms) may be necessary to detect some shorts
-    delay(delay_ms);
-
-    // If we read less than half of Vcc, append this channel to the
-    // list of shorts and disable the channel
-    if (analogRead(0) < 65535 / 2) {
-      shorts.push_back(i);
+  // Store list of channels corresponding to detected shorts in output vector.
+  // Add shorted channels to the disabled channels mask.
+  std::vector<uint8_t> shorts(short_count);
+  short_count = 0;
+  for (auto i = 0; i < short_voltages.size(); i++) {
+    if (short_voltages[i] < short_threshold) {
+      // Voltage was less than half Vcc. Append this channel to the list of
+      // shorts and disable the channel.
+      shorts[short_count++] = i;
       disabled_channels_mask_[i / 8] |= 1 << (i % 8);
-    } else { // enable the channel
+    } else {
+      // Voltage was at least half Vcc.  Mark the channel as enabled.
       disabled_channels_mask_[i / 8] &= ~(1 << (i % 8));
     }
   }
 
-  // Restore the previous channel state
-  state_of_channels_ = original_state_of_channels;
-
-  // Apply channel states
-  _update_channels();
-
-  shorts.shrink_to_fit();
   return shorts;
 }
 

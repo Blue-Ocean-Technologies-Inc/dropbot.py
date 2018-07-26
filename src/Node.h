@@ -736,6 +736,9 @@ public:
   * \version 1.51
   *     Send `shorts-detected` event stream packet containing:
   *      - `"values"`: list of identifiers of shorted channels.
+  *
+  * \version 1.64  Delegate selection of 3.3 V output (and restoration of
+  *     original selection) to voltage_source::detect_shorts().
   */
   UInt8Array detect_shorts(uint8_t delay_ms) {
     /*
@@ -743,9 +746,6 @@ public:
      *     Send ``shorts-detected`` event stream packet containing:
      *      - ``"channels"``: list of identifiers of shorted channels.
      */
-    // Deselect the HV output
-    voltage_source::select_output(voltage_source::OUTPUT_3V3);
-
     UInt8Array shorts = get_buffer();
     {
       // Restrict scope of `detected_shorts` to free up memory after use.
@@ -753,8 +753,6 @@ public:
       std::copy(detected_shorts.begin(), detected_shorts.end(), shorts.data);
       shorts.length = detected_shorts.size();
     }
-    // Restore the HV output selection
-    on_state_hv_output_selected_changed(state_._.hv_output_selected);
 
     if (event_enabled(EVENT_SHORTS_DETECTED)) {
       // Shorts-detected event is enabled.
@@ -786,6 +784,34 @@ public:
     }
 
     return shorts;
+  }
+
+  /**
+  * @brief Measure short detection voltage for each channel.
+  *
+  * Apply low voltage (3.3 V) to each channel in isolation.  Record measured
+  * voltage on `A0`.  If voltage is ~3.3 V, the corresponding channel is not
+  * shorted to ground.
+  *
+  * @param delay_ms  Amount of time to wait after sending updated channel
+  *     states to switching boards before measuring applied voltage.
+  *
+  * @return Array of measured voltages, one per channel.
+  *
+  * \since 1.64
+  */
+  UInt16Array short_detection_voltages(uint8_t delay_ms) {
+    UInt16Array voltages;
+    voltages.data = reinterpret_cast<uint16_t *>(get_buffer().data);
+
+    {
+      // Restrict scope of `detected_shorts` to free up memory after use.
+      auto short_voltages = channels_.short_detection_voltages(delay_ms);
+      std::copy(short_voltages.begin(), short_voltages.end(), voltages.data);
+      voltages.length = short_voltages.size();
+    }
+
+    return voltages;
   }
 
   /**
