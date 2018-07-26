@@ -167,7 +167,7 @@ public:
    *   channels selected for actuation to turn on _even if they have been marked
    *   as disabled in the `disabled_channels_mask_`_.
    *
-   * \version X.X.X  add \p force to optionally override disabled channels
+   * \version 1.64  add \p force to optionally override disabled channels
    *   mask.
    */
   void _update_channels(bool force=false);
@@ -200,7 +200,7 @@ public:
    *     actuation of channels _even if they have been marked as disabled in
    *     the `disabled_channels_mask_`_.
    *
-   * \since X.X.X
+   * \since 1.64
    */
   template <typename T>
   void channel_scan(T callback, uint8_t delay_ms, bool force=false) {
@@ -242,7 +242,7 @@ public:
   *
   * @return Array of measured voltages, one per channel.
   *
-  * \since X.X.X
+  * \since 1.64
   */
   std::vector<uint16_t> short_detection_voltages(uint8_t delay_ms);
 
@@ -255,7 +255,7 @@ public:
    *
    * @return  List of indexes of shorted channels.
    *
-   * \version X.X.X
+   * \version 1.64
    *  - Test all channels, even those marked as disabled.
    *  - Select 3.3 V output source for duration of test.
    */

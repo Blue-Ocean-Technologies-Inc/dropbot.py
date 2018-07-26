@@ -737,7 +737,7 @@ public:
   *     Send `shorts-detected` event stream packet containing:
   *      - `"values"`: list of identifiers of shorted channels.
   *
-  * \version X.X.X  Delegate selection of 3.3 V output (and restoration of
+  * \version 1.64  Delegate selection of 3.3 V output (and restoration of
   *     original selection) to voltage_source::detect_shorts().
   */
   UInt8Array detect_shorts(uint8_t delay_ms) {
@@ -798,7 +798,7 @@ public:
   *
   * @return Array of measured voltages, one per channel.
   *
-  * \since X.X.X
+  * \since 1.64
   */
   UInt16Array short_detection_voltages(uint8_t delay_ms) {
     UInt16Array voltages;
