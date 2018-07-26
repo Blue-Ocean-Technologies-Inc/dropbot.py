@@ -26,6 +26,9 @@ constexpr float R6 = 2e6;
 constexpr uint8_t OUTPUT_3V3 = 0;
 constexpr uint8_t OUTPUT_HIGH_VOLTAGE = 1;
 
+// High-voltage Output Enable pin
+constexpr uint8_t OE_PIN = 22;
+
 // pins connected to the boost converter
 constexpr uint8_t SHDN_PIN = 10;
 constexpr uint8_t SSDA_PIN = 4;

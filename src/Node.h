@@ -199,9 +199,6 @@ public:
   static const uint8_t CAPACITANCE_10PF_PIN = 1;
   static const uint8_t CAPACITANCE_100PF_PIN = 2;
 
-  // High-voltage Output Enable pin
-  static const uint8_t OE_PIN = 22;
-
   uint8_t buffer_[BUFFER_SIZE];
 
   ADC *adc_;
@@ -323,7 +320,7 @@ public:
            last_dma_channel_done_(-1), adc_read_active_(false),
            dma_stream_id_(0), watchdog_disable_request_(false),
            channels_(0, dropbot_Config_switching_board_i2c_address_default),
-           output_enable_input(*this, OE_PIN, 1000,
+           output_enable_input(*this, voltage_source::OE_PIN, 1000,
                                InputDebounce::PinInMode::PIM_EXT_PULL_UP_RES,
                                0),
            capacitance_timestamp_ms_(0), target_count_(0),
