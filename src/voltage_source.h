@@ -86,7 +86,7 @@ inline void disable_high_voltage_output() {
 }
 
 inline bool high_voltage_output_enabled() {
-  return !digitalRead(SHDN_PIN);
+  return !digitalRead(SHDN_PIN) && !digitalRead(OE_PIN);
 }
 
 inline uint8_t selected_output() {
