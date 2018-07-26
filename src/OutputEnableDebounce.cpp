@@ -1,5 +1,6 @@
 // .. versionadded:: 1.37.1
 #include "Node.h"
+#include "voltage_source.h"
 
 namespace dropbot {
 
@@ -11,6 +12,8 @@ namespace dropbot {
  *
  * \version 1.58  Send `chip_status_changed_` event, rather than calling
  *   callbacks directly.
+ *
+ * \version X.X.X  Refactor to use voltage_source namespace functions.
  */
 void OutputEnableDebounce::pressed() {
     // The **output enable** pin has been pulled LOW, i.e., a DMF chip has been
@@ -30,8 +33,8 @@ void OutputEnableDebounce::pressed() {
         // See [issue #23][i23] for more information.
         //
         // [i23]: https://gitlab.com/sci-bots/dropbot.py/issues/23
-        parent_.on_state_hv_output_enabled_changed(false);
-        parent_.on_state_hv_output_enabled_changed(true);
+        voltage_source::disable_high_voltage_output();
+        voltage_source::enable_high_voltage_output();
     }
     parent_.chip_status_changed_.send(true);
 }
