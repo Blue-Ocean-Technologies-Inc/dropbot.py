@@ -2,18 +2,9 @@
 
 namespace dropbot {
 
-const float Node::R6 = 2e6;
-SlowSoftWire Node::i2c = SlowSoftWire(Node::SSDA_PIN, Node::SSCL_PIN);
-
 void Node::begin() {
-  pinMode(DRIVER_HIGH_PIN, OUTPUT);
-  pinMode(DRIVER_LOW_PIN, OUTPUT);
-  pinMode(SHDN_PIN, OUTPUT);
   pinMode(SCK_PIN, OUTPUT);
   pinMode(MOSI_PIN, OUTPUT);
-  pinMode(HV_OUTPUT_SELECT_PIN, OUTPUT);
-  pinMode(SSDA_PIN, OUTPUT);
-  pinMode(SSCL_PIN, OUTPUT);
 
   // Set D0-D2 high (these are used to select test capacitors for
   // on-board calibration).
@@ -60,13 +51,9 @@ void Node::begin() {
     initialize_switching_boards();
   }
 
-  Timer1.initialize(50); // initialize timer1, and set a 0.05 ms period
-  Timer1.stop();
-
-  // attach timer_callback() as a timer overflow interrupt
-  Timer1.attachInterrupt(timer_callback);
-
   adc_ = new ADC();
+
+  voltage_source::begin();
 
   analogReadResolution(16);
 }
@@ -138,17 +125,6 @@ uint16_t Node::initialize_switching_boards() {
   channels_.channel_count_ = state_._.channel_count;
   channels_.switching_board_i2c_address_ = base_address;
   return state_._.channel_count;
-}
-
-void Node::timer_callback() {
-  uint8_t high_pin_state = digitalRead(DRIVER_HIGH_PIN);
-  if (high_pin_state == HIGH) {
-    digitalWrite(DRIVER_HIGH_PIN, LOW);
-    digitalWrite(DRIVER_LOW_PIN, HIGH);
-  } else {
-    digitalWrite(DRIVER_LOW_PIN, LOW);
-    digitalWrite(DRIVER_HIGH_PIN, HIGH);
-  }
 }
 
 }  // namespace dropbot
