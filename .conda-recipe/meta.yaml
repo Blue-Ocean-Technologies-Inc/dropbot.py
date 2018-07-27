@@ -74,7 +74,7 @@ requirements:
     #: ..versionchanged:: 1.41
     #: ..versionchanged:: 1.55
     #: ..versionchanged:: 1.62
-    #: ..versionchanged:: X.X.X
+    #: ..versionchanged:: 1.64.1
     - base-node-rpc >=0.51
     # ..versionchanged:: 1.62
     - beautifulsoup4

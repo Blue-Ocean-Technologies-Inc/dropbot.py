@@ -1,5 +1,5 @@
 '''
-.. versionadded:: X.X.X
+.. versionadded:: 1.64.1
 '''
 from contextlib import contextmanager
 import threading
