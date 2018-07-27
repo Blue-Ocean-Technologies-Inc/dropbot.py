@@ -68,13 +68,14 @@ requirements:
     - arduino-fast-digital
     - arduino-slow-soft-wire
     - arduino-slow-soft-i2c-master
-    # ..versionadded:: 1.31
-    # ..versionchanged:: 1.40
-    # ..versionchanged:: 1.40.3
-    # ..versionchanged:: 1.41
-    # ..versionchanged:: 1.55
-    # ..versionchanged:: 1.62
-    - base-node-rpc >=0.50
+    #: ..versionadded:: 1.31
+    #: ..versionchanged:: 1.40
+    #: ..versionchanged:: 1.40.3
+    #: ..versionchanged:: 1.41
+    #: ..versionchanged:: 1.55
+    #: ..versionchanged:: 1.62
+    #: ..versionchanged:: X.X.X
+    - base-node-rpc >=0.51
     # ..versionchanged:: 1.62
     - beautifulsoup4
     - future
@@ -123,7 +124,7 @@ outputs:
         - arduino-fast-digital
         - arduino-slow-soft-wire >=1.0.1
         - base-node-dev >=0.13.1
-        - base-node-rpc >=0.50
+        - base-node-rpc >=0.51
         - platformio-tool-scons
         - platformio-tool-teensy >=1.21.0
         - teensy-minimal-rpc-dev >=0.8.1
