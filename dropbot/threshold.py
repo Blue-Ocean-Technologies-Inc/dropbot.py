@@ -8,8 +8,78 @@ import time
 import types
 
 from logging_helpers import _L
+import dropbot as db
+import dropbot.proxy
 import numpy as np
+import pandas as pd
 import si_prefix as si
+
+
+def actuate_channels(self, channels, timeout=None, allow_disabled=True):
+    '''
+    Parameters
+    ----------
+    channels : list
+        List of channel numbers to actuate.
+    timeout : float, optional
+        Timeout in seconds.  If ``None``, block until completed.
+    allow_disabled : bool, optional
+        If ``False``, verify actuated channels match specified channels
+        _exactly_.  Otherwise, ensure that all actuated channels belong to the
+        specified set of channels, _even if_ not _all_ specified channels are
+        actuated.  This supports attempting to actuate channels that are
+        disabled.
+
+    Returns
+    -------
+    list
+        List of actuated channels.  If :data:`allow_disabled` is ``True``, the
+        returned list of channels may differ from the specified list of
+        channels.
+    '''
+
+    # Add async and sync API for channel actuation to driver (maybe partially to firmware?):
+    #
+    #  1. Request actuation of specified channels
+    #  2. Verify channels have been actuated
+    channels_updated = threading.Event()
+
+    def _on_channels_updated(message):
+        channels_updated.actuated = message.get('actuated')
+        channels_updated.set()
+
+    def _actuate():
+        self.turn_off_all_channels()
+        # Enable `channels-updated` DropBot signal.
+        self.update_state(event_mask=self.state.event_mask |
+                          db.proxy.EVENT_CHANNELS_UPDATED |
+                          db.proxy.EVENT_ENABLE)
+        # Request to be notified when the set of actuated channels changes.
+        signal = self.signals.signal('channels-updated')
+        signal.connect(_on_channels_updated)
+        try:
+            # Request actuation of the specified channels.
+            self.state_of_channels = pd.Series(1, index=channels)
+            if not channels_updated.wait(timeout):
+                raise RuntimeError('Timed out waiting for actuation')
+            elif not hasattr(channels_updated, 'actuated'):
+                raise RuntimeError('Actuation was cancelled.')
+            elif not allow_disabled and (set(channels_updated.actuated) !=
+                                         set(channels)):
+                raise RuntimeError('Actuated channels `%s` do not match '
+                                   'expected channels `%s`' %
+                                   (channels_updated.actuated, channels))
+            elif set(channels_updated.actuated) - set(channels):
+                # Disabled channels are allowed.
+                raise RuntimeError('Actuated channels `%s` are not included in'
+                                   ' expected channels `%s`' %
+                                   (channels_updated.actuated, channels))
+        finally:
+            signal.disconnect(_on_channels_updated)
+        return channels_updated.actuated
+
+    with self.transaction_lock:
+        return _actuate()
 
 
 def target_capacitance_event(self, channels, target_capacitance, count=3):
