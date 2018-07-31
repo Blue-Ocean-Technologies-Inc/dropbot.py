@@ -3,6 +3,7 @@
 '''
 from contextlib import contextmanager
 import threading
+import time
 
 import dropbot as db
 import pandas as pd
@@ -13,11 +14,20 @@ def proxy_context(*args, **kwargs):
     '''
     Context manager wrapper around DropBot proxy.
     '''
-    proxy = db.SerialProxy(*args, **kwargs)
-    try:
-        yield proxy
-    finally:
-        proxy.terminate()
+    for i in range(2):
+        try:
+            proxy = db.SerialProxy(*args, **kwargs)
+        except ValueError:
+            time.sleep(.5)
+            print 'error connecting. retry...'
+            continue
+        try:
+            yield proxy
+            break
+        finally:
+            proxy.terminate()
+    else:
+        raise IOError('Error connecting to DropBot.')
 
 
 def test_threadsafe():
