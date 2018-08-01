@@ -3,6 +3,9 @@ from functools import partial
 import ctypes
 import threading
 
+import base_node_rpc as bnr
+import base_node_rpc.async
+import trollius as asyncio
 
 NULL = 0
 
@@ -101,4 +104,34 @@ def cancellable(f):
 
     _wrapped.started = started
     _wrapped.done = done
+    return _wrapped
+
+
+def co_cancellable(f):
+    '''
+    Decorator to add `started` event attribute and `cancel()` method.
+
+    The `cancel()` method cancels the running coroutine and by raising a
+    `CancelledError` exception.
+    '''
+    started = threading.Event()
+
+    def _wrapped(*args, **kwargs):
+        started.clear()
+        started.loop = bnr.async.ensure_event_loop()
+        started.set()
+        return started.loop.run_until_complete(f(*args, **kwargs))
+
+    def _cancel():
+        loop = bnr.async.ensure_event_loop()
+        tasks = [task for task in asyncio.Task.all_tasks(loop=loop)
+                if task is not
+                asyncio.tasks.Task.current_task(loop=loop)]
+        list(map(lambda task: task.cancel(), tasks))
+
+    def cancel():
+        started.loop.call_soon_threadsafe(_cancel)
+
+    _wrapped.started = started
+    _wrapped.cancel = lambda: started.loop.call_soon_threadsafe(_cancel)
     return _wrapped
