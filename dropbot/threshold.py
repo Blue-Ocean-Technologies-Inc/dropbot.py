@@ -164,6 +164,8 @@ def co_target_capacitance(self, channels, target_capacitance, count=3,
 def execute_actuation(self, chip_info_, specific_capacitance, channels,
                       duration_s=1.5, volume_threshold=None, **kwargs):
     '''
+    XXX Coroutine XXX
+
     High-level wrapper around threshold event to:
 
      - Compute target capacitance based on electrode geometries, specific
@@ -185,28 +187,28 @@ def execute_actuation(self, chip_info_, specific_capacitance, channels,
 
     Returns
     -------
-    `OrderedDict` or `None`
-        If a :data:`volume_threshold` was specified, return
-        ``capacitance-exceeded`` DropBot event message with the fields:
+    dict
+        Actuation result with the fields:
 
-            - ``start``: start timestamp.
-            - ``end``: end timestamp.
-            - ``timeout_s``: number of seconds to wait before retrying.
-            - ``retries``: number of retries before success.
-            - ``new_value``: capacitance reached.
-            - ``target``: target capacitance.
-            - ``V_a``: actuation voltage.
+        - ``start``: timestamp after channels actuated (datetime.datetime).
+        - ``end``: timestamp after operation is completed (datetime.datetime).
+        - ``actuated_area``: actuated electrode area (float).
+        - ``actuated_channels``: actuated channel numbers (list).
 
-        Otherwise, return `None`.
+        If :data:`volume_threshold` was specified, _at least_ the following
+        ``capacitance-exceeded`` DropBot event message fields are also
+        included:
+
+        - ``new_value``: capacitance reached.
+        - ``target``: target capacitance.
+        - ``V_a``: actuation voltage.
 
     Raises
     ------
     RuntimeError
-        If target capacitance was not reached after maximum number of retries.
+        If target capacitance was not reached after specified timeout.
     '''
-    if len(channels) < 1:
-        return None
-    elif isinstance(channels[0], types.IntType):
+    if isinstance(channels[0], types.IntType):
         # Channels were specified.
         electrodes = chip_info_['channel_electrodes'].loc[channels]
     else:
@@ -214,15 +216,74 @@ def execute_actuation(self, chip_info_, specific_capacitance, channels,
         electrodes = channels
         channels = chip_info_['electrode_channels'].loc[electrodes].astype(int)
 
-    area = chip_info_['electrode_shapes']['area'].loc[electrodes].sum()
+    def _actuated_result_info(actuated_channels):
+        actuated_electrodes = (chip_info_['channel_electrodes']
+                               .loc[actuated_channels])
+        return {'actuated_area': (chip_info_['electrode_shapes']['area']
+                                  .loc[actuated_electrodes]).sum(),
+                'actuated_electrodes': actuated_electrodes,
+                'actuated_channels': actuated_channels}
 
-    if volume_threshold is not None and volume_threshold > 0:
-        target_capacitance_ = volume_threshold * specific_capacitance * area
-        return target_capacitance(self, channels, target_capacitance_,
-                                  timeout_s=duration_s, **kwargs)
-    else:
-        state_of_channels = np.zeros_like(self.state_of_channels, dtype=int)
-        state_of_channels[channels] = 1
-        self.state_of_channels = state_of_channels
-        time.sleep(duration_s)
-        return None
+    with self.transaction_lock:
+        if not volume_threshold:
+            # ## Case 1: no volume threshold specified.
+            capacitance_messages = []
+            result = {}
+
+            def _on_capacitance_updated(self, message):
+                message['actuated_channels'] = self.actuated_channels
+                message['actuated_area'] = self.actuated_area
+                capacitance_messages.append(message)
+
+            #  1. Set control board state of channels according to requested
+            #     actuation states; and
+            #  2. Wait for channels to be actuated.
+            actuated_channels = actuate_channels(self, channels,
+                                                 timeout=duration_s)
+            result['start'] = dt.datetime.now()
+            #  3. Connect to `capacitance-updated` signal to record capacitance
+            #     values measured during the step.
+            (self.signals.signal('capacitance-updated')
+                .connect(_on_capacitance_updated))
+            #  4. Delay for specified duration.
+            try:
+                yield asyncio.From(asyncio.sleep(duration_s))
+                result['end'] = dt.datetime.now()
+                result.update(_actuated_result_info(actuated_channels))
+            finally:
+                (self.signals.signal('capacitance-updated')
+                 .disconnect(_on_capacitance_updated))
+        else:
+            # ## Case 2: volume threshold specified.
+            #
+            # A volume threshold has been set for this step.
+
+            # Calculate target capacitance based on actuated area.
+            #
+            # Note: `app_values['c_liquid']` represents a *specific
+            # capacitance*, i.e., has units of $F/mm^2$.
+            result = _actuated_result_info(channels)
+
+            target_capacitance = (volume_threshold * result['actuated_area'] *
+                                  specific_capacitance)
+
+            # Wait for target capacitance to be reached in background thread,
+            # timing out if the specified duration is exceeded.
+            co_future = co_target_capacitance(self, channels,
+                                              target_capacitance,
+                                              allow_disabled=False,
+                                              timeout=duration_s, **kwargs)
+            try:
+                dropbot_event = yield asyncio.From(asyncio
+                                                   .wait_for(co_future,
+                                                             duration_s))
+                capacitance_messages = dropbot_event['capacitance_updates']
+                result.update(dropbot_event)
+            except asyncio.TimeoutError:
+                raise RuntimeError('Timed out waiting for target capacitance.')
+
+            # Add actuated area to capacitance update messages.
+            for capacitance_i in capacitance_messages:
+                capacitance_i['acuated_area'] = result['actuated_area']
+
+        raise asyncio.Return(result)
