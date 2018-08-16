@@ -3,6 +3,7 @@ import calendar
 import datetime as dt
 import logging
 import math
+import threading
 import time
 import uuid
 
@@ -125,6 +126,7 @@ try:
                 Default is to raise all exceptions encountered during
                 initialization.
             '''
+            self.transaction_lock = threading.RLock()
             try:
                 # Get list of exception types to ignore.
                 #
