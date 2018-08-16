@@ -68,6 +68,8 @@ requirements:
     - arduino-fast-digital
     - arduino-slow-soft-wire
     - arduino-slow-soft-i2c-master
+    #: ..versionadded:: X.X.X
+    - asyncio-helpers
     #: ..versionadded:: 1.31
     #: ..versionchanged:: 1.40
     #: ..versionchanged:: 1.40.3
@@ -134,6 +136,8 @@ outputs:
       - Lib/site-packages/{{ MODULE_NAME }}
     requirements:
       run:
+        #: ..versionadded:: X.X.X
+        - asyncio-helpers
         - {{ pin_subpackage(PKG_NAME + '-dev', max_pin='x.x') }}
         - base-node >=0.13.1
         # ..versionchanged:: 1.62

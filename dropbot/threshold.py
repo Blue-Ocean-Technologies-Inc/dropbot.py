@@ -7,8 +7,7 @@ import threading
 import types
 import uuid
 
-import base_node_rpc as bnr
-import base_node_rpc.async
+from asyncio_helpers import ensure_event_loop
 import dropbot as db
 import dropbot.proxy
 import pandas as pd
@@ -126,7 +125,7 @@ def co_target_capacitance(self, channels, target_capacitance, count=3,
             loop.call_soon_threadsafe(threshold_reached.set)
 
         threshold_reached = asyncio.Event()
-        loop = bnr.async.ensure_event_loop()
+        loop = ensure_event_loop()
 
         # Perform actuation and wait until actuation has been applied.
         actuated_channels = actuate_channels(self, channels, **kwargs)
