@@ -291,7 +291,7 @@ def chip_info(svg_source):
           (`pandas.Series`).
 
 
-    .. versionadded:: X.X.X
+    .. versionadded:: 1.65
     '''
     if not isinstance(svg_source, pd.DataFrame):
         df_shapes = svg_model.svg_shapes_to_df(svg_source)

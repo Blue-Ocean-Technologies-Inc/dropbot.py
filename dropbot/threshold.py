@@ -1,5 +1,5 @@
 '''
-.. versionadded:: X.X.X
+.. versionadded:: 1.65
 '''
 from __future__ import division, print_function, unicode_literals
 import datetime as dt
