@@ -443,7 +443,24 @@ try:
 
         @voltage.setter
         def voltage(self, value):
-            return self.update_state(voltage=value)
+            '''
+            .. versionchanged:: 1.66
+                Select and enable high voltage output if it is not currently
+                enabled.
+            '''
+            with self.transaction_lock:
+                original_state = self.state
+
+                # Construct required state
+                state = original_state.copy()
+                state.hv_output_enabled = True
+                state.hv_output_selected = True
+                state.voltage = value
+
+                if not (state == original_state).all():
+                    # At least one state property must be modified.
+                    # Only update modified state properties.
+                    self.state = state[state != original_state]
 
         @property
         def hv_output_enabled(self):
