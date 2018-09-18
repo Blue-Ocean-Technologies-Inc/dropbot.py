@@ -90,7 +90,7 @@ def develop_unlink():
 @needs('generate_all_code')
 @needs('compile_protobufs')
 def build_firmware():
-    sh('pio run')
+    sh('pio run --verbose')
 
 
 @task
