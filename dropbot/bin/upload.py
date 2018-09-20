@@ -7,7 +7,9 @@ import sys
 import threading
 import time
 
+from logging_helpers import _L
 from platformio_helpers.upload import upload_conda
+import base_node_rpc as bnr
 import colorama as co
 import conda_helpers as ch
 
@@ -21,6 +23,16 @@ def upload():
     .. versionchanged:: 0.48
         If upload fails, leave Teensy GUI open until either a) Teensy GUI
         window is closed; or b) Ctrl-C is pressed.
+
+    .. versionchanged:: 1.66.2
+        Verify that DropBot device is found before closing Teensy Loader
+        _(Windows only)_.
+
+    Raises
+    ------
+    IOError
+        _(Windows only)_ If DropBot is not found within 5 seconds after
+        PlatformIO upload tool has closed.
     '''
     if platform.system() == 'Windows':
         # Upload using Teensy GUI to allow auto-reboot on Windows.
@@ -33,7 +45,7 @@ def upload():
         teensy_tools_dir = (ch.conda_prefix() / 'share' / 'platformio' /
                             'packages' / 'tool-teensy')
         teensy_exe_path = teensy_tools_dir.joinpath('teensy.exe')
-        p = sp.Popen([teensy_exe_path])
+        teensy_loader = sp.Popen([teensy_exe_path])
 
         def on_error(exception):
             # Loop calls to `teensy_reboot.exe` to keep retrying firmware
@@ -43,7 +55,7 @@ def upload():
             # GUI window is closed while the `teensy_reboot.exe` process is
             # waiting to detect the Teensy rebooting into programming mode.
             # Otherwise, we could also cancel the upload by detecting when the
-            # GUI window is closed (i.e., `p.poll() is not None`).
+            # GUI window is closed (i.e., `teensy_loader.poll() is not None`).
 
             # Upload failed
             waiting_indicator = it.cycle(r'\|/-')
@@ -96,12 +108,13 @@ def upload():
             try:
                 # Keep retrying firmware upload until either a) Teensy GUI
                 # window is closed; or b) Ctrl-C is pressed.
-                while not wait_complete.is_set() and p.poll() is None:
+                while not wait_complete.is_set() and \
+                        teensy_loader.poll() is None:
                     reboot_process = sp.Popen(teensy_reboot_exe,
                                               stdout=sp.PIPE, stderr=sp.PIPE)
 
                     while reboot_process.poll() is None:
-                        if p.poll() is not None:
+                        if teensy_loader.poll() is not None:
                             # Teensy GUI windows closed.  Cancel upload.
                             _cancel()
                             break
@@ -124,15 +137,30 @@ def upload():
                 print(co.Fore.RESET + co.Back.RESET + '', file=sys.stderr,
                       end='')
 
-        # Trigger PlatformIO upload command, which will use graphical uploader
-        # that is already running.
-        # XXX Requires PlatformIO package, `platformio-tool-teensy==1.21.0`.
-        # If upload fails, leave Teensy GUI open for 10 seconds to allow manual
-        # reset into programming mode.
-        upload_conda('dropbot', on_error=on_error)
+        try:
+            # Trigger PlatformIO upload command, which will use graphical uploader
+            # that is already running.
+            # XXX Requires PlatformIO package, `platformio-tool-teensy==1.21.0`.
+            # If upload fails, leave Teensy GUI open for 10 seconds to allow manual
+            # reset into programming mode.
+            upload_conda('dropbot', on_error=on_error)
 
-        # Kill Teensy graphical uploader.
-        p.kill()
+            # Verify that DropBot device is found before closing Teensy Loader.
+            for i in range(5):
+                df_i = bnr.available_devices()
+                if 'device_name' in df_i and df_i[df_i.device_name ==
+                                                  'dropbot'].shape[0] > 0:
+                    _L().debug('DropBot found - firmware update successful.')
+                    break
+                else:
+                    # DropBot not found yet, wait longer and try again.
+                    _L().debug('DropBot not found yet, wait longer and try again.')
+                    time.sleep(1)
+            else:
+                raise IOError('Firmware update failed - DropBot not found.')
+        finally:
+            # Kill Teensy graphical uploader.
+            teensy_loader.kill()
     else:
         # Upload using default PlatformIO uploader.
         upload_conda('dropbot')
