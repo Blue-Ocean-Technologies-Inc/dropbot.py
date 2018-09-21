@@ -1,0 +1,133 @@
+'''
+.. versionadded:: X.X.X
+'''
+import base_node_rpc as bnr
+import base_node_rpc.async
+import dropbot as db
+import trollius as asyncio
+
+
+DROPBOT_SIGNAL_NAMES = ('halted', 'output_enabled',
+                        'output_disabled', 'capacitance-updated',
+                        'channels-updated', 'shorts-detected')
+
+
+@asyncio.coroutine
+def monitor(signals):
+    '''
+    Establish and maintain a DropBot connection.
+
+    XXX Coroutine XXX
+
+    If no DropBot is available or if the connection is lost, wait until a
+    DropBot is detected on one of the available serial ports and (re)connect.
+
+    DropBot signals are forwarded to the supplied :data:`signals` namespace,
+    avoiding the need to manually connect signals after DropBot is
+    (re)connected.
+
+    DropBot connection is automatically closed when coroutine exits, e.g., when
+    cancelled.
+
+    Notes
+    -----
+    On Windows **MUST** be run using a `asyncio.ProactorEventLoop`.
+
+    Parameters
+    ----------
+    signals : blinker.Namespace
+        Namespace for DropBot monitor signals.
+
+    Sends
+    -----
+    connected
+        When DropBot connection is established, with kwargs::
+        - ``dropbot``: reference to DropBot proxy instance.
+    disconnected
+        When DropBot connection is lost.
+    chip-inserted
+        When DropBot detects a chip has been inserted.  Also sent upon
+        connection to DropBot if a chip is present.
+    chip-removed
+        When DropBot detects a chip has been removed.  Also sent upon
+        connection to DropBot if a chip is **not** present.
+    '''
+    loop = asyncio.get_event_loop()
+    dropbot = None
+
+    try:
+        while True:
+            # Multiple DropBot devices were found.
+            # Get list of available devices.
+            df_comports = yield asyncio.From(bnr.async
+                                             ._available_devices(timeout=.1))
+
+            if 'device_name' not in df_comports or not df_comports.shape[0]:
+                yield asyncio.From(asyncio.sleep(.1))
+                continue
+
+            # Automatically select DropBot with highest version, with ties
+            # going to the lowest port name (i.e., `COM1` before `COM2`).
+            df_comports = df_comports.loc[df_comports.device_name ==
+                                          'dropbot'].copy()
+            df_comports.reset_index(inplace=True)
+
+            df_comports.sort_values(['device_version', 'port'],
+                                    ascending=[False, True], inplace=True)
+            df_comports.set_index('port', inplace=True)
+            port = df_comports.index[0]
+
+            try:
+                # Attempt to connect to automatically selected port.
+                dropbot = db.SerialProxy(port=port,
+                                         ignore=[bnr.proxy
+                                                 .MultipleDevicesFound,
+                                                 bnr.proxy
+                                                 .DeviceVersionMismatch])
+            except bnr.proxy.DeviceNotFound:
+                yield asyncio.From(asyncio.sleep(.1))
+                continue
+
+            def co_connect(name):
+                def _wrapped(sender, **message):
+                    @asyncio.coroutine
+                    def co_callback(message):
+                        listeners = signals.signal(name).send('keep_alive',
+                                                              **message)
+                        yield asyncio.From(asyncio.gather(*(l[1] for l in listeners)))
+
+                    return loop.call_soon_threadsafe(loop.create_task,
+                                                     co_callback(sender,
+                                                                 **message))
+                return _wrapped
+
+            for name_i in DROPBOT_SIGNAL_NAMES:
+                dropbot.signals.signal(name_i).connect(co_connect(name_i),
+                                                       weak=False)
+
+            dropbot.signals.signal('output_enabled')\
+                .connect(co_connect('chip-inserted'), weak=False)
+            dropbot.signals.signal('output_disabled')\
+                .connect(co_connect('chip-removed'), weak=False)
+
+            responses = signals.signal('connected').send('keep_alive',
+                                                         dropbot=dropbot)
+            yield asyncio.From(asyncio.gather(*(r[1] for r in responses)))
+
+            disconnected = asyncio.Event()
+
+            dropbot.serial_signals.signal('disconnected')\
+                .connect(lambda *args:
+                         loop.call_soon_threadsafe(disconnected.set),
+                         weak=False)
+
+            yield asyncio.From(disconnected.wait())
+
+            dropbot.terminate()
+
+            responses = signals.signal('disconnected').send('keep_alive')
+            yield asyncio.From(asyncio.gather(*(r[1] for r in responses)))
+    finally:
+        signals.signal('closed').send('keep_alive')
+        if dropbot is not None:
+            dropbot.terminate()
