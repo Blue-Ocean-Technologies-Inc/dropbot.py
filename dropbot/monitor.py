@@ -97,6 +97,14 @@ def monitor(signals):
         .connect(lambda *args: loop.call_soon_threadsafe(reboot, dropbot),
                  weak=False)
 
+    def reconnect(dropbot):
+        if dropbot is not None:
+            dropbot.terminate()
+
+    signals.signal('reconnect') \
+        .connect(lambda *args: loop.call_soon_threadsafe(reconnect, dropbot),
+                 weak=False)
+
     try:
         while True:
             # Multiple DropBot devices were found.
