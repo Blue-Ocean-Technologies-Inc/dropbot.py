@@ -3,6 +3,7 @@
 '''
 import time
 
+from logging_helpers import _L
 import base_node_rpc as bnr
 import base_node_rpc.async
 import dropbot as db
@@ -76,13 +77,14 @@ def monitor(signals):
     loop = asyncio.get_event_loop()
     dropbot = None
 
+    @asyncio.coroutine
+    def co_flash_firmware():
+        if dropbot is not None:
+            dropbot.terminate()
+        db.bin.upload.upload()
+        time.sleep(.5)
+
     def flash_firmware(dropbot):
-        @asyncio.coroutine
-        def co_flash_firmware():
-            if dropbot is not None:
-                dropbot.terminate()
-            db.bin.upload.upload()
-            time.sleep(.5)
         loop.create_task(co_flash_firmware())
 
     signals.signal('flash-firmware') \
@@ -129,11 +131,38 @@ def monitor(signals):
 
             try:
                 # Attempt to connect to automatically selected port.
-                dropbot = db.SerialProxy(port=port,
-                                         ignore=[bnr.proxy
-                                                 .MultipleDevicesFound,
-                                                 bnr.proxy
-                                                 .DeviceVersionMismatch])
+                dropbot = db.SerialProxy(port=port)
+            except bnr.proxy.DeviceVersionMismatch as exception:
+                # Firmware version does not match driver version.
+                _L().debug('Driver version (`%s`) does not match firmware '
+                           'version (`%s`)', db.__version__,
+                           exception.device_version)
+                responses = signals.signal('version-mismatch')\
+                    .send('keep_alive', driver_version=db.__version__,
+                          firmware_version=exception.device_version)
+                try:
+                    results = yield asyncio.From(asyncio.gather(*(r[1]
+                                                                  for r in
+                                                                  responses)))
+                    if results and results[0] == 'ignore':
+                        dropbot = \
+                            db.SerialProxy(port=port,
+                                           ignore=[bnr.proxy
+                                                   .DeviceVersionMismatch])
+                    elif not results or results[0] == 'update':
+                        # No signal receiver raised an exception.  Flash
+                        # firmware and retry connection.
+                        _L().info('Flash firmware and retry connection.')
+                        yield asyncio.From(co_flash_firmware())
+                        continue
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exception:
+                    # # Signal receiver raised exception.  Do not connect.
+                    _L().debug('No signal receiver raised an exception. Do not'
+                               ' connect')
+                    yield asyncio.From(asyncio.sleep(.1))
+                    continue
             except bnr.proxy.DeviceNotFound:
                 yield asyncio.From(asyncio.sleep(.1))
                 continue
