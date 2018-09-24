@@ -51,6 +51,25 @@ def monitor(signals):
     chip-removed
         When DropBot detects a chip has been removed.  Also sent upon
         connection to DropBot if a chip is **not** present.
+
+    Example
+    -------
+
+    >>> import blinker
+    >>>
+    >>> signals = blinker.Namespace()
+    >>>
+    >>> @asyncio.coroutine
+    >>> def dump(*args, **kwargs):
+    >>>     print('args=`%s`, kwargs=`%s`' % (args, kwargs))
+    >>>
+    >>> signals.signal('chip-inserted').connect(dump, weak=False)
+    >>> loop = asyncio.ProactorEventLoop()
+    >>> asyncio.set_event_loop(loop)
+    >>> task = loop.create_task(db.monitor.dropbot_monitor(signals))
+    >>> # Stop monitor after 15 seconds.
+    >>> loop.call_later(15, task.cancel)
+    >>> loop.run_until_complete(task)
     '''
     loop = asyncio.get_event_loop()
     dropbot = None
