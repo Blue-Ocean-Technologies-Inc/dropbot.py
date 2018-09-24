@@ -1,6 +1,8 @@
 '''
 .. versionadded:: X.X.X
 '''
+from __future__ import division, print_function, unicode_literals
+import platform
 import time
 
 from logging_helpers import _L
@@ -210,3 +212,99 @@ def monitor(signals):
         signals.signal('closed').send('keep_alive')
         if dropbot is not None:
             dropbot.terminate()
+
+
+if __name__ == '__main__':
+    import logging
+    import functools as ft
+
+    import blinker
+    import debounce.async
+    import trollius as asyncio
+    import debounce
+
+    logging.basicConfig(level=logging.DEBUG)
+
+    dropbot = None
+
+    @asyncio.coroutine
+    def on_connected(sender, **message):
+        global dropbot
+        dropbot = message['dropbot']
+        _L().info('sender=`%s`', sender)
+        map(_L().info, str(dropbot.properties).splitlines())
+        dropbot.update_state(capacitance_update_interval_ms=10,
+                             event_mask=db.EVENT_CHANNELS_UPDATED |
+                             db.EVENT_SHORTS_DETECTED | db.EVENT_ENABLE)
+
+    @asyncio.coroutine
+    def on_disconnected(*args, **kwargs):
+        global dropbot
+        dropbot = None
+        _L().info('args=`%s`, kwargs=`%s`', args, kwargs)
+
+    @asyncio.coroutine
+    def on_halted(*args, **kwargs):
+        _L().info('args=`%s`, kwargs=`%s`', args, kwargs)
+
+    def dump(name, *args, **kwargs):
+        print('\r[%s] args=`%s`, kwargs=`%s`%-20s' % (name, args, kwargs, '')),
+
+    @asyncio.coroutine
+    def co_dump(*args, **kwargs):
+        raise asyncio.Return(dump(*args, **kwargs))
+
+    @asyncio.coroutine
+    def on_version_mismatch(*args, **kwargs):
+        _L().info('args=`%s`, kwargs=`%s`', args, kwargs)
+        message = ('Driver version `%(driver_version)s` does not match '
+                   'firmware `%(firmware_version)s` version.' % kwargs)
+        while True:
+            response = raw_input(message + ' [I]gnore/[u]pdate/[s]kip: ')
+            if not response:
+                # Default response is `ignore` and try to connect anyway.
+                response = 'ignore'
+
+            for action in ('ignore', 'update', 'skip'):
+                if action.startswith(response.lower()):
+                    response = action
+                    break
+            else:
+                print('Invalid response: `%s`' % response)
+                response = None
+
+            if response is not None:
+                break
+        if response == 'skip':
+            raise IOError(message)
+        raise asyncio.Return(response)
+
+    debounced_dump = debounce.async.Debounce(dump, 250, max_wait=500, leading=True)
+
+    def on_closed(*args):
+        global dropbot
+        dropbot = None
+
+    signals = blinker.Namespace()
+
+    signals.signal('version-mismatch').connect(on_version_mismatch, weak=False)
+    signals.signal('connected').connect(on_connected, weak=False)
+    signals.signal('disconnected').connect(on_disconnected, weak=False)
+
+    for name_i in DROPBOT_SIGNAL_NAMES + ('chip-inserted', 'chip-removed'):
+        if name_i in ('output_enabled', 'output_disabled'):
+            continue
+        elif name_i == 'capacitance-updated':
+            signals.signal(name_i).connect(ft.partial(asyncio.coroutine(debounced_dump), name_i), weak=False)
+        else:
+            signals.signal(name_i).connect(ft.partial(co_dump, name_i), weak=False)
+
+    signals.signal('closed').connect(on_closed, weak=False)
+
+    if platform.system() == 'Windows':
+        loop = asyncio.ProactorEventLoop()
+        asyncio.set_event_loop(loop)
+    else:
+        loop = asyncio.get_event_loop()
+    task = loop.create_task(monitor(signals))
+    loop.run_until_complete(task)
