@@ -1,6 +1,8 @@
 '''
 .. versionadded:: X.X.X
 '''
+import time
+
 import base_node_rpc as bnr
 import base_node_rpc.async
 import dropbot as db
@@ -73,6 +75,19 @@ def monitor(signals):
     '''
     loop = asyncio.get_event_loop()
     dropbot = None
+
+    def flash_firmware(dropbot):
+        @asyncio.coroutine
+        def co_flash_firmware():
+            if dropbot is not None:
+                dropbot.terminate()
+            db.bin.upload.upload()
+            time.sleep(.5)
+        loop.create_task(co_flash_firmware())
+
+    signals.signal('flash-firmware') \
+        .connect(lambda *args: loop.call_soon_threadsafe(flash_firmware,
+                                                         dropbot), weak=False)
 
     def reboot(dropbot):
         if dropbot is not None:
