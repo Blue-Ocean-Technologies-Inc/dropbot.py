@@ -74,6 +74,14 @@ def monitor(signals):
     loop = asyncio.get_event_loop()
     dropbot = None
 
+    def reboot(dropbot):
+        if dropbot is not None:
+            dropbot._reboot()
+
+    signals.signal('reboot') \
+        .connect(lambda *args: loop.call_soon_threadsafe(reboot, dropbot),
+                 weak=False)
+
     try:
         while True:
             # Multiple DropBot devices were found.
