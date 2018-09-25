@@ -801,11 +801,13 @@ try:
             time.sleep(0.5)
             self._connect()
 
-        def reboot(self):
+        def _reboot(self):
             '''
-            .. versionchanged:: 1.27.1
-                Temporarily disable timeout to avoid waiting for a response
-                after reboot command has been sent.
+            .. versionadded:: 1.67
+
+            Reboot DropBot control board.
+
+            .. note:: **Connection is lost.**
             '''
             # Reboot to put device in known state.
             try:
@@ -820,6 +822,15 @@ try:
                 # Restore original timeout duration.
                 self._timeout_s = original_timeout_s
                 self.terminate()
+
+        def reboot(self):
+            '''
+            .. versionchanged:: 1.27.1
+                Temporarily disable timeout to avoid waiting for a response
+                after reboot command has been sent.
+            '''
+            # Reboot to put device in known state.
+            self._reboot()
 
             # Wait for serial port to settle after reboot.
             time.sleep(.5)
