@@ -803,7 +803,7 @@ try:
 
         def _reboot(self):
             '''
-            .. versionadded:: X.X.X
+            .. versionadded:: 1.67
 
             Reboot DropBot control board.
 
