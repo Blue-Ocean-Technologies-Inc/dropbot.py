@@ -75,6 +75,11 @@ def monitor(signals):
     >>> # Stop monitor after 15 seconds.
     >>> loop.call_later(15, task.cancel)
     >>> loop.run_until_complete(task)
+
+
+    .. versionchanged:: 1.67.1
+        Upon connection, send `'chip-inserted'` if chip is inserted or send
+        `'chip-removed'` if no chip is inserted.
     '''
     loop = asyncio.get_event_loop()
     dropbot = None
@@ -194,6 +199,16 @@ def monitor(signals):
             responses = signals.signal('connected').send('keep_alive',
                                                          dropbot=dropbot)
             yield asyncio.From(asyncio.gather(*(r[1] for r in responses)))
+
+            OUTPUT_ENABLE_PIN = 22
+            # Chip may have been inserted before connecting, so `chip-inserted`
+            # event may have been missed.
+            # Explicitly check if chip is inserted by reading **active low**
+            # `OUTPUT_ENABLE_PIN`.
+            if dropbot.digital_read(OUTPUT_ENABLE_PIN):
+                co_connect('chip-removed')({})
+            else:
+                co_connect('chip-inserted')({})
 
             disconnected = asyncio.Event()
 
