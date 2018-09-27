@@ -1,5 +1,9 @@
 '''
 .. versionadded:: 1.67
+
+.. versionchanged:: 1.68
+    If 12V power is not detected, prompt to either a) ignore and connect
+    anyway; or b) skip the DropBot.
 '''
 from __future__ import division, print_function, unicode_literals
 import platform
@@ -9,6 +13,7 @@ from logging_helpers import _L
 import base_node_rpc as bnr
 import base_node_rpc.async
 import dropbot as db
+import dropbot.proxy
 import trollius as asyncio
 
 
@@ -80,6 +85,10 @@ def monitor(signals):
     .. versionchanged:: 1.67.1
         Upon connection, send `'chip-inserted'` if chip is inserted or send
         `'chip-removed'` if no chip is inserted.
+
+    .. versionchanged:: 1.68
+        Send `'no-power'` signal if 12V power supply not connected.  Receivers
+        may return `'ignore'` to attempt to connect anyway.
     '''
     loop = asyncio.get_event_loop()
     dropbot = None
@@ -136,41 +145,66 @@ def monitor(signals):
             df_comports.set_index('port', inplace=True)
             port = df_comports.index[0]
 
-            try:
-                # Attempt to connect to automatically selected port.
-                dropbot = db.SerialProxy(port=port)
-            except bnr.proxy.DeviceVersionMismatch as exception:
-                # Firmware version does not match driver version.
-                _L().debug('Driver version (`%s`) does not match firmware '
-                           'version (`%s`)', db.__version__,
-                           exception.device_version)
-                responses = signals.signal('version-mismatch')\
-                    .send('keep_alive', driver_version=db.__version__,
-                          firmware_version=exception.device_version)
+            @asyncio.coroutine
+            def _attempt_connect(**kwargs):
+                ignore = kwargs.pop('ignore', [])
                 try:
-                    results = yield asyncio.From(asyncio.gather(*(r[1]
-                                                                  for r in
-                                                                  responses)))
-                    if results and results[0] == 'ignore':
-                        dropbot = \
-                            db.SerialProxy(port=port,
-                                           ignore=[bnr.proxy
-                                                   .DeviceVersionMismatch])
-                    elif not results or results[0] == 'update':
-                        # No signal receiver raised an exception.  Flash
-                        # firmware and retry connection.
+                    # Attempt to connect to automatically selected port.
+                    dropbot = db.SerialProxy(port=port, ignore=ignore,
+                                             **kwargs)
+                    raise asyncio.Return(dropbot)
+                except db.proxy.NoPower as exception:
+                    # No 12V power supply detected on DropBot.
+                    _L().debug('No 12V power supply detected.')
+                    responses = signals.signal('no-power').send('keep_alive')
+
+                    for t in asyncio.as_completed([loop.create_task(r[1])
+                                                   for r in responses]):
+                        response = yield asyncio.From(t)
+                        if response == 'ignore':
+                            ignore.append(db.proxy.NoPower)
+                            break
+                    else:
+                        raise exception
+                except bnr.proxy.DeviceVersionMismatch as exception:
+                    # Firmware version does not match driver version.
+                    _L().debug('Driver version (`%s`) does not match firmware '
+                            'version (`%s`)', db.__version__,
+                            exception.device_version)
+                    responses = signals.signal('version-mismatch')\
+                        .send('keep_alive', driver_version=db.__version__,
+                            firmware_version=exception.device_version)
+
+                    update = False
+
+                    for t in asyncio.as_completed([loop.create_task(r[1])
+                                                   for r in responses]):
+                        response = yield asyncio.From(t)
+                        if response == 'ignore':
+                            ignore.append(bnr.proxy.DeviceVersionMismatch)
+                            break
+                        elif response == 'update':
+                            update = True
+                            break
+                    else:
+                        raise
+
+                    if update:
+                        # Flash firmware and retry connection.
                         _L().info('Flash firmware and retry connection.')
                         yield asyncio.From(co_flash_firmware())
-                        continue
-                except asyncio.CancelledError:
-                    raise
-                except Exception as exception:
-                    # # Signal receiver raised exception.  Do not connect.
-                    _L().debug('No signal receiver raised an exception. Do not'
-                               ' connect')
-                    yield asyncio.From(asyncio.sleep(.1))
-                    continue
-            except bnr.proxy.DeviceNotFound:
+
+                dropbot = yield asyncio.From(_attempt_connect(ignore=ignore,
+                                                              **kwargs))
+                raise asyncio.Return(dropbot)
+
+            try:
+                dropbot = yield asyncio.From(_attempt_connect())
+            # except bnr.proxy.DeviceNotFound:
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                _L().debug('Error connecting to DropBot.', exc_info=True)
                 yield asyncio.From(asyncio.sleep(.1))
                 continue
 
@@ -294,6 +328,27 @@ if __name__ == '__main__':
             raise IOError(message)
         raise asyncio.Return(response)
 
+    @asyncio.coroutine
+    def on_no_power(*args, **kwargs):
+        while True:
+            response = raw_input('No 12V power supply detected.  '
+                                 '[I]gnore/[s]kip: ')
+            if not response:
+                # Default response is `ignore` and try to connect anyway.
+                response = 'ignore'
+
+            for action in ('ignore', 'skip'):
+                if action.startswith(response.lower()):
+                    response = action
+                    break
+            else:
+                print('Invalid response: `%s`' % response)
+                response = None
+
+            if response is not None:
+                break
+        raise asyncio.Return(response)
+
     debounced_dump = debounce.async.Debounce(dump, 250, max_wait=500, leading=True)
 
     def on_closed(*args):
@@ -303,6 +358,7 @@ if __name__ == '__main__':
     signals = blinker.Namespace()
 
     signals.signal('version-mismatch').connect(on_version_mismatch, weak=False)
+    signals.signal('no-power').connect(on_no_power, weak=False)
     signals.signal('connected').connect(on_connected, weak=False)
     signals.signal('disconnected').connect(on_disconnected, weak=False)
 
