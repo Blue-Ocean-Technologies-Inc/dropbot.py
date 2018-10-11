@@ -24,6 +24,7 @@ if __name__ == '__main__':
 
     extra_args += [r'-DDEVICE_ID_RESPONSE=\"dropbot::{}\"'
                    .format(args.version), r'-DTWI_BUFFER_LENGTH=160',
-                   r'-DPACKET_SIZE=1024']
+                   r'-DPACKET_SIZE=1024',
+                   r'-DBinary_h']
 
     print(' '.join(extra_args))
