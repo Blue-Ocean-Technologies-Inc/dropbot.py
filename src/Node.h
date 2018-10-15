@@ -2499,6 +2499,11 @@ public:
   }
 
   void set_sensitive_channels(UInt8Array packed_channels) {
+    matrix_controller_.reset();
+    matrix_controller_.sensitive_channels(packed_channels.data,
+                                          packed_channels.data +
+                                          packed_channels.length);
+
     constexpr uint8_t CMD_SET_SENSITIVE_CHANNELS = 0xA9;
     i2c_safe([&] () {
       // Broadcast message to **all** switching boards, using _general call_
@@ -2578,7 +2583,16 @@ public:
     return sensitive_offsets;
   }
 
+  /**
+  * @brief Apply duty cycle to list of channels.
+  *
+  * @param duty_cycle  Duty cycle (in range $[0..1]$ inclusive).
+  * @param channels  List of channel identifiers to which duty cycle should be
+  *   applied.
+  */
   void set_duty_cycle(float duty_cycle, UInt8Array channels) {
+    matrix_controller_.sensitive_duty_cycles(duty_cycle, channels.data,
+                                             channels.data + channels.length);
     // Process channels in chunks to avoid overflowing maximum I2C message
     // length.
     auto chunks_count = static_cast<uint8_t>(ceil(channels.length / 22.));
@@ -2603,6 +2617,50 @@ public:
         Wire.endTransmission();
       }
     });
+  }
+
+  FloatArray sensitive_duty_cycles() {
+    auto duty_cycles = matrix_controller_.sensitive_duty_cycles();
+    return copy_to_buffer<FloatArray, decltype(duty_cycles.begin())>
+        (duty_cycles.begin(), duty_cycles.end());
+  }
+
+  UInt8Array sensitive_channels() {
+    auto channels = matrix_controller_.sensitive_channels();
+    return copy_to_buffer<UInt8Array, decltype(channels.begin())>
+        (channels.begin(), channels.end());
+  }
+
+  uint32_t switching_matrix_row_count() {
+    return matrix_controller_.row_count();
+  }
+
+  void set_switching_matrix_row_count(uint32_t row_count) {
+    matrix_controller_.reset(row_count);
+  }
+
+  UInt8Array S() {
+    auto S_ = matrix_controller_.S();
+    return copy_to_buffer<UInt8Array, decltype(S_.data())>
+        (S_.data(), S_.data() + S_.size());
+  }
+
+  FloatArray OMEGA() {
+    auto OMEGA_ = matrix_controller_.OMEGA();
+    return copy_to_buffer<FloatArray, decltype(OMEGA_.data())>
+        (OMEGA_.data(), OMEGA_.data() + OMEGA_.size());
+  }
+
+  FloatArray y() {
+    auto y_ = matrix_controller_.y();
+    return copy_to_buffer<FloatArray, decltype(y_.data())>
+        (y_.data(), y_.data() + y_.size());
+  }
+
+  FloatArray m() {
+    auto m_ = matrix_controller_.m();
+    return copy_to_buffer<FloatArray, decltype(m_.data())>
+        (m_.data(), m_.data() + m_.size());
   }
 
   /**
@@ -2688,6 +2746,13 @@ public:
     }
   }
 
+  /**
+  * @brief Duty cycle for specified electrode.
+  *
+  * @param channel  Channel number.
+  *
+  * @return Duty cycle, in range $[0..1]$ inclusive.
+  */
   float get_duty_cycle(uint8_t channel) {
     float duty_cycle = -1;
     i2c_safe([&] () {
@@ -2723,6 +2788,13 @@ public:
     return duty_cycle;
   }
 
+  /**
+  * @brief Set active switching matrix row.
+  *
+  * @param matrix_row_i  Row index.
+  * @param row_count  Number of rows in matrix (required to compute state based
+  *   on duty cycle).
+  */
   void set_switching_matrix_row(uint8_t matrix_row_i, uint8_t row_count) {
     i2c_safe([&] () {
       // Broadcast duty cycle request to all switching boards.
@@ -2734,17 +2806,35 @@ public:
     });
   }
 
+  /**
+  * @brief Automatically start cycling through switching matrix rows.
+  *
+  * @param row_count  Number of rows in matrix (required to compute state based
+  *   on duty cycle).
+  * @param t_settling_s  Minimum number of seconds between row activations.
+  */
   void start_switching_matrix(uint32_t row_count, float t_settling_s) {
-    matrix_controller_ = SwitchingMatrixRowContoller(row_count, t_settling_s *
-                                                     1e6);
+    matrix_controller_.reset(row_count, t_settling_s * 1e6);
     matrix_controller_.update(*this, SwitchingMatrixRowContoller::START,
                               micros());
   }
 
+  /**
+  * @brief Stop cycling through switching matrix rows.
+  */
   void stop_switching_matrix() {
     matrix_controller_.stop(*this);
   }
 
+  /**
+  * @brief Compute time to cycle through switching matrix.
+  *
+  * @param row_count  Number of rows in matrix.
+  * @param delay_s  Delay (in seconds) between row activations.
+  * @param repeats  Number of times to cycle through switching matrix.
+  *
+  * @return Total time elapsed (in seconds).
+  */
   float _benchmark_switching_matrix_row(uint8_t row_count, float delay_s,
                                         uint32_t repeats) {
     auto start = micros();
