@@ -2387,6 +2387,57 @@ public:
     // Turn off all channels.
     channels_.disable_all_channels();
   }
+
+  /**
+  * @brief Return buffer cast to specified `CArrayDefs` array type.
+  *
+  * @tparam T  `CArrayDefs` array type, e.g., `FloatArray`, `UInt16Array`.
+  *
+  * @return  `get_buffer()` buffer cast as specified array type.
+  *
+  * Example
+  * -------
+  *
+  * ```c++
+  * // Length is re-calculated and set according to atom (e.g., `float`) size.
+    FloatArray result = get_type_buffer<FloatArray>();
+  * ```
+  *
+  * \version added: 1.71.1
+  */
+  template <typename T>
+  T get_type_buffer() {
+    T result;
+    auto buffer = get_buffer();
+    result.data = reinterpret_cast<decltype(result.data)>(buffer.data);
+    result.length = buffer.length / sizeof(result.data[0]);
+    return result;
+  }
+
+  /**
+  * @brief Copy from iterator range to typed CArrayDefs array.
+  *
+  * Data of returned CArrayDefs instance is held in shared buffer returned by
+  * `Node::get_buffer()`.  This method is useful, e.g., to return an arbitrary
+  * data range from an RPC method call.
+  *
+  * For example, see `Node::S()`.
+  *
+  * @tparam Array  CArrayDefs array type (e.g., `FloatArray`).
+  * @param begin  Beginning of source.
+  * @param end  End of source.
+  *
+  * @return  CArrayDefs array, with data stored in shared `Node` buffer.
+  *
+  * \version added: 1.71.1
+  */
+  template <typename Array, typename Iterator>
+  Array copy_to_buffer(Iterator begin, Iterator end) {
+    auto result = get_type_buffer<Array>();
+    result.length = end - begin;
+    std::copy(begin, end, result.data);
+    return result;
+  }
 };
 }  // namespace dropbot
 
