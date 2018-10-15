@@ -760,6 +760,9 @@ try:
             packed_channels = self.pack_channels(channels)
             super(ProxyMixin, self).set_sensitive_channels(packed_channels)
 
+        def _get_sensitive_channels(self):
+            return super(ProxyMixin, self).get_sensitive_channels()
+
         def get_sensitive_channels(self):
             packed_channels = super(ProxyMixin, self).get_sensitive_channels()
             global_sensitive_mask = \
@@ -771,12 +774,20 @@ try:
 
         @property
         def sensitive_channels(self):
-            return self.get_sensitive_channels()
+            return super(ProxyMixin, self).sensitive_channels()
 
         @sensitive_channels.setter
         def sensitive_channels(self, channels):
             self.set_sensitive_channels(channels)
 
+        def _OMEGA(self):
+            return super(ProxyMixin, self).OMEGA()
+
+        def OMEGA(self):
+            OMEGA = super(ProxyMixin, self).OMEGA()
+            sensitive_channels = self.sensitive_channels
+            values = OMEGA.reshape(-1, len(sensitive_channels))
+            return pd.DataFrame(values, columns=sensitive_channels)
 
     class Proxy(ProxyMixin, _Proxy):
         pass
