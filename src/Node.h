@@ -2584,6 +2584,18 @@ public:
   }
 
   /**
+  * @brief Apply duty cycle to **all** channels.
+  *
+  * @param duty_cycle  Duty cycle (in range $[0..1]$ inclusive).
+  */
+  void set_all_duty_cycles(float duty_cycle) {
+    auto channels = get_buffer();
+    channels.length = MAX_NUMBER_OF_CHANNELS;
+    std::iota(channels.data, channels.data + channels.length, 0);
+    set_duty_cycle(duty_cycle, channels);
+  }
+
+  /**
   * @brief Apply duty cycle to list of channels.
   *
   * @param duty_cycle  Duty cycle (in range $[0..1]$ inclusive).
