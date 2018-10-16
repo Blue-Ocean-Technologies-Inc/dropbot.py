@@ -83,6 +83,7 @@ import trollius as asyncio
 
 signals = blinker.Namespace()
 
+connected = threading.Event()
 proxy = None
 
 @asyncio.coroutine
@@ -108,9 +109,11 @@ def on_connected(*args, **kwargs):
     neighbour_counts = neighbours.groupby(level='channel').count()
     disabled_channels_mask_i[neighbour_counts.loc[neighbour_counts < 1].index] = 1
     proxy.disabled_channels_mask = disabled_channels_mask_i
+    connected.set()
     
 @asyncio.coroutine
 def on_disconnected(*args, **kwargs):
+    connected.clear()
     global proxy
     
     proxy = None
@@ -128,6 +131,10 @@ monitor_task = cancellable(db.monitor.monitor)
 thread = threading.Thread(target=monitor_task, args=(signals, ))
 thread.daemon = True
 thread.start()
+connected.wait(10)
+
+# %%
+# monitor_task.cancel()
 
 # %% {"ExecuteTime": {"start_time": "2018-04-13T18:31:23.622000Z", "end_time": "2018-04-13T18:31:24.858000Z"}}
 %matplotlib notebook
@@ -346,45 +353,9 @@ fig.canvas.mpl_connect('pick_event', on_pick)
 fig.canvas.mpl_connect('scroll_event', lambda *args, **kwargs:
                        logger.started.loop.call_soon_threadsafe(ft.partial(on_scroll, *args, **kwargs)))
 
-# %%
-# proxy.set_switching_matrix_row?
-
-# %%
-proxy.set_sensitive_channels([25, 29, 33])
-proxy.set_duty_cycle(0, [29])
-proxy.set_duty_cycle(1, [25, 33])
-proxy.start_switching_matrix(20, .006)
-
-# %%
-proxy.state
-
-# %%
-proxy.stop_switching_matrix()
-channels = [29]
-# channels = [25, 29, 33]
-# channels = [24, 25, 33, 32]
-proxy.set_sensitive_channels(channels)
-proxy.set_duty_cycle(1, channels)
-proxy.start_switching_matrix(30, .006)
-
-# %%
-proxy.ram_free()
-
-# %%
-pick_i = picks[-1]
-
-# %%
-logger.cancel()
-
-# %%
-
-
-# %% {"ExecuteTime": {"start_time": "2018-04-13T18:30:49.504000Z", "end_time": "2018-04-13T18:30:49.523000Z"}}
-proxy.stop_switching_matrix()
-
 # %% {"ExecuteTime": {"start_time": "2018-04-13T18:30:50.955000Z", "end_time": "2018-04-13T18:30:50.975000Z"}}
-# proxy.update_state(drops_update_interval_ms=int(0))
-proxy.update_state(capacitance_update_interval_ms=500)
+proxy.update_state(drops_update_interval_ms=int(500))
+# proxy.update_state(capacitance_update_interval_ms=1000)
 
 # %% [markdown]
 # -----------------------------------------------------------------------------------------------
@@ -392,8 +363,17 @@ proxy.update_state(capacitance_update_interval_ms=500)
 # %% [markdown]
 # # Close DropBot connection
 
-# %% {"ExecuteTime": {"start_time": "2018-04-13T18:30:53.208000Z", "end_time": "2018-04-13T18:30:53.214000Z"}}
-proxy.terminate()
+# %%
+import ipywidgets as ipw
+
+
+def close(*args):
+    proxy.update_state(drops_update_interval_ms=int(0))
+    monitor_task.cancel()
+
+button = ipw.Button(description='Disconnect')
+button.on_click(close)
+button
 
 # %% [markdown]
 # -----------------------------------------------------------------------------------------------
