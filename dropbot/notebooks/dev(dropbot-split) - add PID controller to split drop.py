@@ -71,6 +71,24 @@ thread = threading.Thread(target=gtk_thread, args=(fig, ))
 thread.daemon = True
 thread.start()
 
+# %%
+import ivPID
+
+# %%
+# pid = ivPID.PID()
+
+# pid.update(feedback)
+# output = pid.output
+# if pid.SetPoint > 0:
+#     feedback += (output - (1/i))
+# if i>9:
+#     pid.SetPoint = 1
+# time.sleep(0.02)
+
+# feedback_list.append(feedback)
+# setpoint_list.append(pid.SetPoint)
+# time_list.append(i)
+
 # %% {"ExecuteTime": {"start_time": "2018-04-13T18:31:08.926000Z", "end_time": "2018-04-13T18:31:12.742000Z"}}
 from __future__ import (absolute_import, print_function, unicode_literals,
                         division)
@@ -108,6 +126,7 @@ import dropbot.monitor
 
 # %%
 import threading
+import time
 
 from asyncio_helpers import cancellable
 import blinker
@@ -154,22 +173,40 @@ def on_disconnected(*args, **kwargs):
 def ignore(*args, **kwargs):
     raise asyncio.Return('ignore')
 
-signals.signal('chip-inserted').connect(dump, weak=False)
-signals.signal('connected').connect(on_connected, weak=False)
-signals.signal('disconnected').connect(on_disconnected, weak=False)
-signals.signal('version-mismatch').connect(ignore, weak=False)
+def connect(*args):
+    global signals
+    global monitor_task 
+    
+    signals.clear()
+    signals.signal('chip-inserted').connect(dump, weak=False)
+    signals.signal('connected').connect(on_connected, weak=False)
+    signals.signal('disconnected').connect(on_disconnected, weak=False)
+    signals.signal('version-mismatch').connect(ignore, weak=False)
+    
+    monitor_task = cancellable(db.monitor.monitor)
+    thread = threading.Thread(target=monitor_task, args=(signals, ))
+    thread.daemon = True
+    thread.start()
+    
+    while not connected.wait(1):
+        pass
 
-monitor_task = cancellable(db.monitor.monitor)
-thread = threading.Thread(target=monitor_task, args=(signals, ))
-thread.daemon = True
-thread.start()
-connected.wait(10)
+connect()
 
-# %%
-# monitor_task.cancel()
-
-# %%
 import ipywidgets as ipw
+
+
+def close(*args):
+    connected.clear()
+    proxy.update_state(drops_update_interval_ms=int(0))
+    time.sleep(1.)
+    monitor_task.cancel()
+
+buttons = {'disconnect': ipw.Button(description='Disconnect'),
+           'connect': ipw.Button(description='Connect')}
+buttons['disconnect'].on_click(close)
+buttons['connect'].on_click(connect)
+ipw.HBox(buttons.values())
 
 # %%
 row_count = 40
@@ -207,6 +244,109 @@ def plot_vec_y():
 plot_thread = threading.Thread(target=plot_vec_y)
 plot_thread.daemon = True
 plot_thread.start()
+
+# %%
+# plot_vec_y.cancel()
+
+# %%
+proxy.update_state(voltage=115)
+# Neck electrode(s).
+middle = [29]
+# middle = [86]
+# Electrodes to split left and right.
+# a, b = [24, 25], [33, 32]
+a, b = [16, 25], [33, 40]
+# a, b = [25], [33]
+# a, b = [90, 86], [28, 32]
+# a, b = [29, 90], [40, 79]
+
+all_channels = a + b + middle
+proxy.set_duty_cycle(0, all_channels)
+# proxy.set_duty_cycle(0, a + b)
+# proxy.set_duty_cycle(1, middle)
+proxy.set_sensitive_channels(all_channels)
+proxy.start_switching_matrix(row_count, 0.005)
+
+def measure_sensitive():
+    return pd.Series(proxy.y(), index=proxy.sensitive_channels)
+
+# %%
+pid = ivPID.PID(P=.25 / 10e-12)
+
+# %%
+c_ = measure_sensitive()
+display(c_.map(si.si_format))
+pid.SetPoint = .5 * c_[a + b].sum()
+epsilon = .05 * pid.SetPoint
+
+# %%
+proxy.set_duty_cycle(1, middle)
+proxy.set_sensitive_channels(all_channels)
+proxy.start_switching_matrix(row_count, 0.005)
+
+d_a_prev = None
+d_b_prev = None
+
+i = 0
+with proxy.transaction_lock:
+    c_ = pd.Series(proxy.y(), index=proxy.sensitive_channels)
+    
+steps = []
+while abs(c_[a].sum() - pid.SetPoint) > epsilon:
+    pid.update(c_[a].sum())
+#     d_a = min(1, max(2. / row_count, abs(pid.output)))
+    d_a = min(1, max(1. / row_count, abs(pid.output)))
+    d_b = 0
+
+    if pid.output <= 0:
+        d_a, d_b = d_b, d_a
+
+    data = pd.Series({'d_a': d_a, 'd_b': d_b, 'output': pid.output})
+    print('\r' + 50 * ' ', end='')
+    print('\r%-50s' % ('[%d] %s, %s' % (i, data.map(si.si_format).to_dict(), c_.map(si.si_format).to_dict())),
+          end='')
+    steps.append(pd.concat([c_, data]))
+        
+    if d_a_prev != d_a or d_b_prev != d_b:
+        with proxy.transaction_lock:
+            proxy.stop_switching_matrix()
+            proxy.set_duty_cycle(d_a, a)
+            proxy.set_duty_cycle(d_b, b)
+            proxy.start_switching_matrix(row_count, 0.005)
+        time.sleep(0.35)
+        d_a_prev = d_a
+        d_b_prev = d_b
+    i += 1
+    
+    with proxy.transaction_lock:
+        c_ = pd.Series(proxy.y(), index=proxy.sensitive_channels)
+
+# Try to split.
+with proxy.transaction_lock:
+    proxy.stop_switching_matrix()
+    proxy.set_duty_cycle(0, middle)
+    proxy.set_duty_cycle(1, a + b)
+    proxy.start_switching_matrix(row_count, 0.005)
+
+# %%
+df_i = pd.DataFrame(steps)[a + b + middle].plot(kind='bar')
+# df_i = pd.DataFrame(steps)[a + b + middle].T
+# df_i['group'] = None
+# df_i.loc[a, 'group'] = 'a'
+# df_i.loc[b, 'group'] = 'b'
+# df_i.loc[middle, 'group'] = 'middle'
+# df_i.groupby('group').sum().T.plot(kind='bar')
+
+# %%
+proxy.stop_switching_matrix()
+proxy.turn_off_all_channels()
+# proxy.state_of_channels = pd.Series(1, index=a[1:] + middle)
+proxy.state_of_channels = pd.Series(1, index=b[:1] + middle)
+# proxy.state_of_channels = pd.Series(1, index=middle + a + b)
+time.sleep(.1)
+proxy.turn_off_all_channels()
+proxy.state_of_channels = pd.Series(1, index=middle)
+proxy.turn_off_all_channels()
 
 # %%
 def foo(on_channels, off_channels, on_duty=1.):
