@@ -354,7 +354,7 @@ public:
                                InputDebounce::PinInMode::PIM_EXT_PULL_UP_RES,
                                0),
            capacitance_timestamp_ms_(0), target_count_(0),
-           drops_timestamp_ms_(0) {
+           drops_timestamp_ms_(0), matrix_controller_(40, 5e3) {
     pinMode(LED_BUILTIN, OUTPUT);
     dma_data_ = UInt8Array_init_default();
     clear_neighbours();
