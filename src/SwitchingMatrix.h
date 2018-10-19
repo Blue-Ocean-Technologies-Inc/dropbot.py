@@ -5,6 +5,7 @@
 #include <math.h>
 #include "analog.h"
 #include "channels.h"
+#include "Signal.h"
 
 
 namespace dropbot {
@@ -84,6 +85,11 @@ private:
     MatrixF OMEGA_;
 
 public:
+    Signal<std::function<void(// sensitive channels
+                              std::vector<uint8_t> const &,
+                              // capacitances, i.e., $\vec{y}$
+                              MatrixF const &)> > sensitive_capacitances_;
+
     SwitchingMatrixRowContoller() : state_(IDLE), row_count_(0) {
       sensitive_duty_cycles_.fill(0);
     }
@@ -209,30 +215,7 @@ public:
             row_i_ += 1;
             if (row_i_ >= row_count_) {
               y_ = OMEGA_ * m_;
-              //auto event_buffer = node.get_buffer();
-              //char * const data = reinterpret_cast<char *>(event_buffer.data);
-              //event_buffer.length = 0;
-
-              //auto const time_us = micros();
-              //PacketStream output;
-              //event_buffer.length +=
-                //sprintf(&data[event_buffer.length],
-                        //"{\"event\": \"sensitive-capacitances\","
-                        //" \"time_us\": %lu,"
-                        //" \"V_a\": %g,",  // Actuation voltage
-                        //" \"values\": {", time_us, analog::high_voltage_);
-              //for (auto i = 0; i < sensitive_channels_.size(); i++) {
-                //event_buffer.length +=
-                  //sprintf(&data[event_buffer.length],
-                          //"%s%d: %g", (i == 0) ? "" : ", ",
-                          //sensitive_channels_[i], Y(i, 1));
-              //}
-              //event_buffer.length +=
-                //sprintf(&data[event_buffer.length], "}}");
-
-              //output.start(Serial, event_buffer.length);
-              //output.write(Serial, data, event_buffer.length);
-              //output.end(Serial);
+              sensitive_capacitances_.send(sensitive_channels_, y_);
               row_i_ = 0;
             }
             state_ = SETTING_SWITCHING_MATRIX_ROW;
