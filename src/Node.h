@@ -341,6 +341,11 @@ public:
   *   range. Connect callbacks to `chip_load_saturated_` signal to halt (i.e.,
   *   disable all channels and turn off high-voltage) and send `halted` serial
   *   event.
+  *
+  * \version X.X.X
+  *   Send `sensitive-capacitances` serial event when \f$\vec{y}\f$ is computed
+  *   by the switching matrix controller (i.e., at the end of each loop through
+  *   the switching matrix).
   */
   Node() : BaseNode(),
            BaseNodeConfig<config_t>(dropbot_Config_fields),
@@ -566,6 +571,36 @@ public:
                             buffer.length);
         output_packet.end(Serial);
       }
+    });
+
+    matrix_controller_.sensitive_capacitances_.connect(
+      [&] (auto channels, auto y) {
+        // Sensitive capacitances have been updated.  Send serial stream event.
+      UInt8Array buffer = this->get_buffer();
+      buffer.length = 0;
+
+      buffer.length += sprintf((char *)&buffer.data[buffer.length],
+                               "{\"event\": \"sensitive-capacitances\", "
+                               "\"wall_time\": %lu, "
+                               "\"C\": [", time::wall_time());
+
+      for (auto i = 0; i < channels.size(); i++) {
+        if (i > 0) {
+          buffer.length += sprintf((char *)&buffer.data[buffer.length], ", ");
+        }
+        buffer.length += sprintf((char *)&buffer.data[buffer.length],
+                                 "[%d, %g]", channels[i], y(i, 0));
+      }
+      buffer.length += sprintf((char *)&buffer.data[buffer.length], "]}");
+
+      {
+        PacketStream output_packet;
+        output_packet.start(Serial, buffer.length);
+        output_packet.write(Serial, (char *)buffer.data,
+                            buffer.length);
+        output_packet.end(Serial);
+      }
+
     });
   }
 
