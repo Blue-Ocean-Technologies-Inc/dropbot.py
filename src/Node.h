@@ -2832,6 +2832,16 @@ public:
   }
 
   /**
+  * @brief Resume cycling through switching matrix rows (after stop).
+  *
+  * Uses the same row count and settling time the matrix was started with.
+  */
+  void resume_switching_matrix() {
+    start_switching_matrix(matrix_controller_.row_count(),
+                           1e-6 * matrix_controller_.t_settling());
+  }
+
+  /**
   * @brief Stop cycling through switching matrix rows.
   */
   void stop_switching_matrix() {

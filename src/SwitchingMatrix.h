@@ -109,6 +109,7 @@ public:
     }
 
     auto const row_count() const { return row_count_; }
+    auto const t_settling() const { return t_settling_; }
     auto const &m() const { return m_; }
     auto S() const {
       auto const channels_count = sensitive_channels_.size();
