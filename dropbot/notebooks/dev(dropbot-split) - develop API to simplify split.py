@@ -459,7 +459,6 @@ class DropSplitController(object):
         self.middle = middle
         self.proxy = proxy
         self.outputs = {}
-
         self._update_force = None
         self._sensitive_callback = None
         self.signals = blinker.Namespace()
@@ -488,7 +487,6 @@ class DropSplitController(object):
         b_i = self.b
         b_neighbours_i = self.b_neighbours
         self.outputs = {}
-
         self._i = 0
 
         def _on_sensitive_capacitances(message):
@@ -512,9 +510,7 @@ class DropSplitController(object):
 
             message = {'sensitive_capacitances': capacitances,
                        'split_capacitances': {'a': a_c_i, 'b': b_c_i, 'middle': middle_c_i}}
-
             self.signals.signal('split-capacitances-updated').send('split-ctrl', **message)
-
         queue_set = threading.Event()
 
         @cancellable
@@ -532,7 +528,6 @@ class DropSplitController(object):
                     self.outputs[time.time()] = force
             except asyncio.CancelledError:
                 pass
-
         apply_duty_cycles(proxy, pd.Series(d_0, a_i + a_neighbours_i + middle_i + b_i + b_neighbours_i),
                           set_sensitive=True)
 
@@ -715,7 +710,6 @@ def do_dispense(min_voltage=95, max_voltage=110, **kwargs):
 #     print('\nResult C: %sF' % si.si_format(split_result['C_b']))
     return split_result
 
-
 def clean_up():
 #     channels.extend([[5, 114]])
 #     for d in ['right'] * 4:
@@ -750,7 +744,6 @@ def move(source, target, trail_length=1, delay=1.):
         duty_cycles = pd.Series(1, index=path[i:i + trail_length])
         apply_duty_cycles(proxy, duty_cycles)
         time.sleep(delay)
-
 
 def shortest_path(source, target):
     for i in nx.shortest_path(G, source, target)[1::]:
