@@ -695,6 +695,11 @@ def do_dispense_split(target_C_b, min_voltage, max_voltage, ready_wait=3, split_
     split_ctrl.stop()
     apply_duty_cycles(proxy, pd.Series(1, index=split_ctrl.b + split_ctrl.b_neighbours))
     split_capacitances = measure_sensitive()
+    while split_capacitances.sum() > 2 * target_C_b: 
+        logging.debug('false reading for C_b: %sF' %
+                      si.si_format(split_capacitances.sum()))
+        apply_duty_cycles(proxy, pd.Series(1, index=split_ctrl.b + split_ctrl.b_neighbours))
+        split_capacitances = measure_sensitive()
     capacitance = split_capacitances.sum()
     apply_duty_cycles(proxy, pd.Series(1, index=split_ctrl.b))
     state.update({'C_b': capacitance, 'outputs': split_ctrl.outputs,
