@@ -309,8 +309,7 @@ def apply_duty_cycles(proxy, duty_cycles, set_sensitive=True):
     channels = duty_cycles.index
     if set_sensitive:
         proxy.set_sensitive_channels(channels)
-    duty_cycles[duty_cycles > 1] = 1
-    duty_cycles[duty_cycles < 0] = 0
+    duty_cycles.clip(lower=0, upper=1)
     for d_i in duty_cycles.unique():
         channels_i = duty_cycles[duty_cycles == d_i].index
         proxy.set_duty_cycle(d_i, channels_i)
@@ -426,62 +425,11 @@ def wait_on_capacitance(callback):
         proxy.signals.signal('sensitive-capacitances').disconnect(_on_sensitive_capacitances)
 
 # %%
-import ivPID
-
-@asyncio.coroutine
-def wait_for_split(proxy, target_C_head, tail_neighbours, tail, neck, head, head_neighbours):
-    # See https://en.wikipedia.org/wiki/Ziegler%E2%80%93Nichols_method
-    K_u = .2 / 1e-12 # Determined empirically, consistent oscillations
-    T_u=2 * .365  # Oscilation period
-
-    # pid = ivPID.PID(P=K_u)
-    # pid = ivPID.PID(P=.5 * K_u)  # P
-    # pid = ivPID.PID(P=.45 * K_u, I=T_u / 1.2)  # PI
-    # pid = ivPID.PID(P=.8 * K_u, D=T_u / 8)  # PD
-    # pid = ivPID.PID(P=.6 * K_u, I=T_u / 2, D=T_u / 8)  # ["classic" PID][1]
-    # pid = ivPID.PID(P=.7 * K_u, I=T_u / 2.5, D=3 * T_u / 20)  # [Pessen Integral Rule][1]
-    # pid = ivPID.PID(P=.33 * K_u, I=T_u / 2, D=T_u / 3)  # ["some" overshoot][1]
-    # pid = ivPID.PID(P=.2 * K_u, I=T_u / 2, D=T_u / 3)  # ["no" overshoot][1]
-    # [1]: http://www.mstarlabs.com/control/znrule.html
-
-    pid = ivPID.PID(P=.6 * K_u, I=T_u / 2, D=T_u / 8)  # ["classic" PID][1]
-
-    pid.setPoint = .5
-
-    loop = asyncio.get_event_loop()
-
-    def apply_force(force):
-        proxy.stop_switching_matrix()
-
-        tail_duty_cycle, head_duty_cycle = output_duty_cycles(force)
-        tail_duty_cycle = max(0, min(1, tail_duty_cycle))
-        head_duty_cycle = max(0, min(1, head_duty_cycle))
-        duty_cycles = pd.concat([pd.Series(head_duty_cycle, index=head + head_neighbours),
-                                 pd.Series(tail_duty_cycle, index=tail + tail_neighbours)])
-        # XXX Use existing sensitive channels, which include **middle** channel(s).
-        apply_duty_cycles(proxy, duty_cycles, set_sensitive=False)
-        print('\r%-50s' % ('%-.03f <- -> %.03f' % (tail_duty_cycle, head_duty_cycle)), end='')
-
-    def on_capcacitances(capacitances):
-        if capacitances[neck].sum() < EPSILON:
-            return True
-        try:
-            pid.update(capacitances[head + head_neighbours].sum() - target_C_head)
-            loop.call_soon_threadsafe(apply_force, pid.output)
-        except AttributeError:
-            logging.debug('Error', exc_info=True)
-
-    apply_duty_cycles(proxy, pd.concat([pd.Series(0, index=tail_neighbours + tail + neck),
-                                        pd.Series(.5, index=head + head_neighbours)]))
-    state = yield asyncio.From(wait_on_capacitance(on_capcacitances))
-    raise asyncio.Return(state)
-
-# %%
 loop = asyncio.ProactorEventLoop()
 asyncio.set_event_loop(loop)
 
 # %%
-proxy.voltage = 115
+proxy.voltage = 105
 
 # %%
 # apply_duty_cycles(proxy, pd.Series(1, index=[29, 25]))
@@ -629,9 +577,17 @@ def move_liquid(route, trail_length=1, neighbour_epsilon=3e-12):
 # %%
 electrode_C = pd.Series()
 
+log_ = []
+
+
+def log_sensitive_capacitances(message):
+    message['time'] = time.time()
+    log_.append(message)
+
 
 @asyncio.coroutine
-def _attempt_dispense(proxy, route, alpha=1., beta=1.1, head_epsilon=10e-12, epsilon=EPSILON):
+def _attempt_dispense(proxy, route, alpha=1., beta=1.1, head_epsilon=10e-12, epsilon=EPSILON,
+                      neck_epsilon=2e-12):
     # 1. Move liquid along route, one electrode at a time until **head** capacitance exceeds EPSILON.
     move_state = yield asyncio.From(move_liquid(route, trail_length=1, neighbour_epsilon=epsilon))
 
@@ -669,7 +625,7 @@ def _attempt_dispense(proxy, route, alpha=1., beta=1.1, head_epsilon=10e-12, eps
 
     yield asyncio.From(wait_for_split(proxy, alpha * target_C_head,
                                       tail_neighbours, tail, neck, head,
-                                      head_neighbours))
+                                      head_neighbours, neck_epsilon=neck_epsilon))
     apply_duty_cycles(proxy, pd.Series(1, index=tail + head + head_neighbours))
     capacitances = yield asyncio.From(read_C())
     C_head = capacitances[head + head_neighbours].sum()
@@ -678,20 +634,111 @@ def _attempt_dispense(proxy, route, alpha=1., beta=1.1, head_epsilon=10e-12, eps
 
 
 @asyncio.coroutine
-def dispense(proxy, route, alpha=1., beta=1.1, epsilon=EPSILON, retries=5):
+def dispense(proxy, route, alpha=1., beta=1.1, epsilon=EPSILON, neck_epsilon=2e-12):
+    alpha_ = alpha
     while True:
-        target_C_head, C_head = yield asyncio.From(_attempt_dispense(proxy, route, alpha=alpha, beta=beta))
+        target_C_head, C_head = \
+            yield asyncio.From(_attempt_dispense(proxy, route, alpha=alpha, beta=beta,
+                                                 neck_epsilon=neck_epsilon))
 #         display(pd.Series({'target': target_C_head, 'result': C_head}).map(si.si_format))
         error = (C_head - target_C_head) / target_C_head
         print('%s%.2f%%' % ('+' if error > 0 else '', error * 100))
-        if error > -.1 and error < .1:
+
+        message = {'error': error,
+                   'target_C': target_C_head,
+                   'C': C_head,
+                   'alpha': alpha,
+                   'args': dict(zip(('route', 'alpha', 'beta', 'epsilon'),
+                                    (route, alpha_, beta, epsilon))),
+                   'time': time.time()}
+        error_tolerance = .075
+        if abs(error) < error_tolerance:
+            message['action'] = 'dispense-complete'
+            log_.append(message)
             break
         else:
             alpha *= target_C_head / C_head if C_head != 0 else 1.
+            message['action'] = 'dispense-retry'
+            message['alpha'] = alpha
+            log_.append(message)
 #             print('alpha: %.2f' % alpha)
             yield asyncio.From(move_liquid(route[::-1][:4], neighbour_epsilon=3e-12))
             yield asyncio.From(move_liquid(route[:-3], neighbour_epsilon=3e-12))
     raise asyncio.Return(target_C_head, C_head, alpha)
+
+# %%
+import ivPID
+
+@asyncio.coroutine
+def wait_for_split(proxy, target_C_head, tail_neighbours, tail, neck, head, head_neighbours,
+                   neck_epsilon=2e-12):
+    # See https://en.wikipedia.org/wiki/Ziegler%E2%80%93Nichols_method
+    K_u = .2 / 1e-12 # Determined empirically, consistent oscillations
+    T_u=2 * .365  # Oscilation period
+
+    # pid = ivPID.PID(P=K_u)
+    # pid = ivPID.PID(P=.5 * K_u)  # P
+    # pid = ivPID.PID(P=.45 * K_u, I=T_u / 1.2)  # PI
+    # pid = ivPID.PID(P=.8 * K_u, D=T_u / 8)  # PD
+    # pid = ivPID.PID(P=.6 * K_u, I=T_u / 2, D=T_u / 8)  # ["classic" PID][1]
+    # pid = ivPID.PID(P=.7 * K_u, I=T_u / 2.5, D=3 * T_u / 20)  # [Pessen Integral Rule][1]
+    # pid = ivPID.PID(P=.33 * K_u, I=T_u / 2, D=T_u / 3)  # ["some" overshoot][1]
+    # pid = ivPID.PID(P=.2 * K_u, I=T_u / 2, D=T_u / 3)  # ["no" overshoot][1]
+    # [1]: http://www.mstarlabs.com/control/znrule.html
+
+    pid = ivPID.PID(P=.6 * K_u, I=T_u / 2, D=T_u / 8)  # ["classic" PID][1]
+
+    pid.setPoint = .5
+
+    loop = asyncio.get_event_loop()
+
+    def apply_force(force):
+        proxy.stop_switching_matrix()
+
+        tail_duty_cycle, head_duty_cycle = output_duty_cycles(force)
+        tail_duty_cycle = max(0, min(1, tail_duty_cycle))
+        head_duty_cycle = max(0, min(1, head_duty_cycle))
+        duty_cycles = pd.concat([pd.Series(head_duty_cycle, index=head + head_neighbours),
+                                 pd.Series(tail_duty_cycle, index=tail + tail_neighbours)])
+        # XXX Use existing sensitive channels, which include **middle** channel(s).
+        apply_duty_cycles(proxy, duty_cycles, set_sensitive=False)
+#         print('\r%-50s' % ('%-.03f <- -> %.03f' % (tail_duty_cycle, head_duty_cycle)), end='')
+        log_.append({'action': 'apply-force', 'duty_cycles': duty_cycles,
+                     'tail_duty_cycle': tail_duty_cycle, 'head_duty_cycle': head_duty_cycle,
+                     'time': time.time()})
+
+    neck_breaks = []
+
+    def on_capcacitances(capacitances):
+        C_neck = capacitances[neck].sum()
+        if C_neck < neck_epsilon:
+            neck_breaks.append(C_neck)
+        else:
+            del neck_breaks[:]
+        if len(neck_breaks) >= 4:
+            return True
+        try:
+            pid.update(capacitances[head + head_neighbours].sum() - target_C_head)
+            loop.call_soon_threadsafe(apply_force, pid.output)
+        except AttributeError:
+            logging.debug('Error', exc_info=True)
+
+    apply_duty_cycles(proxy, pd.concat([pd.Series(0, index=tail_neighbours + tail + neck),
+                                        pd.Series(.5, index=head + head_neighbours)]))
+    state = yield asyncio.From(wait_on_capacitance(on_capcacitances))
+    log_.append({'action': 'split-complete',
+                 'args':
+                 dict(zip(('target_C_head', 'tail_neighbours', 'tail', 'neck', 'head', 'head_neighbours'),
+                          (target_C_head, tail_neighbours, tail, neck, head, head_neighbours))),
+                 'time': time.time()})
+    raise asyncio.Return(state)
+
+
+def gather_liquid(sources, target, **kwargs):
+    for s in sources:
+        route = nx.shortest_path(G, s, target)
+        loop.run_until_complete(asyncio.wait_for(move_liquid(route, neighbour_epsilon=2e-12, trail_length=1), timeout=20))
+        apply_duty_cycles(proxy, pd.Series(1, index=route[-1:]))
 
 # %%
 # apply_duty_cycles(proxy, pd.Series(1, index=[26]))
@@ -726,6 +773,14 @@ def dispense(proxy, route, alpha=1., beta=1.1, epsilon=EPSILON, retries=5):
 # apply_duty_cycles(proxy, pd.Series(1, index=[85, 83]))
 
 # %%
+duty_cycles = pd.Series(proxy.sensitive_duty_cycles())[proxy.sensitive_channels.astype(int)]
+# duty_cycles
+# duty_cycles[85] = .5
+del duty_cycles[79]
+# duty_cycles
+apply_duty_cycles(proxy, duty_cycles)
+
+# %%
 def gather_liquid(sources, target, **kwargs):
     for s in sources:
         route = nx.shortest_path(G, s, target)
@@ -733,8 +788,22 @@ def gather_liquid(sources, target, **kwargs):
         apply_duty_cycles(proxy, pd.Series(1, index=route[-1:]))
 
 # %%
-# gather_liquid([91], 83, trail_length=1)
-# apply_duty_cycles(proxy, pd.Series(1, index=[85]))
+gather_liquid([16], 98, trail_length=1)
+# gather_liquid([22], 26, trail_length=2)
+# gather_liquid([22, 97], 83, trail_length=1)
+# apply_duty_cycles(proxy, pd.Series(1, index=[16, 98, 97, 103]))
+# proxy.stop_switching_matrix()
+# proxy.turn_off_all_channels()
+# proxy.state_of_channels = pd.Series(1, index=[82, 83])
+# proxy.state_of_channels[proxy.state_of_channels > 0]
+
+# %%
+
+
+# %%
+# proxy.disabled_channels_mask = np.zeros(120)
+disabled = pd.Series(proxy.disabled_channels_mask)
+disabled[disabled > 0]
 
 # %% [markdown]
 # --------------------------------
@@ -742,8 +811,12 @@ def gather_liquid(sources, target, **kwargs):
 # # Run PID dispense from 85 to 79
 
 # %%
+import os
 import datetime as dt
 import json_tricks
+
+
+move_epsilon = 5e-12
 
 
 def run_experiment(route, destinations, tunings=None):
@@ -755,48 +828,156 @@ def run_experiment(route, destinations, tunings=None):
         if tunings is not None:
             alpha_i = tunings.get(d, {'alpha': alpha_i})['alpha']
         target_C_head_i, C_head_i, alpha_i =\
-            loop.run_until_complete(asyncio.wait_for(dispense(proxy, route, beta=1.25, alpha=alpha_i,
-                                                              epsilon=EPSILON),
-                                                     timeout=45))
+            loop.run_until_complete(asyncio.wait_for(dispense(proxy, route,
+                                                              beta=BETA, alpha=alpha_i,
+                                                              epsilon=EPSILON,
+                                                              neck_epsilon=NECK_EPSILON),
+                                                     timeout=60))
         end_i = time.time()
         results_i = pd.Series([target_C_head_i, C_head_i, alpha_i, start_i, end_i],
                               index=['target_C', 'C', 'alpha', 'start', 'end'])
         display(results_i, results_i['end'] - results_i['start'])
         results[d] = results_i
         route_i = nx.shortest_path(G, route[-2], d)
-        loop.run_until_complete(asyncio.wait_for(move_liquid(route_i, neighbour_epsilon=4e-12, trail_length=1), timeout=20))
+        loop.run_until_complete(asyncio.wait_for(move_liquid(route_i, neighbour_epsilon=move_epsilon,
+                                                             trail_length=1), timeout=20))
         apply_duty_cycles(proxy, pd.Series(1, index=route_i[-1:]))
 
     gather_liquid(destinations[::-1], route[2])
 
-    loop.run_until_complete(asyncio.wait_for(move_liquid(route[:4][::-1], neighbour_epsilon=4e-12,
+    loop.run_until_complete(asyncio.wait_for(move_liquid(route[:4][::-1],
+                                                         neighbour_epsilon=move_epsilon,
                                                          trail_length=3), timeout=20))
     apply_duty_cycles(proxy, pd.Series(1, index=route[:2]))
     return results
 
 
-source = 85
-target = 40
+source = 93
+target = 16
 route = nx.shortest_path(G, source, target)
-proxy.voltage = 115
+# route = [85, 83, 82, 81, 79, 86]
+proxy.voltage = 98
+EPSILON = 5e-12
+NECK_EPSILON = 4e-12
+BETA = 1.3
 
-destinations = [22, 97, 53, 66]
+# destinations = [22, 97]  #, 53, 66]
+# destinations = [25, 48]
+# destinations = [111, 86]
+destinations = [21, 29]
+
+log_ = []
+proxy.signals.signal('sensitive-capacitances').connect(log_sensitive_capacitances, weak=False)
+
+original_apply_duty_cycles = apply_duty_cycles
+
+@ft.wraps(original_apply_duty_cycles)
+def apply_duty_cycles(proxy, duty_cycles, set_sensitive=True):
+    log_.append({'action': 'apply-duty-cycles', 'duty_cycles': duty_cycles,
+                 'set_sensitive': set_sensitive})
+    return original_apply_duty_cycles(proxy, duty_cycles, set_sensitive=set_sensitive)
 
 try:
-    results = None
-    while True:
+#     results = None
+#     while True:
+    for i in range(10):
+        print('\n' + 72 * '-', end='\n\n')
+        print('Iteration %d' % i, end='\n\n')
         results = run_experiment(route, destinations, tunings=results)
         # Save results
         now = dt.datetime.now()
         experiment_log = {'timestamp': now.isoformat(),
                           'dispense_runs': results,
-                          'chip': 'a7cb0639-e5d5-43bd-80a9-ee1a11a1ce8f',
-                          'beta': 1.2}
+                          'chip': 'c3ad05dd-b753-4bfb-807a-7828e524064d',
+                          'beta': BETA}
         output_name = '%s - PID dispense results.json' % now.strftime('%Y-%m-%dT%Hh%M')
         with open(output_name, 'w') as output:
             json_tricks.dump(experiment_log, output, indent=4)
+        with open(os.path.splitext(output_name)[0] + '-action_log.json', 'w') as output:
+            json_tricks.dump(log_, output, indent=4)
 except KeyboardInterrupt:
     pass
+finally:
+    apply_duty_cycles = original_apply_duty_cycles
+    proxy.signals.signal('sensitive-capacitances').disconnect(log_sensitive_capacitances)
+
+    for r in proxy.signals.signal('sensitive-capacitances').receivers.values():
+        proxy.signals.signal('sensitive-capacitances').disconnect(r)
+
+# %%
+# apply_duty_cycles(proxy, pd.Series(1, index=[85]))
+proxy.turn_off_all_channels()
+proxy.stop_switching_matrix()
+
+# %%
+capacitance_messages = [message for message in log_ if 'action' not in message]
+capacitances = pd.concat([pd.Series(*zip(*message['C'])[::-1]) for message in capacitance_messages],
+                         keys=(message['time'] for message in capacitance_messages)).unstack()
+capacitances.index = pd.to_datetime(capacitances.index * 1e9)
+
+# %%
+import matplotlib.animation as manimation
+
+FFMpegWriter = manimation.writers['ffmpeg']
+metadata = dict(title='Movie Test', artist='Matplotlib',
+                comment='Movie support!')
+writer = FFMpegWriter(fps=4, metadata=metadata)
+
+fig, axis = plt.subplots(1)
+
+axis.yaxis.set_major_formatter(F_formatter)
+axis.set_ylim(0, 120e-12)
+
+with writer.saving(fig, os.path.splitext(output_name)[0] + ".mp4", 100):
+    for time_s, s_capacitances_i in capacitances.resample('.25S').mean().iterrows():
+        axis.cla()
+        s_capacitances_i.plot(kind='bar', ax=axis)
+        axis.yaxis.set_major_formatter(F_formatter)
+        writer.grab_frame()
+
+# %%
+# df_shapes.head()
+# channels_by_electrode
+
+
+# %%
+electrode_channels = (df_shapes.drop_duplicates(['id', 'data-channels'])
+                      .set_index('id')['data-channels'].map(int))
+
+# Compute center `(x, y)` for each electrode.
+electrode_centers = df_shapes.groupby('id')[['x', 'y']].mean()
+# Index by **channel number** instead of **electrode id**.
+electrode_centers.index = electrode_channels.reindex(electrode_centers
+                                                     .index)
+
+patches = [mpl.patches.Polygon(df_shape_i[['x', 'y']].values,
+                               closed=False, label=id_)
+           for id_, df_shape_i in df_shapes.groupby('id')]
+
+if ax is None:
+    fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+ax.set_aspect(True)
+
+for patch_i in patches:
+    patch_i.set_facecolor('blue')
+    patch_i.set_edgecolor('black')
+    ax.add_patch(patch_i)
+
+ax.set_xlim(df_shapes.x.min(), df_shapes.x.max())
+ax.set_ylim(df_shapes.y.max(), df_shapes.y.min())
+fig.show()
+
+# %%
+%matplotlib inline
+
+# %%
+time_s, s_capacitances_i
+
+# %%
+import matplotlib as mpl
+
+# %%
+capacitances.index.to_series().diff
 
 # %%
 # apply_duty_cycles(proxy, pd.Series(1, index=[85]))
@@ -808,6 +989,7 @@ import datetime as dt
 import json_tricks
 
 # %%
+
 
 
 # %%
