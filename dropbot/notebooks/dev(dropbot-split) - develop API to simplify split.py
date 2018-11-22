@@ -575,14 +575,66 @@ output_name = '%s - PID split results.json' % now.strftime('%Y-%m-%dT%Hh%M')
 with open(output_name, 'w') as output:
     json_tricks.dump(experiment_log, output, indent=4)
 
+# %% [markdown]
+# # Open-loop split
+
 # %%
+results = []
+
+for k in range(100):
+    for i in range(3):
+        align(a_neighbours, a, neck, b, b_neighbours)
+    apply_duty_cycles(proxy, pd.Series(1, index=[25, 94, 95]))
+    time.sleep(.5)
+    proxy.stop_switching_matrix()
+    proxy.turn_off_all_channels()
+    time.sleep(.5)
+    apply_duty_cycles(proxy, pd.Series(1, index=a_neighbours + a +
+                                       b + b_neighbours))
+    time.sleep(3.5)
+    capacitances = loop.run_until_complete(asyncio.wait_for(read_C(), 15))
+    C_a = capacitances[a_neighbours + a].sum()
+    C_b = capacitances[b_neighbours + b].sum()
+    result_k = {'time': time.time(), 'C_a': C_a, 'C_b': C_b, 'theta': theta}
+    results.append(result_k)
+    print('\r%-60s' % ('%2d. C_a/C_b: %.2f, C_a: %sF, C_b: %sF' % 
+          tuple([k + 1, C_a / C_b] + map(si.si_format, [C_a, C_b]))), end='')
+    
+# Save results
+now = dt.datetime.now()
+experiment_log = {'timestamp': now.isoformat(),
+                  'split_runs': results,
+                  'chip': 'c3ad05dd-b753-4bfb-807a-7828e524064d',
+                  'liquid': 'propylene glycol',
+                  'dropbot_state': proxy.state.to_dict()}
+output_name = '%s - open-loop split results.json' % now.strftime('%Y-%m-%dT%Hh%M')
+with open(output_name, 'w') as output:
+    json_tricks.dump(experiment_log, output, indent=4)
+
+# %% [markdown]
+# # Save results
+
+# %%
+import path_helpers as ph
+
+root = ph.path('~/Dropbox (Sci-Bots)/Sci-Bots experiments').expand()
+experiment = 'open-loop-split-01'
+exp_dir = root.dirs('* results - `dropbot.py@exp(%s)`' % experiment)[0]
+data_file = exp_dir.files('*.json')[0]
+
+with open(data_file, 'r') as input_:
+    experiment_log = json_tricks.load(input_)
+    results = experiment_log['split_runs']
+
 df_results = pd.DataFrame(results)
 df_results.set_index(df_results.time.map(dt.datetime.fromtimestamp), inplace=True)
 del df_results['time']
-(df_results['C_a'] / df_results['C_b']).plot(kind='box')
-
-# %%
-with open('2018')
+ax = (df_results['C_a'] / df_results['C_b']).plot(kind='box')
+ax.set_title('Open-loop, Propylene glycol, ratio 1:1, 100 splits')
+ax.set_xticks([])
+ax.set_ylabel(r'$\frac{C_a}{C_b}$', fontsize=25)
+ax.get_figure().tight_layout()
+(df_results['C_a'] / df_results['C_b']).describe()
 
 # %%
 apply_duty_cycles(proxy, pd.Series(0, index=[94, 25, 29]))
