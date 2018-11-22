@@ -546,10 +546,11 @@ def align(a_neighbours, a, neck, b, b_neighbours, split_epsilon = 2 * EPSILON):
 
     apply_duty_cycles(proxy, pd.Series(0.25, index=a + neck + b))
     apply_duty_cycles(proxy, pd.Series(0, index=a_neighbours + a + neck + b + b_neighbours))
-    
-    
-a_neighbours, a, neck, b, b_neighbours = [101], [103], [94], [90], [86]
-theta = 2.
+
+# %%
+# a_neighbours, a, neck, b, b_neighbours = [101], [103], [94], [90], [86]
+a_neighbours, a, neck, b, b_neighbours = [16], [25], [29], [33], [40]
+theta = 1.
 
 results = []
 for k in range(100):
@@ -579,12 +580,22 @@ with open(output_name, 'w') as output:
 # # Open-loop split
 
 # %%
+proxy.voltage = 105
+
+# %%
+# apply_duty_cycles(proxy, pd.Series(1, index=[28, 29]))
+a_neighbours, a, neck, b, b_neighbours = [16], [25], [29], [33], [40]
+
+for i in range(3):
+    align(a_neighbours, a, neck, b, b_neighbours)
+
+# %%
 results = []
 
 for k in range(100):
     for i in range(3):
         align(a_neighbours, a, neck, b, b_neighbours)
-    apply_duty_cycles(proxy, pd.Series(1, index=[25, 94, 95]))
+    apply_duty_cycles(proxy, pd.Series(1, index=[28, 29, 90]))
     time.sleep(.5)
     proxy.stop_switching_matrix()
     proxy.turn_off_all_channels()
@@ -595,7 +606,7 @@ for k in range(100):
     capacitances = loop.run_until_complete(asyncio.wait_for(read_C(), 15))
     C_a = capacitances[a_neighbours + a].sum()
     C_b = capacitances[b_neighbours + b].sum()
-    result_k = {'time': time.time(), 'C_a': C_a, 'C_b': C_b, 'theta': theta}
+    result_k = {'time': time.time(), 'C_a': C_a, 'C_b': C_b}
     results.append(result_k)
     print('\r%-60s' % ('%2d. C_a/C_b: %.2f, C_a: %sF, C_b: %sF' % 
           tuple([k + 1, C_a / C_b] + map(si.si_format, [C_a, C_b]))), end='')
@@ -612,13 +623,13 @@ with open(output_name, 'w') as output:
     json_tricks.dump(experiment_log, output, indent=4)
 
 # %% [markdown]
-# # Save results
+# # Plot results
 
 # %%
 import path_helpers as ph
 
 root = ph.path('~/Dropbox (Sci-Bots)/Sci-Bots experiments').expand()
-experiment = 'open-loop-split-01'
+experiment = 'open-loop-split-02'
 exp_dir = root.dirs('* results - `dropbot.py@exp(%s)`' % experiment)[0]
 data_file = exp_dir.files('*.json')[0]
 
