@@ -67,22 +67,23 @@ def gtk_thread(fig):
 def refresh():
     gobject.idle_add(canvas['canvas'].draw_idle)
 
-thread = threading.Thread(target=gtk_thread, args=(fig, ))
-thread.daemon = True
-thread.start()
+# thread = threading.Thread(target=gtk_thread, args=(fig, ))
+# thread.daemon = True
+# thread.start()
 
-# %% {"ExecuteTime": {"start_time": "2018-04-13T18:31:08.926000Z", "end_time": "2018-04-13T18:31:12.742000Z"}}
+# %%
 from __future__ import (absolute_import, print_function, unicode_literals,
                         division)
-
+import datetime as dt
 import logging
 import lxml
 import re
 logging.basicConfig(level=logging.DEBUG)
 
-import joblib
 import dropbot as db
 import dropbot.chip
+import joblib
+import json_tricks
 import matplotlib as mpl
 import matplotlib.cm as cm
 import matplotlib.ticker
@@ -432,7 +433,159 @@ asyncio.set_event_loop(loop)
 proxy.voltage = 105
 
 # %%
-# apply_duty_cycles(proxy, pd.Series(1, index=[29, 25]))
+
+
+# %%
+import ivPID
+
+@asyncio.coroutine
+def wait_for_split(proxy, theta, a_neighbours, a, neck, b, b_neighbours,
+                   pid, neck_epsilon=2e-12):
+    log_ = []
+    pid.setPoint = .5
+
+    loop = asyncio.get_event_loop()
+    
+    def apply_force(force):
+        proxy.stop_switching_matrix()
+        
+        a_duty_cycle, b_duty_cycle = output_duty_cycles(force)
+        a_duty_cycle = max(0, min(1, a_duty_cycle))
+        b_duty_cycle = max(0, min(1, b_duty_cycle))
+        duty_cycles = pd.concat([pd.Series(b_duty_cycle, index=b + b_neighbours),
+                                 pd.Series(a_duty_cycle, index=a + a_neighbours)])
+        # XXX Use existing sensitive channels, which include **middle** channel(s).
+        apply_duty_cycles(proxy, duty_cycles, set_sensitive=False)
+#         print('\r%-50s' % ('%-.03f <- -> %.03f' % (a_duty_cycle, b_duty_cycle)), end='')
+        log_.append({'action': 'apply-force', 'duty_cycles': duty_cycles,
+                     'a_duty_cycle': a_duty_cycle, 'b_duty_cycle': b_duty_cycle,
+                     'time': time.time()})
+    
+    neck_breaks = []
+
+    def on_capcacitances(capacitances):
+        C_neck = capacitances[neck].sum() 
+        if C_neck < neck_epsilon:
+            neck_breaks.append(C_neck)
+        else:
+            del neck_breaks[:]
+        if len(neck_breaks) >= 2:
+            return True
+        try:
+            # XXX Set PID update based on difference between 
+            C_a = capacitances[a_neighbours + a].sum()
+            C_b = capacitances[b + b_neighbours].sum()
+            pid.update(theta - (C_a / C_b))
+            loop.call_soon_threadsafe(apply_force, pid.output)
+        except AttributeError:
+            logging.debug('Error', exc_info=True)
+
+    state = yield asyncio.From(wait_on_capacitance(on_capcacitances))
+    log_.append({'action': 'split-complete',
+                 'state': state,
+                 'args': 
+                 dict(zip(('theta', 'a_neighbours', 'a', 'neck', 'b', 'b_neighbours'),
+                          (theta, a_neighbours, a, neck, b, b_neighbours))),
+                 'time': time.time()})
+    raise asyncio.Return(state)
+
+# %%
+def test_split(proxy, theta, a_neighbours, a, neck, b, b_neighbours):
+    # See https://en.wikipedia.org/wiki/Ziegler%E2%80%93Nichols_method
+#     K_u = 5 # Determined empirically, consistent oscillations
+    K_u = 2.5 # Determined empirically, consistent oscillations
+    T_u = 2 * .365  # Oscilation period
+
+    # pid = ivPID.PID(P=K_u)
+    # pid = ivPID.PID(P=.5 * K_u)  # P
+    # pid = ivPID.PID(P=.45 * K_u, I=T_u / 1.2)  # PI
+    # pid = ivPID.PID(P=.8 * K_u, D=T_u / 8)  # PD
+    # pid = ivPID.PID(P=.6 * K_u, I=T_u / 2, D=T_u / 8)  # ["classic" PID][1]
+    # pid = ivPID.PID(P=.7 * K_u, I=T_u / 2.5, D=3 * T_u / 20)  # [Pessen Integral Rule][1]
+    # pid = ivPID.PID(P=.33 * K_u, I=T_u / 2, D=T_u / 3)  # ["some" overshoot][1]
+    # pid = ivPID.PID(P=.2 * K_u, I=T_u / 2, D=T_u / 3)  # ["no" overshoot][1]
+    # [1]: http://www.mstarlabs.com/control/znrule.html
+
+    # pid = ivPID.PID(P=K_u)  # Set for tuning; find minimum K_u where liquid oscillates consistently from one side to the other
+    pid = ivPID.PID(P=.6 * K_u, I=T_u / 2, D=T_u / 8)  # ["classic" PID][1]
+    # pid = ivPID.PID(P=.33 * K_u, I=T_u / 2, D=T_u / 3)  # ["some" overshoot][1]
+
+    try:
+        result = loop.run_until_complete(asyncio.wait_for(
+            wait_for_split(proxy, theta, a_neighbours, a, neck, b,
+                           b_neighbours, pid), 15))
+    finally:
+        apply_duty_cycles(proxy, pd.Series(0, index=a_neighbours + a + neck + b + b_neighbours))
+        for r in proxy.signals.signal('sensitive-capacitances').receivers.values():
+            proxy.signals.signal('sensitive-capacitances').disconnect(r)
+
+    apply_duty_cycles(proxy, pd.Series(0.75, index=a_neighbours + a + b + b_neighbours))
+    time.sleep(.5)
+    capacitances = loop.run_until_complete(asyncio.wait_for(read_C(), 15))
+    return capacitances
+
+# %%
+import functools as ft
+
+def threshold(channels, capacitances, C_threshold=EPSILON):
+    if all(c in capacitances for c in channels) and \
+            capacitances[channels].sum() > C_threshold:
+        return True
+        
+
+def align(a_neighbours, a, neck, b, b_neighbours, split_epsilon = 2 * EPSILON):
+    apply_duty_cycles(proxy, pd.concat([pd.Series(1, index=neck),
+                                        pd.Series(.25, index=b)]))
+
+    loop.run_until_complete(wait_on_capacitance(ft.partial(threshold, b, C_threshold=split_epsilon)))
+
+    apply_duty_cycles(proxy, pd.concat([pd.Series(1, index=neck),
+                                        pd.Series(.25, index=a)]))
+
+    loop.run_until_complete(wait_on_capacitance(ft.partial(threshold, a, C_threshold=split_epsilon)))
+
+    apply_duty_cycles(proxy, pd.Series(0.25, index=a + neck + b))
+    apply_duty_cycles(proxy, pd.Series(0, index=a_neighbours + a + neck + b + b_neighbours))
+    
+    
+a_neighbours, a, neck, b, b_neighbours = [101], [103], [94], [90], [86]
+theta = 2.
+
+results = []
+for k in range(100):
+    for i in range(3):
+        align(a_neighbours, a, neck, b, b_neighbours)
+
+    capacitances = test_split(proxy, theta, a_neighbours, a, neck, b, b_neighbours)
+    C_a = capacitances[a_neighbours + a].sum()
+    C_b = capacitances[b_neighbours + b].sum()
+    result_k = {'time': time.time(), 'C_a': C_a, 'C_b': C_b, 'theta': theta}
+    results.append(result_k)
+    print('\r%-60s' % ('%-2d. theta: %.2f, C_a/C_b: %.2f, C_a: %sF, C_b: %sF' % 
+          tuple([k + 1, theta, C_a / C_b] + map(si.si_format, [C_a, C_b]))), end='')
+    
+# Save results
+now = dt.datetime.now()
+experiment_log = {'timestamp': now.isoformat(),
+                  'split_runs': results,
+                  'chip': 'c3ad05dd-b753-4bfb-807a-7828e524064d',
+                  'liquid': 'propylene glycol',
+                  'dropbot_state': proxy.state.to_dict()}
+output_name = '%s - PID split results.json' % now.strftime('%Y-%m-%dT%Hh%M')
+with open(output_name, 'w') as output:
+    json_tricks.dump(experiment_log, output, indent=4)
+
+# %%
+df_results = pd.DataFrame(results)
+df_results.set_index(df_results.time.map(dt.datetime.fromtimestamp), inplace=True)
+del df_results['time']
+(df_results['C_a'] / df_results['C_b']).plot(kind='box')
+
+# %%
+with open('2018')
+
+# %%
+apply_duty_cycles(proxy, pd.Series(0, index=[94, 25, 29]))
 # apply_duty_cycles(proxy, pd.Series(1, index=[90, 86, 94]))
 
 # %%
@@ -798,6 +951,7 @@ gather_liquid([16], 98, trail_length=1)
 # proxy.state_of_channels[proxy.state_of_channels > 0]
 
 # %%
+
 
 
 # %%
