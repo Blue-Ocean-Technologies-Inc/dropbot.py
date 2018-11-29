@@ -433,9 +433,6 @@ asyncio.set_event_loop(loop)
 proxy.voltage = 105
 
 # %%
-
-
-# %%
 import ivPID
 
 @asyncio.coroutine
@@ -490,30 +487,11 @@ def wait_for_split(proxy, theta, a_neighbours, a, neck, b, b_neighbours,
     raise asyncio.Return(state)
 
 # %%
-def test_split(proxy, theta, a_neighbours, a, neck, b, b_neighbours):
-    # See https://en.wikipedia.org/wiki/Ziegler%E2%80%93Nichols_method
-#     K_u = 5 # Determined empirically, consistent oscillations
-    K_u = 2.5 # Determined empirically, consistent oscillations
-    T_u = 2 * .365  # Oscilation period
-
-    # pid = ivPID.PID(P=K_u)
-    # pid = ivPID.PID(P=.5 * K_u)  # P
-    # pid = ivPID.PID(P=.45 * K_u, I=T_u / 1.2)  # PI
-    # pid = ivPID.PID(P=.8 * K_u, D=T_u / 8)  # PD
-    # pid = ivPID.PID(P=.6 * K_u, I=T_u / 2, D=T_u / 8)  # ["classic" PID][1]
-    # pid = ivPID.PID(P=.7 * K_u, I=T_u / 2.5, D=3 * T_u / 20)  # [Pessen Integral Rule][1]
-    # pid = ivPID.PID(P=.33 * K_u, I=T_u / 2, D=T_u / 3)  # ["some" overshoot][1]
-    # pid = ivPID.PID(P=.2 * K_u, I=T_u / 2, D=T_u / 3)  # ["no" overshoot][1]
-    # [1]: http://www.mstarlabs.com/control/znrule.html
-
-    # pid = ivPID.PID(P=K_u)  # Set for tuning; find minimum K_u where liquid oscillates consistently from one side to the other
-    pid = ivPID.PID(P=.6 * K_u, I=T_u / 2, D=T_u / 8)  # ["classic" PID][1]
-    # pid = ivPID.PID(P=.33 * K_u, I=T_u / 2, D=T_u / 3)  # ["some" overshoot][1]
-
+def test_split(proxy, theta, a_neighbours, a, neck, b, b_neighbours, pid):
     try:
         result = loop.run_until_complete(asyncio.wait_for(
             wait_for_split(proxy, theta, a_neighbours, a, neck, b,
-                           b_neighbours, pid), 15))
+                           b_neighbours, pid), 20))
     finally:
         apply_duty_cycles(proxy, pd.Series(0, index=a_neighbours + a + neck + b + b_neighbours))
         for r in proxy.signals.signal('sensitive-capacitances').receivers.values():
@@ -549,32 +527,62 @@ def align(a_neighbours, a, neck, b, b_neighbours, split_epsilon = 2 * EPSILON):
 
 # %%
 # a_neighbours, a, neck, b, b_neighbours = [101], [103], [94], [90], [86]
-a_neighbours, a, neck, b, b_neighbours = [16], [25], [29], [33], [40]
-theta = 1.
+# a_neighbours, a, neck, b, b_neighbours = [16], [25], [29], [33], [40]
+# a_neighbours, a, neck, b, b_neighbours = [16], [25], [29], [33], [40]
+theta = 1.015
+N = 100
 
-results = []
-for k in range(100):
-    for i in range(3):
-        align(a_neighbours, a, neck, b, b_neighbours)
+# See https://en.wikipedia.org/wiki/Ziegler%E2%80%93Nichols_method
+T_u = 2 * .365  # Oscilation period
 
-    capacitances = test_split(proxy, theta, a_neighbours, a, neck, b, b_neighbours)
-    C_a = capacitances[a_neighbours + a].sum()
-    C_b = capacitances[b_neighbours + b].sum()
-    result_k = {'time': time.time(), 'C_a': C_a, 'C_b': C_b, 'theta': theta}
-    results.append(result_k)
-    print('\r%-60s' % ('%-2d. theta: %.2f, C_a/C_b: %.2f, C_a: %sF, C_b: %sF' % 
-          tuple([k + 1, theta, C_a / C_b] + map(si.si_format, [C_a, C_b]))), end='')
-    
-# Save results
-now = dt.datetime.now()
-experiment_log = {'timestamp': now.isoformat(),
-                  'split_runs': results,
-                  'chip': 'c3ad05dd-b753-4bfb-807a-7828e524064d',
-                  'liquid': 'propylene glycol',
-                  'dropbot_state': proxy.state.to_dict()}
-output_name = '%s - PID split results.json' % now.strftime('%Y-%m-%dT%Hh%M')
-with open(output_name, 'w') as output:
-    json_tricks.dump(experiment_log, output, indent=4)
+# pid = ivPID.PID(P=K_u)
+# pid = ivPID.PID(P=.5 * K_u)  # P
+# pid = ivPID.PID(P=.45 * K_u, I=T_u / 1.2)  # PI
+# pid = ivPID.PID(P=.8 * K_u, D=T_u / 8)  # PD
+# pid = ivPID.PID(P=.6 * K_u, I=T_u / 2, D=T_u / 8)  # ["classic" PID][1]
+# pid = ivPID.PID(P=.33 * K_u, I=T_u / 2, D=T_u / 3)  # ["some" overshoot][1]
+# pid = ivPID.PID(P=.2 * K_u, I=T_u / 2, D=T_u / 3)  # ["no" overshoot][1]
+# [1]: http://www.mstarlabs.com/control/znrule.html
+
+# pid = ivPID.PID(P=K_u)  # Set for tuning; find minimum K_u where liquid oscillates consistently from one side to the other
+#     pid = ivPID.PID(P=.6 * K_u, I=T_u / 2, D=T_u / 8)  # ["classic" PID][1]
+# pid = ivPID.PID(P=.33 * K_u, I=T_u / 2, D=T_u / 3)  # ["some" overshoot][1]
+
+
+# for K_u in np.linspace(1, 5, 10):
+proxy.voltage = 105
+
+for K_u in [3]:
+    results = []
+    dropbot_state = proxy.state.to_dict()
+    try:
+        for k in range(N):
+            for i in range(3):
+                align(a_neighbours, a, neck, b, b_neighbours)
+            pid = ivPID.PID(P=.6 * K_u, I=T_u / 2, D=T_u / 8)  # ["classic" PID][1]
+#             pid = ivPID.PID(P=.7 * K_u, I=T_u / 2.5, D=3 * T_u / 20)  # [Pessen Integral Rule][1]
+            capacitances = test_split(proxy, theta, a_neighbours, a, neck, b, b_neighbours, pid)
+            C_a = capacitances[a_neighbours + a].sum()
+            C_b = capacitances[b_neighbours + b].sum()
+            result_k = {'time': time.time(), 'C_a': C_a, 'C_b': C_b, 'theta': theta,
+                        'pid': pid.__dict__.copy()}
+            results.append(result_k)
+            print('\r%-60s' % ('K_u=%.2f [%2d/%-2d] theta: %.2f, C_a/C_b: %.2f, C_a: %sF, C_b: %sF' % 
+                  tuple([K_u, k + 1, N, theta, C_a / C_b] +
+                        map(si.si_format, [C_a, C_b]))), end='')
+    finally:
+        # # Save results
+        now = dt.datetime.now()
+        experiment_log = {'timestamp': now.isoformat(),
+                          'K_u': K_u,
+                          'split_runs': results,
+                          'chip': 'c3ad05dd-b753-4bfb-807a-7828e524064d',
+                          'liquid': 'propylene glycol',
+                          'dropbot_state': dropbot_state}
+        output_name = '%s - PID split results.json' % now.strftime('%Y-%m-%dT%Hh%Ms%S')
+        with open(output_name, 'w') as output:
+            json_tricks.dump(experiment_log, output, indent=4)
+        print('Wrote: `%s`' % output_name)
 
 # %% [markdown]
 # # Open-loop split
@@ -583,11 +591,60 @@ with open(output_name, 'w') as output:
 proxy.voltage = 105
 
 # %%
-# apply_duty_cycles(proxy, pd.Series(1, index=[28, 29]))
 a_neighbours, a, neck, b, b_neighbours = [16], [25], [29], [33], [40]
 
-for i in range(3):
-    align(a_neighbours, a, neck, b, b_neighbours)
+results = []
+for i in range(100):
+    for i in range(3):
+        align(a_neighbours, a, neck, b, b_neighbours)
+
+    apply_duty_cycles(proxy, pd.Series(1, index=[28, 29, 90]))
+    time.sleep(.5)
+    proxy.stop_switching_matrix()
+    proxy.turn_off_all_channels()
+    time.sleep(.5)
+
+    start = time.time()
+    apply_duty_cycles(proxy, pd.concat([pd.Series(1, index=a_neighbours + a +
+                                                  b + b_neighbours),
+                                        pd.Series(0, index=neck)]))
+    neck_epsilon = 2e-12
+    neck_breaks = []
+
+    def on_capcacitances(capacitances):
+        C_neck = capacitances[neck].sum() 
+        if C_neck < neck_epsilon:
+            neck_breaks.append(C_neck)
+        else:
+            del neck_breaks[:]
+        if len(neck_breaks) >= 2:
+            return True
+
+    state = loop.run_until_complete(asyncio.wait_for(wait_on_capacitance(on_capcacitances),
+                                                     10))
+    end = time.time()
+
+    capacitances = loop.run_until_complete(asyncio.wait_for(read_C(), 15))
+
+    C_a = capacitances[a_neighbours + a].sum()
+    C_b = capacitances[b_neighbours + b].sum()
+    result_k = {'time': time.time(), 'C_a': C_a, 'C_b': C_b}
+    results.append(result_k)
+    print('\r%-60s' % ('%2d. C_a/C_b: %.2f, C_a: %sF, C_b: %sF (%.2f s)' % 
+          tuple([k + 1, C_a / C_b] + map(si.si_format, [C_a, C_b]) + [end - start])), end='')
+    
+    
+# Save results
+now = dt.datetime.now()
+experiment_log = {'timestamp': now.isoformat(),
+                  'split_runs': results,
+                  'chip': 'c3ad05dd-b753-4bfb-807a-7828e524064d',
+                  'liquid': 'propylene glycol',
+                  'notes': 'Open-loop split using multi-sensing to detect split completion.',
+                  'dropbot_state': proxy.state.to_dict()}
+output_name = '%s - open-loop split detect neck results.json' % now.strftime('%Y-%m-%dT%Hh%Mm%S')
+with open(output_name, 'w') as output:
+    json_tricks.dump(experiment_log, output, indent=4)
 
 # %%
 results = []
@@ -628,14 +685,14 @@ with open(output_name, 'w') as output:
 # %%
 import path_helpers as ph
 
-root = ph.path('~/Dropbox (Sci-Bots)/Sci-Bots experiments').expand()
-experiment = 'open-loop-split-02'
-exp_dir = root.dirs('* results - `dropbot.py@exp(%s)`' % experiment)[0]
-data_file = exp_dir.files('*.json')[0]
+# root = ph.path('~/Dropbox (Sci-Bots)/Sci-Bots experiments').expand()
+# experiment = 'open-loop-split-02'
+# exp_dir = root.dirs('* results - `dropbot.py@exp(%s)`' % experiment)[0]
+# data_file = exp_dir.files('*.json')[0]
 
-with open(data_file, 'r') as input_:
-    experiment_log = json_tricks.load(input_)
-    results = experiment_log['split_runs']
+# with open(data_file, 'r') as input_:
+#     experiment_log = json_tricks.load(input_)
+#     results = experiment_log['split_runs']
 
 df_results = pd.DataFrame(results)
 df_results.set_index(df_results.time.map(dt.datetime.fromtimestamp), inplace=True)
@@ -1030,6 +1087,7 @@ disabled[disabled > 0]
 # %%
 import os
 import datetime as dt
+import itertools as it
 import json_tricks
 
 
@@ -1069,8 +1127,8 @@ def run_experiment(route, destinations, tunings=None):
     return results
 
 
-source = 93
-target = 16
+source = 85
+target = 40
 route = nx.shortest_path(G, source, target)
 # route = [85, 83, 82, 81, 79, 86]
 proxy.voltage = 98
@@ -1081,7 +1139,7 @@ BETA = 1.3
 # destinations = [22, 97]  #, 53, 66]
 # destinations = [25, 48]
 # destinations = [111, 86]
-destinations = [21, 29]
+destinations = [29, 45]
 
 log_ = []
 proxy.signals.signal('sensitive-capacitances').connect(log_sensitive_capacitances, weak=False)
@@ -1095,9 +1153,9 @@ def apply_duty_cycles(proxy, duty_cycles, set_sensitive=True):
     return original_apply_duty_cycles(proxy, duty_cycles, set_sensitive=set_sensitive)
 
 try:
-#     results = None
+    results = None
 #     while True:
-    for i in range(10):
+    for i in range(1):
         print('\n' + 72 * '-', end='\n\n')
         print('Iteration %d' % i, end='\n\n')
         results = run_experiment(route, destinations, tunings=results)
