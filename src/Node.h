@@ -52,6 +52,7 @@
 #include "Time.h"
 #include "Signal.h"
 #include "SignalTimer.h"
+#include <ADC_Module.h>
 
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
 #define CPU_RESTART_VAL 0x5FA0004
@@ -1375,6 +1376,48 @@ public:
 
   // ##########################################################################
   // # Teensy library mutator methods
+  /**
+  * @brief Serialize ADC configuration registers.
+  *
+  * \See analog_load_config()
+  *
+  * @param adc_num  Zero-based ADC index.
+  *
+  * @return  Serialized ADC configuration containing the contents of the
+  *   following 32-bit registers (in order): `SC1A`, `SC2`, `SC3`, `CFG1`,
+  *   `CFG2`.
+  */
+  UInt32Array analog_save_config(uint8_t adc_num) {
+    auto result = get_type_buffer<UInt32Array>();
+
+    if (adc_num >= ADC_NUM_ADCS) {
+      result.length = 0;
+    } else {
+      ADC_Module::ADC_Config &config = *reinterpret_cast<ADC_Module::ADC_Config *>(result.data);
+      config = {0};
+      result.length = sizeof(config) / sizeof(uint32_t);
+      adc_->adc[adc_num]->saveConfig(&config);
+    }
+    return result;
+  }
+
+  /**
+  * @brief Apply a serialized configuration to ADC registers.
+  *
+  * @param adc_num  Zero-based ADC index.
+  * @param config  Serialized ADC configuration containing the contents of the
+  *   following 32-bit registers (in order): `SC1A`, `SC2`, `SC3`, `CFG1`,
+  *   `CFG2`.
+  */
+  void analog_load_config(uint8_t adc_num, UInt32Array config) {
+    if (adc_num < ADC_NUM_ADCS && (config.length ==
+                                   sizeof(ADC_Module::ADC_Config) /
+                                   sizeof(uint32_t))) {
+      ADC_Module::ADC_Config &_config = *reinterpret_cast<ADC_Module::ADC_Config *>(config.data);
+      adc_->adc[adc_num]->loadConfig(&_config);
+    }
+  }
+
   int _analogRead(uint8_t pin, int8_t adc_num) {
   //! Returns the analog value of the pin.
   /** It waits until the value is read and then returns the result.
