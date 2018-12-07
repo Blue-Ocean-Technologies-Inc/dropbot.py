@@ -1419,6 +1419,20 @@ public:
   }
 
   /**
+  * @brief Programmable gain amplifier (PGA) state.
+  *
+  * @param adc_num  Zero-based ADC index.
+  *
+  * @return  `true` if PGA is enabled.
+  */
+  bool isPGAEnabled(uint8_t adc_num) {
+    if (adc_num < ADC_NUM_ADCS) {
+      return adc_->adc[adc_num]->isPGAEnabled();
+    }
+    return false;
+  }
+
+  /**
   * @brief Wait for analog calibration to complete.
   *
   * @param adc_num  Zero-based ADC index.
