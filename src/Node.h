@@ -1418,6 +1418,17 @@ public:
     }
   }
 
+  /**
+  * @brief Wait for analog calibration to complete.
+  *
+  * @param adc_num  Zero-based ADC index.
+  */
+  void analog_wait_for_calibration(uint8_t adc_num) {
+    if (adc_num < ADC_NUM_ADCS) {
+      adc_->adc[adc_num]->wait_for_cal();
+    }
+  }
+
   int _analogRead(uint8_t pin, int8_t adc_num) {
   //! Returns the analog value of the pin.
   /** It waits until the value is read and then returns the result.
