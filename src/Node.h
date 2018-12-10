@@ -1404,6 +1404,12 @@ public:
   /**
   * @brief Apply a serialized configuration to ADC registers.
   *
+  * **Note: individual mutator functions (e.g., `setAveraging`, etc.) are
+  * called to make sure other internal state of `ADC_Module` is kept up to
+  * date.**  In contrast, if `ADC_Module::loadConfig()` was used directly, the
+  * `ADC_Module` internal state would become stale if the ADC register values
+  * changed.
+  *
   * @param adc_num  Zero-based ADC index.
   * @param config  Serialized ADC configuration containing the contents of the
   *   following 32-bit registers (in order): `SC1A`, `SC2`, `SC3`, `CFG1`,
@@ -1413,8 +1419,13 @@ public:
     if (adc_num < ADC_NUM_ADCS && (config.length ==
                                    sizeof(ADC_Module::ADC_Config) /
                                    sizeof(uint32_t))) {
-      ADC_Module::ADC_Config &_config = *reinterpret_cast<ADC_Module::ADC_Config *>(config.data);
-      adc_->adc[adc_num]->loadConfig(&_config);
+      ADC_Module::ADC_Config &_config =
+        *reinterpret_cast<ADC_Module::ADC_Config *>(config.data);
+      // Use loaded config...
+      setAveraging(analog::_averaging(_config), adc_num);
+      setConversionSpeed(static_cast<uint8_t>(analog::_conversion_speed(_config)), adc_num);
+      setSamplingSpeed(static_cast<uint8_t>(analog::_sampling_speed(_config)), adc_num);
+      setReference(static_cast<uint8_t>(analog::_analog_reference(_config)), adc_num);
     }
   }
 

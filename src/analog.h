@@ -61,6 +61,75 @@ float benchmmark_u16_percentile_diff(uint8_t pin, uint16_t n_samples,
                                      float high_percentile,
                                      uint32_t n_repeats);
 
+template <typename Config>
+ADC_REF_SOURCE _analog_reference(Config const &adc_config) {
+  if (adc_config.savedSC2 & (1 << ADC_SC2_REFSEL0_BIT)) {
+    return ADC_REF_SOURCE::REF_ALT;
+  } else {
+    return ADC_REF_SOURCE::REF_DEFAULT;
+  }
+}
+
+template <typename Config>
+ADC_SAMPLING_SPEED _sampling_speed(Config const &adc_config) {
+  if (!(adc_config.savedCFG1 & (1 << ADC_CFG1_ADLSMP_BIT))) {
+    return ADC_SAMPLING_SPEED::VERY_HIGH_SPEED;
+  } else if (adc_config.savedCFG2 & ((1 << ADC_CFG2_ADLSTS1_BIT) |
+                                     (1 << ADC_CFG2_ADLSTS0_BIT)) ==
+              ((1 << ADC_CFG2_ADLSTS1_BIT) | (1 << ADC_CFG2_ADLSTS0_BIT))) {
+    return ADC_SAMPLING_SPEED::HIGH_SPEED;
+  } else if (adc_config.savedCFG2 & ((1 << ADC_CFG2_ADLSTS1_BIT) |
+                                     (1 << ADC_CFG2_ADLSTS0_BIT)) ==
+              ((1 << ADC_CFG2_ADLSTS1_BIT) | (0 << ADC_CFG2_ADLSTS0_BIT))) {
+    return ADC_SAMPLING_SPEED::MED_SPEED;
+  } else if (adc_config.savedCFG2 & ((1 << ADC_CFG2_ADLSTS1_BIT) |
+                                     (1 << ADC_CFG2_ADLSTS0_BIT)) ==
+              ((0 << ADC_CFG2_ADLSTS1_BIT) | (1 << ADC_CFG2_ADLSTS0_BIT))) {
+    return ADC_SAMPLING_SPEED::LOW_SPEED;
+  } else if (adc_config.savedCFG2 & ((1 << ADC_CFG2_ADLSTS1_BIT) |
+                                     (1 << ADC_CFG2_ADLSTS0_BIT)) ==
+              ((0 << ADC_CFG2_ADLSTS1_BIT) | (0 << ADC_CFG2_ADLSTS0_BIT))) {
+    return ADC_SAMPLING_SPEED::VERY_LOW_SPEED;
+  }
+}
+
+
+template <typename Config>
+ADC_CONVERSION_SPEED _conversion_speed(Config const &adc_config) {
+  auto speed = adc_config.savedCFG1 & 0b1100011;
+
+  if (adc_config.savedCFG2 & ADC_CFG2_ADHSC) {
+    // Either HI_SPEED_16_BITS, HI_SPEED, or VERY_HIGH_SPEED
+    if (speed == ADC_CFG1_VERY_HIGH_SPEED) {
+      return ADC_CONVERSION_SPEED::VERY_HIGH_SPEED;
+    } else if (speed == ADC_CFG1_HI_SPEED) {
+      return ADC_CONVERSION_SPEED::HIGH_SPEED;
+    } else {  // if speed == ADC_CFG1_HI_SPEED_16_BITS:
+      return ADC_CONVERSION_SPEED::HIGH_SPEED_16BITS;
+    }
+  } else {
+    // Either MED_SPEED, LOW_SPEED, or VERY_LOW_SPEED
+    if (speed == ADC_CFG1_MED_SPEED) {
+      return ADC_CONVERSION_SPEED::MED_SPEED;
+    } else if (speed == ADC_CFG1_LOW_SPEED) {
+      return ADC_CONVERSION_SPEED::LOW_SPEED;
+    } else {  // if speed == ADC_CFG1_VERY_LOW_SPEED:
+            return ADC_CONVERSION_SPEED::VERY_LOW_SPEED;
+    }
+  }
+}
+
+template <typename Config>
+uint8_t _averaging(Config const &adc_config) {
+  if (!(adc_config.savedSC3 & (1 << ADC_SC3_AVGE_BIT))) {
+    return 0;
+  } else {
+      auto avgs = adc_config.savedSC3 & ((1 << ADC_SC3_AVGS1_BIT) +
+                                         (1 << ADC_SC3_AVGS0_BIT));
+      return 1 << (avgs + 2);
+  }
+}
+
 }  // namespace analog {
 }  // namespace dropbot {
 
