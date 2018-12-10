@@ -1430,6 +1430,25 @@ public:
   }
 
   /**
+  * @brief Wrapper function to save/restore ADC state.
+  *
+  * @param func  Function (e.g., lambda) to call while in safe I2C state.
+  *
+  * Example
+  * -------
+  *
+  * ```c++
+  * adc_context([&] () {
+  * });
+  * ```
+  */
+  template <typename Func>
+  void adc_context(Func func) {
+    auto const adc_config = analog_save_config(0);
+    analog_load_config(0, adc_config);
+  }
+
+  /**
   * @brief Programmable gain amplifier (PGA) state.
   *
   * @param adc_num  Zero-based ADC index.
