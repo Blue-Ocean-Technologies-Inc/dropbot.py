@@ -1473,6 +1473,39 @@ public:
     }
   }
 
+  uint8_t _analog_reference(UInt32Array config) {
+    if (config.length == sizeof(ADC_Module::ADC_Config) / sizeof(uint32_t)) {
+      auto &adc_config = *reinterpret_cast<ADC_Module::ADC_Config *>(config.data);
+      return static_cast<uint8_t>(analog::_analog_reference(adc_config));
+    }
+    return 255;
+  }
+
+  uint8_t _sampling_speed(UInt32Array config) {
+    if (config.length == sizeof(ADC_Module::ADC_Config) / sizeof(uint32_t)) {
+      auto &adc_config = *reinterpret_cast<ADC_Module::ADC_Config *>(config.data);
+      return static_cast<uint8_t>(analog::_sampling_speed(adc_config));
+    }
+    return static_cast<uint8_t>(ADC_SAMPLING_SPEED::VERY_LOW_SPEED);
+  }
+
+
+  uint8_t _conversion_speed(UInt32Array config) {
+    if (config.length == sizeof(ADC_Module::ADC_Config) / sizeof(uint32_t)) {
+      auto &adc_config = *reinterpret_cast<ADC_Module::ADC_Config *>(config.data);
+      return static_cast<uint8_t>(analog::_conversion_speed(adc_config));
+    }
+    return static_cast<uint8_t>(ADC_CONVERSION_SPEED::VERY_LOW_SPEED);
+  }
+
+  uint8_t _averaging(UInt32Array config) {
+    if (config.length == sizeof(ADC_Module::ADC_Config) / sizeof(uint32_t)) {
+      auto &adc_config = *reinterpret_cast<ADC_Module::ADC_Config *>(config.data);
+      return static_cast<uint8_t>(analog::_averaging(adc_config));
+    }
+    return 0;
+  }
+
   int _analogRead(uint8_t pin, int8_t adc_num) {
   //! Returns the analog value of the pin.
   /** It waits until the value is read and then returns the result.
