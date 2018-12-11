@@ -330,16 +330,28 @@ public:
      * .. versionchanged:: 1.43
      *     Fix equation to divide by actuation voltage.
      *
+     * .. versionchanged:: X.X.X
+     *     Use 1.2 V reference voltage.
+     *
      * .. _`HVAC`: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/boost-converter-boost-converter.pdf
      * .. _`feedback filter`: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/feedback-feedback.pdf
      */
 
     // Compute capacitance from measured square-wave RMS voltage amplitude.
-    const uint16_t A11_raw = analog::u16_percentile_diff(11, n_samples, 25, 75);
+    float device_load_v;
 
-    // Compute capacitance from measured square-wave RMS voltage amplitude.
-    // V2 = 0.5 * (float(A11) / MAX_ANALOG) * AREF
-    const float device_load_v = 0.5 * (A11_raw / float(1L << 16)) * 3.3;
+    analog::adc_context([&] (auto adc_config) {
+      // Configure ADC for measurement.
+      auto &adc = *analog::adc_.adc[0];  // Use ADC 0.
+      auto const resolution = adc.getResolution();
+      adc.setReference(ADC_REFERENCE::REF_1V2);
+      adc.wait_for_cal();
+
+      uint16_t A11_raw = analog::u16_percentile_diff(11, n_samples, 25, 75);
+      // Compute capacitance from measured square-wave RMS voltage amplitude.
+      // V2 = 0.5 * (float(A11) / MAX_ANALOG) * AREF
+      device_load_v = 0.5 * (A11_raw / float(1L << resolution)) * 1.2;
+    });
     // C2 = V2 * C16 / HVAC
     const float C2 = device_load_v * 0.15e-6 / analog::high_voltage();
     return C2;
