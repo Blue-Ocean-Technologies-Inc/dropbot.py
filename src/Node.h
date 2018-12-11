@@ -202,7 +202,6 @@ public:
 
   uint8_t buffer_[BUFFER_SIZE];
 
-  ADC *adc_;
   uint32_t adc_period_us_;
   uint32_t adc_timestamp_us_;
   bool adc_tick_tock_;
@@ -1393,10 +1392,10 @@ public:
     if (adc_num >= ADC_NUM_ADCS) {
       result.length = 0;
     } else {
-      ADC_Module::ADC_Config &config = *reinterpret_cast<ADC_Module::ADC_Config *>(result.data);
+      auto &config = *reinterpret_cast<ADC_Module::ADC_Config *>(result.data);
       config = {0};
       result.length = sizeof(config) / sizeof(uint32_t);
-      adc_->adc[adc_num]->saveConfig(&config);
+      analog::adc_.adc[adc_num]->saveConfig(&config);
     }
     return result;
   }
@@ -1415,37 +1414,13 @@ public:
   *   following 32-bit registers (in order): `SC1A`, `SC2`, `SC3`, `CFG1`,
   *   `CFG2`.
   */
-  void analog_load_config(uint8_t adc_num, UInt32Array config) {
+  void analog_load_config(UInt32Array config, uint8_t adc_num) {
     if (adc_num < ADC_NUM_ADCS && (config.length ==
                                    sizeof(ADC_Module::ADC_Config) /
                                    sizeof(uint32_t))) {
-      ADC_Module::ADC_Config &_config =
-        *reinterpret_cast<ADC_Module::ADC_Config *>(config.data);
-      // Use loaded config...
-      setAveraging(analog::_averaging(_config), adc_num);
-      setConversionSpeed(static_cast<uint8_t>(analog::_conversion_speed(_config)), adc_num);
-      setSamplingSpeed(static_cast<uint8_t>(analog::_sampling_speed(_config)), adc_num);
-      setReference(static_cast<uint8_t>(analog::_analog_reference(_config)), adc_num);
+      auto &_config = *reinterpret_cast<ADC_Module::ADC_Config *>(config.data);
+      analog::load_config(_config, adc_num);
     }
-  }
-
-  /**
-  * @brief Wrapper function to save/restore ADC state.
-  *
-  * @param func  Function (e.g., lambda) to call while in safe I2C state.
-  *
-  * Example
-  * -------
-  *
-  * ```c++
-  * adc_context([&] () {
-  * });
-  * ```
-  */
-  template <typename Func>
-  void adc_context(Func func) {
-    auto const adc_config = analog_save_config(0);
-    analog_load_config(0, adc_config);
   }
 
   /**
@@ -1457,7 +1432,7 @@ public:
   */
   bool isPGAEnabled(uint8_t adc_num) {
     if (adc_num < ADC_NUM_ADCS) {
-      return adc_->adc[adc_num]->isPGAEnabled();
+      return analog::adc_.adc[adc_num]->isPGAEnabled();
     }
     return false;
   }
@@ -1469,7 +1444,7 @@ public:
   */
   void analog_wait_for_calibration(uint8_t adc_num) {
     if (adc_num < ADC_NUM_ADCS) {
-      adc_->adc[adc_num]->wait_for_cal();
+      analog::adc_.adc[adc_num]->wait_for_cal();
     }
   }
 
@@ -1514,7 +1489,7 @@ public:
   * If more than one ADC exists, it will select the module with less workload, you can force a selection using
   * adc_num. If you select ADC1 in Teensy 3.0 it will return ADC_ERROR_VALUE.
   */
-    return adc_->analogRead(pin, adc_num);
+    return analog::adc_.analogRead(pin, adc_num);
   }
   int analogReadContinuous(int8_t adc_num) {
   //! Reads the analog value of a continuous conversion.
@@ -1523,7 +1498,7 @@ public:
   *   If single-ended and 16 bits it's necessary to typecast it to an unsigned type (like uint16_t),
   *   otherwise values larger than 3.3/2 V are interpreted as negative!
   */
-    return adc_->analogReadContinuous(adc_num);
+    return analog::adc_.analogReadContinuous(adc_num);
   }
   int analogReadDifferential(uint8_t pinP, uint8_t pinN, int8_t adc_num) {
   //! Reads the differential analog value of two pins (pinP - pinN).
@@ -1537,14 +1512,14 @@ public:
   * If more than one ADC exists, it will select the module with less workload, you can force a selection using
   * adc_num
   */
-    return adc_->analogReadDifferential(pinP, pinN, adc_num);
+    return analog::adc_.analogReadDifferential(pinP, pinN, adc_num);
   }
   void setAveraging(uint8_t num, int8_t adc_num) {
     //! Set the number of averages
     /*!
      * \param num can be 0, 4, 8, 16 or 32.
      */
-    adc_->setAveraging(num, adc_num);
+    analog::adc_.setAveraging(num, adc_num);
   }
   void setConversionSpeed(uint8_t speed, int8_t adc_num) {
     //! Sets the conversion speed (changes the ADC clock, ADCK)
@@ -1565,7 +1540,7 @@ public:
      * but if F_BUS<F_ADCK, you can't use ADC_VERY_HIGH_SPEED for sampling speed.
      *
      */
-    adc_->setConversionSpeed((ADC_CONVERSION_SPEED)speed, adc_num);
+    analog::adc_.setConversionSpeed((ADC_CONVERSION_SPEED)speed, adc_num);
   }
   void setReference(uint8_t type, int8_t adc_num) {
     //! Set the voltage reference you prefer, default is 3.3 V (VCC)
@@ -1574,7 +1549,7 @@ public:
      *
      *  It recalibrates at the end.
      */
-    adc_->setReference((ADC_REFERENCE)type, adc_num);
+    analog::adc_.setReference((ADC_REFERENCE)type, adc_num);
   }
   void setResolution(uint8_t bits, int8_t adc_num) {
     //! Change the resolution of the measurement.
@@ -1587,7 +1562,7 @@ public:
      *
      *  Whenever you change the resolution, change also the comparison values (if you use them).
      */
-    adc_->setResolution(bits, adc_num);
+    analog::adc_.setResolution(bits, adc_num);
   }
   void setSamplingSpeed(uint8_t speed, int8_t adc_num) {
     //! Sets the sampling speed
@@ -1600,23 +1575,23 @@ public:
      * ADC_HIGH_SPEED (or ADC_HIGH_SPEED_16BITS) adds +6 ADCK.
      * ADC_VERY_HIGH_SPEED is the highest possible sampling speed (0 ADCK added).
      */
-    adc_->setSamplingSpeed((ADC_SAMPLING_SPEED)speed, adc_num);
+    analog::adc_.setSamplingSpeed((ADC_SAMPLING_SPEED)speed, adc_num);
   }
   void disableCompare(int8_t adc_num) {
   //! Disable the compare function
-    adc_->disableCompare(adc_num);
+    analog::adc_.disableCompare(adc_num);
   }
   void disableDMA(int8_t adc_num) {
   //! Disable ADC DMA request
-    adc_->disableDMA(adc_num);
+    analog::adc_.disableDMA(adc_num);
   }
   void disableInterrupts(int8_t adc_num) {
   //! Disable interrupts
-    adc_->disableInterrupts(adc_num);
+    analog::adc_.disableInterrupts(adc_num);
   }
   void disablePGA(int8_t adc_num) {
   //! Disable PGA
-    adc_->disablePGA(adc_num);
+    analog::adc_.disablePGA(adc_num);
   }
   void enableCompare(int16_t compValue, bool greaterThan, int8_t adc_num) {
   //! Enable the compare function to a single value
@@ -1625,7 +1600,7 @@ public:
   *  Call it after changing the resolution
   *  Use with interrupts or poll conversion completion with isComplete()
   */
-    adc_->enableCompare(compValue, greaterThan, adc_num);
+    analog::adc_.enableCompare(compValue, greaterThan, adc_num);
   }
   void enableCompareRange(int16_t lowerLimit, int16_t upperLimit, bool insideRange, bool inclusive, int8_t adc_num) {
   //! Enable the compare function to a range
@@ -1635,21 +1610,21 @@ public:
   *  Call it after changing the resolution
   *  Use with interrupts or poll conversion completion with isComplete()
   */
-    adc_->enableCompareRange(lowerLimit, upperLimit, insideRange, inclusive, adc_num);
+    analog::adc_.enableCompareRange(lowerLimit, upperLimit, insideRange, inclusive, adc_num);
   }
   void enableDMA(int8_t adc_num) {
   //! Enable DMA request
   /** An ADC DMA request will be raised when the conversion is completed
   *  (including hardware averages and if the comparison (if any) is true).
   */
-    adc_->enableDMA(adc_num);
+    analog::adc_.enableDMA(adc_num);
   }
   void enableInterrupts(int8_t adc_num) {
   //! Enable interrupts
   /** An IRQ_ADC0 Interrupt will be raised when the conversion is completed
   *  (including hardware averages and if the comparison (if any) is true).
   */
-    adc_->enableInterrupts(adc_num);
+    analog::adc_.enableInterrupts(adc_num);
   }
   void enablePGA(uint8_t gain, int8_t adc_num) {
   //! Enable and set PGA
@@ -1658,20 +1633,20 @@ public:
   *   \param gain can be 1, 2, 4, 8, 16, 32 or 64
   *
   */
-    adc_->enablePGA(gain, adc_num);
+    analog::adc_.enablePGA(gain, adc_num);
   }
   int readSingle(int8_t adc_num) {
   //! Reads the analog value of a single conversion.
   /** Set the conversion with with startSingleRead(pin) or startSingleDifferential(pinP, pinN).
   *   \return the converted value.
   */
-    return adc_->readSingle(adc_num);
+    return analog::adc_.readSingle(adc_num);
   }
   bool startContinuous(uint8_t pin, int8_t adc_num) {
   //! Starts continuous conversion on the pin.
   /** It returns as soon as the ADC is set, use analogReadContinuous() to read the value.
   */
-    return adc_->startContinuous(pin, adc_num);
+    return analog::adc_.startContinuous(pin, adc_num);
   }
   bool startContinuousDifferential(uint8_t pinP, uint8_t pinN, int8_t adc_num) {
   //! Starts continuous conversion between the pins (pinP-pinN).
@@ -1680,7 +1655,7 @@ public:
   * \param pinN must be A11 (if pinP=A10) or A13 (if pinP=A12).
   * Other pins will return ADC_ERROR_DIFF_VALUE.
   */
-    return adc_->startContinuousDifferential(pinP, pinN, adc_num);
+    return analog::adc_.startContinuousDifferential(pinP, pinN, adc_num);
   }
   bool startSingleDifferential(uint8_t pinP, uint8_t pinN, int8_t adc_num) {
   //! Start a differential conversion between two pins (pinP - pinN) and enables interrupts.
@@ -1691,7 +1666,7 @@ public:
   *   Other pins will return ADC_ERROR_DIFF_VALUE.
   *   If this function interrupts a measurement, it stores the settings in adc_config
   */
-    return adc_->startSingleDifferential(pinP, pinN, adc_num);
+    return analog::adc_.startSingleDifferential(pinP, pinN, adc_num);
   }
   bool startSingleRead(uint8_t pin, int8_t adc_num) {
   //! Starts an analog measurement on the pin and enables interrupts.
@@ -1699,28 +1674,28 @@ public:
   *   If the pin is incorrect it returns ADC_ERROR_VALUE
   *   If this function interrupts a measurement, it stores the settings in adc_config
   */
-    return adc_->startSingleRead(pin, adc_num);
+    return analog::adc_.startSingleRead(pin, adc_num);
   }
   void stopContinuous(int8_t adc_num) {
   //! Stops continuous conversion
-    adc_->stopContinuous(adc_num);
+    analog::adc_.stopContinuous(adc_num);
   }
 
   // ##########################################################################
   // # Teensy library accessor methods
   uint32_t getMaxValue(int8_t adc_num) {
   //! Returns the maximum value for a measurement: 2^res-1.
-    return adc_->getMaxValue(adc_num);
+    return analog::adc_.getMaxValue(adc_num);
   }
   uint8_t getPGA(int8_t adc_num) {
   //! Returns the PGA level
   /** PGA level = from 1 to 64
   */
-    return adc_->getPGA(adc_num);
+    return analog::adc_.getPGA(adc_num);
   }
   uint8_t getResolution(int8_t adc_num) {
   //! Returns the resolution of the ADC_Module.
-    return adc_->getResolution(adc_num);
+    return analog::adc_.getResolution(adc_num);
   }
   bool isComplete(int8_t adc_num) {
   //! Is an ADC conversion ready?
@@ -1729,19 +1704,19 @@ public:
   *  When a value is read this function returns 0 until a new value exists
   *  So it only makes sense to call it with continuous or non-blocking methods
   */
-    return adc_->isComplete(adc_num);
+    return analog::adc_.isComplete(adc_num);
   }
   bool isContinuous(int8_t adc_num) {
   //! Is the ADC in continuous mode?
-    return adc_->isContinuous(adc_num);
+    return analog::adc_.isContinuous(adc_num);
   }
   bool isConverting(int8_t adc_num) {
   //! Is the ADC converting at the moment?
-    return adc_->isConverting(adc_num);
+    return analog::adc_.isConverting(adc_num);
   }
   bool isDifferential(int8_t adc_num) {
   //! Is the ADC in differential mode?
-    return adc_->isDifferential(adc_num);
+    return analog::adc_.isDifferential(adc_num);
   }
 
   float select_on_board_test_capacitor(int8_t index) {

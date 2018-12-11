@@ -7,6 +7,7 @@
 namespace dropbot {
 namespace analog {
 
+ADC adc_;
 float high_voltage_ = 0;
 
 
@@ -64,21 +65,30 @@ uint16_t u16_percentile_diff(uint8_t pin, uint16_t n_samples,
 *
 * [1]: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/boost-converter-boost-converter.pdf
 *
-*
 * \version 1.53  Cache most recent RMS voltage as `high_voltage_`.
 *
 * @return High-side RMS voltage.
 */
 float high_voltage() {
-  // HV_FB = (float(A1) / MAX_ANALOG) * AREF
-  const float hv_fb = (analogRead(A1) / float(1L << 16)) * 3.3;
-  // HV peak-to-peak = HV_FB * R8 / R9
-  const float R8 = 2e6;
-  const float R9 = 20e3;
-  const float hv_peak_to_peak = hv_fb * R8 / R9;
-  // HV RMS = 0.5 * HV peak-to-peak
-  // Cache most recent high voltage measurement.
-  high_voltage_ = 0.5 * hv_peak_to_peak;
+  // Save/restore ADC configuration.
+  adc_context([&] (auto adc_config) {
+    // Configure ADC for measurement.
+    auto &adc = *adc_.adc[0];  // Use ADC 0.
+    auto const resolution = adc.getResolution();
+    adc.setReference(ADC_REFERENCE::REF_3V3);
+    adc.wait_for_cal();
+
+    // HV_FB = (float(A1) / MAX_ANALOG) * AREF
+    const float hv_fb = (adc.analogRead(A1) /
+                         float(1L << resolution)) * 3.3;
+    // HV peak-to-peak = HV_FB * R8 / R9
+    const float R8 = 2e6;
+    const float R9 = 20e3;
+    const float hv_peak_to_peak = hv_fb * R8 / R9;
+    // HV RMS = 0.5 * HV peak-to-peak
+    // Cache most recent high voltage measurement.
+    high_voltage_ = 0.5 * hv_peak_to_peak;
+  });
   return high_voltage_;
 }
 
@@ -93,14 +103,28 @@ float high_voltage() {
 * [2]: https://github.com/LAtimes2/InternalTemperature
 */
 float measure_temperature() {
-  analogReference(INTERNAL);
-  uint32_t sum = 0;
-  for (uint8_t i = 0; i < 255; i++) {
-      sum += analogRead(38);
-  }
-  analogReference(DEFAULT);
-  float voltage = (float)sum / 255.0 / 65535.0 * 1.2;
-  return 25.0 + 583.0904 * (0.719 - voltage);
+  float voltage = 0;
+  constexpr uint8_t TEMPERATURE_PIN =
+    static_cast<uint8_t>(ADC_INTERNAL_SOURCE::TEMP_SENSOR);
+
+  adc_context([&] (auto adc_config) {
+    auto &adc = *adc_.adc[0];  // Use ADC 0.
+
+    auto const resolution = adc.getResolution();
+    adc.setReference(ADC_REFERENCE::REF_1V2);
+    adc.wait_for_cal();
+
+    uint32_t sum = 0;
+    for (uint8_t i = 0; i < 255; i++) {
+        sum += analogRead(TEMPERATURE_PIN);
+    }
+    voltage = (float)sum / 255.0 / float(1L << resolution) * 1.2;
+  });
+  /* From `ADC_Module.h`:
+   *
+   * > 0.719 V at 25ºC and slope of 1.715 mV/ºC for Teensy 3.x and 0.716 V.
+   */
+  return 25.0 + (0.719 - voltage) / 1.715e-3;
 }
 
 
@@ -141,27 +165,48 @@ uint16_t read_rms(uint8_t pin, uint32_t n) {
 
 
 float measure_output_current(uint32_t n) {
-  // Normalize 16-bit resolution to range `[0..1]` and multiply by 3.3 V
-  // reference.
-  const float voltage = static_cast<float>(read_max(2, n)) / (1L << 16) * 3.3;
+  float voltage;
+  adc_context([&] (auto adc_config) {
+    // Configure ADC for measurement.
+    auto &adc = *adc_.adc[0];  // Use ADC 0.
+    auto const resolution = adc.getResolution();
+    adc.setReference(ADC_REFERENCE::REF_3V3);
+    adc.wait_for_cal();
+
+    voltage = static_cast<float>(read_max(2, n)) / (1L << resolution) * 3.3;
+  });
   // TODO Explain this calculation.
   return (voltage / (51e3 / 5.1e3 * 1));
 }
 
 
 float measure_output_current_rms(uint32_t n) {
-  // Normalize 16-bit resolution to range `[0..1]` and multiply by 3.3 V
-  // reference.
-  const float voltage = static_cast<float>(read_rms(2, n)) / (1L << 16) * 3.3;
+  float voltage;
+  adc_context([&] (auto adc_config) {
+    // Configure ADC for measurement.
+    auto &adc = *adc_.adc[0];  // Use ADC 0.
+    auto const resolution = adc.getResolution();
+    adc.setReference(ADC_REFERENCE::REF_3V3);
+    adc.wait_for_cal();
+
+    voltage = static_cast<float>(read_rms(2, n)) / (1L << resolution) * 3.3;
+  });
   // TODO Explain this calculation.
   return (voltage / (51e3 / 5.1e3 * 1));
 }
 
 
 float measure_input_current(uint32_t n) {
-  // Normalize 16-bit resolution to range `[0..1]` and multiply by 3.3 V
-  // reference.
-  const float voltage = static_cast<float>(read_max(3, n)) / (1L << 16) * 3.3;
+  float voltage;
+  adc_context([&] (auto adc_config) {
+    // Configure ADC for measurement.
+    auto &adc = *adc_.adc[0];  // Use ADC 0.
+    auto const resolution = adc.getResolution();
+    adc.setReference(ADC_REFERENCE::REF_3V3);
+    adc.wait_for_cal();
+
+    voltage = static_cast<float>(read_max(3, n)) / (1L << resolution) * 3.3;
+  });
   // TODO Explain this calculation.
   return voltage / 0.03;
 }
@@ -188,6 +233,21 @@ float benchmmark_u16_percentile_diff(uint8_t pin, uint16_t n_samples,
   }
   const unsigned long end = micros();
   return (end - start) * 1e-6;
+}
+
+
+ADC_Module::ADC_Config save_config(uint8_t adc_num) {
+  ADC_Module::ADC_Config config = {0};
+  adc_.adc[adc_num]->saveConfig(&config);
+  return config;
+}
+
+
+void load_config(ADC_Module::ADC_Config const &config, int8_t adc_num) {
+  adc_.setAveraging(_averaging(config), adc_num);
+  adc_.setConversionSpeed(_conversion_speed(config), adc_num);
+  adc_.setSamplingSpeed(_sampling_speed(config), adc_num);
+  adc_.setReference(_analog_reference(config), adc_num);
 }
 
 }  // namespace analog {

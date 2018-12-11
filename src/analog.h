@@ -5,10 +5,14 @@
 #include <vector>
 #include <stdint.h>
 
+#include <ADC.h>
+
 #include "kxsort.h"
 
 namespace dropbot {
 namespace analog {
+
+extern ADC adc_;
 
 constexpr uint8_t PIN_CHIP_LOAD_VOLTAGE = 11;
 
@@ -62,11 +66,11 @@ float benchmmark_u16_percentile_diff(uint8_t pin, uint16_t n_samples,
                                      uint32_t n_repeats);
 
 template <typename Config>
-ADC_REF_SOURCE _analog_reference(Config const &adc_config) {
+ADC_REFERENCE _analog_reference(Config const &adc_config) {
   if (adc_config.savedSC2 & (1 << ADC_SC2_REFSEL0_BIT)) {
-    return ADC_REF_SOURCE::REF_ALT;
+    return ADC_REFERENCE::REF_1V2;
   } else {
-    return ADC_REF_SOURCE::REF_DEFAULT;
+    return ADC_REFERENCE::REF_3V3;
   }
 }
 
@@ -91,6 +95,7 @@ ADC_SAMPLING_SPEED _sampling_speed(Config const &adc_config) {
               ((0 << ADC_CFG2_ADLSTS1_BIT) | (0 << ADC_CFG2_ADLSTS0_BIT))) {
     return ADC_SAMPLING_SPEED::VERY_LOW_SPEED;
   }
+  return ADC_SAMPLING_SPEED::VERY_LOW_SPEED;
 }
 
 
@@ -129,6 +134,60 @@ uint8_t _averaging(Config const &adc_config) {
       return 1 << (avgs + 2);
   }
 }
+
+
+/**
+* @brief Serialize ADC configuration registers.
+*
+* \See load_config()
+*
+* @param adc_num  Zero-based ADC index.
+*
+* @return  ADC configuration containing the contents of the following 32-bit
+*   registers (in order): `SC1A`, `SC2`, `SC3`, `CFG1`, `CFG2`.
+*/
+ADC_Module::ADC_Config save_config(uint8_t adc_num);
+
+
+/**
+* @brief Apply a serialized configuration to ADC registers.
+*
+* \See save_config()
+*
+* **Note: individual mutator functions (e.g., `setAveraging`, etc.) are
+* called to make sure other internal state of `ADC_Module` is kept up to
+* date.**  In contrast, if `ADC_Module::loadConfig()` was used directly, the
+* `ADC_Module` internal state would become stale if the ADC register values
+* changed.
+*
+* @param adc_num  Zero-based ADC index.
+* @param config  Serialized ADC configuration containing the contents of the
+*   following 32-bit registers (in order): `SC1A`, `SC2`, `SC3`, `CFG1`,
+*   `CFG2`.
+*/
+void load_config(ADC_Module::ADC_Config const &config, int8_t adc_num);
+
+
+/**
+* @brief Wrapper function to save/restore ADC state.
+*
+* @param func  Function (e.g., lambda) to call while in safe I2C state.
+*
+* Example
+* -------
+*
+* ```c++
+* adc_context([&] () {
+* });
+* ```
+*/
+template <typename Func>
+void adc_context(Func func) {
+  auto const adc_config = save_config(0);
+  func(adc_config);
+  load_config(adc_config, 0);
+}
+
 
 }  // namespace analog {
 }  // namespace dropbot {

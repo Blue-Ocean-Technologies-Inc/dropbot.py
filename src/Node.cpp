@@ -51,11 +51,9 @@ void Node::begin() {
     initialize_switching_boards();
   }
 
-  adc_ = new ADC();
-
   voltage_source::begin();
 
-  analogReadResolution(16);
+  analog::adc_.adc[0]->setResolution(16);
 }
 
 uint16_t Node::initialize_switching_boards() {
