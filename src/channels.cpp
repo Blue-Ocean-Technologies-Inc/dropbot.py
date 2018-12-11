@@ -219,4 +219,26 @@ float Channels::_benchmark_channel_update(uint32_t count) {
 }
 
 
+/**
+ * @brief Measure chip load capacitance repeatedly the specified number of
+ * times.
+ *
+ * @param n_samples  Number of analog samples to measure. If 0, use default
+ *   from :attr:`config_._`.
+ * @param count  Number of times to repeat capacitance measurement.
+ *
+ * @return Average seconds per capacitance reading.
+ */
+float Channels::_benchmark_capacitance(uint16_t n_samples, uint32_t count) {
+  uint32_t start = micros();
+  for (uint32_t i = 0; i < count; i++) {
+    // Apply channel states
+    capacitance(n_samples);
+  }
+  uint32_t end = micros();
+
+  return (end - start) / float(count) * 1e-6;
+}
+
+
 }  // namespace dropbot

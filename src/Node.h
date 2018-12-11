@@ -2175,6 +2175,10 @@ public:
     return seconds_per_update;
   }
 
+  float _benchmark_capacitance(uint16_t n_samples, uint32_t count) {
+    return channels_._benchmark_capacitance(n_samples, count);
+  }
+
   UInt8Array state_of_channels() {
     auto &state_of_channels = channels_.state_of_channels();
     UInt8Array output = get_buffer();

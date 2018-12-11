@@ -478,6 +478,8 @@ public:
   }
 
   float _benchmark_channel_update(uint32_t count);
+
+  float _benchmark_capacitance(uint16_t n_samples, uint32_t count);
 };
 
 }  // namespace dropbot
