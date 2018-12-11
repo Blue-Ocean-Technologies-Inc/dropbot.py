@@ -620,6 +620,49 @@ public:
                                        high_percentile);
   }
 
+  uint16_t s16_percentile_diff(uint8_t pinP, uint8_t pinN, uint16_t n_samples,
+                               float low_percentile, float high_percentile) {
+    /*
+     * ..versionadded:: 1.41
+     *
+     * Measure samples from specified analog pin and compute difference between
+     * specified high and low percentiles.
+     *
+     * For example, :data:`low_percentile` as 25 and :data:`high_percentile` as
+     * 75 is equivalent to computing the `inter-quartile range <https://en.wikipedia.org/wiki/Interquartile_range>`_.
+     *
+     * Parameters
+     * ----------
+     * pinP : uint8_t
+     *     Positive pin.
+     * pinN : uint8_t
+     *     Negative pin.
+     * pinN  Negative pin.
+     * n_samples : uint16_t
+     *     Number of samples to measure.
+     * low_percentile : float
+     *     Low percentile of range.
+     * high_percentile : float
+     *     High percentile of range.
+     *
+     * Returns
+     * -------
+     * uint16_t
+     *     Difference between high and low percentiles.
+     */
+    uint16_t result = 0;
+    analog::adc_context([&] (auto adc_config) {
+      auto &adc = *analog::adc_.adc[0];  // Use ADC 0.
+      adc.setResolution(16);
+      adc.setReference(ADC_REFERENCE::REF_1V2);
+      adc.wait_for_cal();
+
+      result = analog::s16_percentile_diff(pinP, pinN, n_samples,
+                                           low_percentile, high_percentile);
+    });
+    return result;
+  }
+
   /**
   * @brief Measure high-side *root mean-squared (RMS)* voltage.
   *
@@ -2213,13 +2256,23 @@ public:
     return analog::benchmark_analog_read(pin, n_samples);
   }
 
-  float benchmmark_u16_percentile_diff(uint8_t pin, uint16_t n_samples,
-                                       float low_percentile,
-                                       float high_percentile,
-                                       uint32_t n_repeats) {
-    return analog::benchmmark_u16_percentile_diff(pin, n_samples,
-                                                  low_percentile,
-                                                  high_percentile, n_repeats);
+  float benchmark_u16_percentile_diff(uint8_t pin, uint16_t n_samples,
+                                      float low_percentile,
+                                      float high_percentile,
+                                      uint32_t n_repeats) {
+    return analog::benchmark_u16_percentile_diff(pin, n_samples,
+                                                 low_percentile,
+                                                 high_percentile, n_repeats);
+  }
+
+  float benchmark_s16_percentile_diff(uint8_t pinP, uint8_t pinN,
+                                      uint16_t n_samples,
+                                      float low_percentile,
+                                      float high_percentile,
+                                      uint32_t n_repeats) {
+    return analog::benchmark_s16_percentile_diff(pinP, pinN, n_samples,
+                                                 low_percentile,
+                                                 high_percentile, n_repeats);
   }
 
   bool event_enabled(uint32_t event) {

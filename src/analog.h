@@ -23,6 +23,33 @@ std::vector<uint16_t> analog_reads_simple(uint8_t pin, uint16_t n_samples);
 uint16_t u16_percentile_diff(uint8_t pin, uint16_t n_samples,
                              float low_percentile, float high_percentile);
 
+/**
+ * @brief Measure differential samples between specified analog pins and
+ * compute difference between specified high and low percentiles.
+ *
+ * @param pinP  Positive pin number.
+ * @param pinN  Negative pin number.
+ * @param n_samples  Number of samples to measure.
+ * @param low_percentile  Low percentile of range, in \f$[0, 100]\f$.
+ * @param high_percentile  High percentile of range, in \f$[0, 100]\f$.
+ *
+ * @return Difference between high and low percentiles.
+ */
+uint16_t s16_percentile_diff(uint8_t pinP, uint8_t pinN, uint16_t n_samples,
+                             float low_percentile, float high_percentile);
+
+/**
+ * @brief See [`A1/HV_FB`][1] in DropBot boost converter schematic:
+ *
+ *  - `R8`: 2 Mohms
+ *  - `R9`: 20 Kohms
+ *  - `AREF`: 3.3 V
+ *
+ * [1]: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/boost-converter-boost-converter.pdf
+ *
+ *
+ * @return RMS voltage of generated *high voltage* square wave signal.
+ */
 float high_voltage();
 
 float measure_temperature();
@@ -60,10 +87,42 @@ float measure_input_current(uint32_t n=1);
 
 float benchmark_analog_read(uint8_t pin, uint32_t n_samples);
 
-float benchmmark_u16_percentile_diff(uint8_t pin, uint16_t n_samples,
-                                     float low_percentile,
-                                     float high_percentile,
-                                     uint32_t n_repeats);
+/**
+ * @brief Measure the time required to compute the difference between two
+ * percentiles in a collection of samples from the specified analog pin.
+ *
+ * @param pin  Analog pin to read from.
+ * @param n_samples  Number of samples to read.
+ * @param low_percentile  Low percentile (e.g., `25.`)
+ * @param high_percentile  High percentile (e.g., `75.`)
+ * @param n_repeats  Number of times to repeat process.
+ *
+ * @return Time (in seconds) to repeatedly measure analog samples on the
+ * specified pin and compute the percentile difference.
+ */
+float benchmark_u16_percentile_diff(uint8_t pin, uint16_t n_samples,
+                                    float low_percentile,
+                                    float high_percentile,
+                                    uint32_t n_repeats);
+
+/**
+ * @brief Measure the time required to compute the difference between two
+ * percentiles in a collection of samples of the voltage differential between
+ * the specified analog pins.
+ *
+ * @param pinP  Positive pin number.
+ * @param pinN  Negative pin number.
+ * @param n_samples  Number of samples to read.
+ * @param low_percentile  Low percentile (e.g., `25.`)
+ * @param high_percentile  High percentile (e.g., `75.`)
+ * @param n_repeats  Number of times to repeat process.
+ *
+ * @return Time (in seconds) to repeatedly measure analog samples between the
+ * specified pins and compute the percentile difference.
+ */
+float benchmark_s16_percentile_diff(uint8_t pinP, uint8_t pinN,
+                                    uint16_t n_samples, float low_percentile,
+                                    float high_percentile, uint32_t n_repeats);
 
 template <typename Config>
 ADC_REFERENCE _analog_reference(Config const &adc_config) {

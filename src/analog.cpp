@@ -18,6 +18,19 @@ std::vector<uint16_t> analog_reads_simple(uint8_t pin, uint16_t n_samples) {
   return analog_values;
 }
 
+std::vector<int16_t> differential_reads_simple(uint8_t pinP, uint8_t pinN,
+                                               uint16_t n_samples) {
+  std::vector<int16_t> analog_values(n_samples);
+  // XXX Teensy ADC library casts **16-bit** *differential* readings as
+  // **32-bit**, and doubles them.  To save space, we divide by two and cast
+  // back to `int16_t`.
+  std::generate(analog_values.begin(), analog_values.end(), [&] () {
+    return adc_.adc[0]->analogReadDifferential(pinP, pinN) / 2;
+  });
+
+  return analog_values;
+}
+
 
 uint16_t u16_percentile_diff(uint8_t pin, uint16_t n_samples,
                              float low_percentile, float high_percentile) {
@@ -51,6 +64,18 @@ uint16_t u16_percentile_diff(uint8_t pin, uint16_t n_samples,
   const uint16_t high_i = (int)round((high_percentile / 100.) * n_samples);
   const uint16_t low_i = (int)round((low_percentile / 100.) * n_samples);
   return result[high_i] - result[low_i];
+}
+
+
+uint16_t s16_percentile_diff(uint8_t pinP, uint8_t pinN, uint16_t n_samples,
+                             float low_percentile, float high_percentile) {
+  auto result = differential_reads_simple(pinP, pinN, n_samples);
+  std::sort(result.begin(), result.end());
+  const int32_t high_i = (int)round((high_percentile / 100.) * n_samples);
+  const int32_t low_i = (int)round((low_percentile / 100.) * n_samples);
+  // By definition, 75th percentile is **_guaranteed_** to be _at least_ as
+  // great as 25th percentile, so return value is _unsigned_.
+  return static_cast<uint16_t>(result[high_i] - result[low_i]);
 }
 
 
@@ -223,13 +248,25 @@ float benchmark_analog_read(uint8_t pin, uint32_t n_samples) {
 }
 
 
-float benchmmark_u16_percentile_diff(uint8_t pin, uint16_t n_samples,
-                                      float low_percentile,
-                                      float high_percentile,
-                                      uint32_t n_repeats) {
+float benchmark_u16_percentile_diff(uint8_t pin, uint16_t n_samples,
+                                    float low_percentile,
+                                    float high_percentile,
+                                    uint32_t n_repeats) {
   const unsigned long start = micros();
   for (uint32_t i = 0; i < n_repeats; i++) {
     u16_percentile_diff(pin, n_samples, low_percentile, high_percentile);
+  }
+  const unsigned long end = micros();
+  return (end - start) * 1e-6;
+}
+
+
+float benchmark_s16_percentile_diff(uint8_t pinP, uint8_t pinN,
+                                    uint16_t n_samples, float low_percentile,
+                                    float high_percentile, uint32_t n_repeats) {
+  const unsigned long start = micros();
+  for (uint32_t i = 0; i < n_repeats; i++) {
+    s16_percentile_diff(pinP, pinN, n_samples, low_percentile, high_percentile);
   }
   const unsigned long end = micros();
   return (end - start) * 1e-6;
