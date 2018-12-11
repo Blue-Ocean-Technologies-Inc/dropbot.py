@@ -263,8 +263,10 @@ public:
   * either the high end or the low end of the input range.
   *
   * \version added: 1.61
+  * \version changed: X.X.X
+  *     Change arguments to _signed_ integers.
   */
-  Signal<std::function<void(uint16_t, uint16_t)> > chip_load_saturated_;
+  Signal<std::function<void(int16_t, int16_t)> > chip_load_saturated_;
   /**
   * @brief High-side current exceeded signal.
   *
@@ -483,25 +485,40 @@ public:
     // `chip_load_saturated_` signal.
     signal_timer_ms_.connect([&] (auto now) {
       if (state_._.hv_output_enabled && state_._.hv_output_selected) {
-        // High-voltage output is enabled and selected.
-        constexpr uint16_t max_analog = std::numeric_limits<uint16_t>::max();
-        const uint16_t chip_load = analogRead(analog::PIN_CHIP_LOAD_VOLTAGE);
-        const uint16_t margin = state_._.chip_load_range_margin * max_analog;
-        if ((chip_load > (max_analog - margin)) || (chip_load < margin)) {
-          chip_load_saturated_.send(chip_load, margin);
-        }
+        analog::adc_context([&] (auto adc_config) {
+          // High-voltage output is enabled and selected.
+          const uint8_t resolution = analog::adc_.adc[0]->getResolution();
+          // Maximum analog value is (2^15 - 1) for differential 16-bit
+          // resolution, since the 16th bit of the analog return type
+          // represents the sign. For resolutions less than 16-bit, a 16-bit
+          // data type is still used so (2^resolution - 1) is the maximum
+          // analog value.
+          const int16_t max_analog =
+            ((resolution == 16) ? (1L << 15) : (1L << resolution)) - 1;
+          analog::adc_.adc[0]->setReference(ADC_REFERENCE::REF_1V2);
+          analog::adc_.adc[0]->disablePGA();
+
+          const int16_t chip_load =
+            analog::adc_.adc[0]->analogReadDifferential(A10, A11);
+          const int16_t margin = (state_._.chip_load_range_margin *
+                                  static_cast<float>(max_analog));
+          if ((chip_load > (max_analog - margin))
+              || (chip_load < (margin - max_analog))) {
+            chip_load_saturated_.send(chip_load, margin);
+          }
+        });
       }
     }, 25);
 
     // XXX Halt (i.e., disable all channels and turn off high-voltage) when
     // chip load analog measurement has saturated (either upper or lower end of
     // analog scale).
-    chip_load_saturated_.connect([&] (uint16_t chip_load, uint16_t margin) {
+    chip_load_saturated_.connect([&] (int16_t chip_load, int16_t margin) {
       halt();
     });
 
     // Publish `halted` event when chip load analog measurement is saturated.
-    chip_load_saturated_.connect([&] (uint16_t chip_load, uint16_t margin) {
+    chip_load_saturated_.connect([&] (int16_t chip_load, int16_t margin) {
       UInt8Array buffer = this->get_buffer();
       buffer.length = 0;
 
