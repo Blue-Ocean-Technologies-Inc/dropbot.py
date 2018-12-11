@@ -634,6 +634,33 @@ public:
     return analog::high_voltage();
   }
 
+  /**
+  * @brief Measure high-side *root mean-squared (RMS)* output current.
+  *
+  * @return  High-side RMS current.
+  */
+  float output_current_rms() {
+    return analog::measure_output_current_rms(20);
+  }
+
+  /**
+  * @brief Measure high-side output current.
+  *
+  * @return  High-side maximum current.
+  */
+  float output_current() {
+    return analog::measure_output_current(20);
+  }
+
+  /**
+  * @brief Measure input current.
+  *
+  * @return  Input current.
+  */
+  float input_current() {
+    return analog::measure_input_current(20);
+  }
+
   UInt16Array analog_reads_simple(uint8_t pin, uint16_t n_samples) {
     UInt16Array output;
     output.data = reinterpret_cast<uint16_t *>(get_buffer().data);
