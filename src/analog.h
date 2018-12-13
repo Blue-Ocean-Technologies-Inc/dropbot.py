@@ -84,6 +84,7 @@ float measure_output_current_rms(uint32_t n=10);
  * @return  Maximum current reading.
  */
 float measure_input_current(uint32_t n=1);
+float measure_input_current_rms(uint32_t n=10);
 
 float benchmark_analog_read(uint8_t pin, uint32_t n_samples);
 

@@ -698,9 +698,18 @@ public:
   }
 
   /**
+  * @brief Measure *root mean-squared (RMS)* input current.
+  *
+  * @return  RMS input current.
+  */
+  float input_current_rms() {
+    return analog::measure_input_current_rms(20);
+  }
+
+  /**
   * @brief Measure input current.
   *
-  * @return  Input current.
+  * @return  Maximum input current.
   */
   float input_current() {
     return analog::measure_input_current(20);

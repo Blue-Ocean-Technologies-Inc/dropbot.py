@@ -237,6 +237,22 @@ float measure_input_current(uint32_t n) {
 }
 
 
+float measure_input_current_rms(uint32_t n) {
+  float voltage;
+  adc_context([&] (auto adc_config) {
+    // Configure ADC for measurement.
+    auto &adc = *adc_.adc[0];  // Use ADC 0.
+    auto const resolution = adc.getResolution();
+    adc.setReference(ADC_REFERENCE::REF_3V3);
+    adc.wait_for_cal();
+
+    voltage = static_cast<float>(read_rms(3, n)) / (1L << resolution) * 3.3;
+  });
+  // TODO Explain this calculation.
+  return voltage / 0.03;
+}
+
+
 float benchmark_analog_read(uint8_t pin, uint32_t n_samples) {
   std::vector<uint16_t> values(1);
   const unsigned long start = micros();
