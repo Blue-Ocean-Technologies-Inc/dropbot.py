@@ -392,7 +392,7 @@ public:
                     "\"target\": %g, "  // Target capacitance value
                     "\"time_us\": %lu, "  // end times in us
                     "\"n_samples\": %lu, "  // # of analog samples
-                    "\"count\": %lu, "  // # of consecutive readings > target
+                    "\"count\": %d, "  // # of consecutive readings > target
                     "\"V_a\": %g}",  // Actuation voltage
                     capacitance, state_._.target_capacitance, time_us,
                     config_._.capacitance_n_samples, target_count_,
@@ -506,11 +506,13 @@ public:
       buffer.length = 0;
 
       buffer.length += sprintf((char *)&buffer.data[buffer.length],
-                              "{\"event\": \"halted\", \"wall_time\": %lu, "
+                              "{\"event\": \"halted\", \"wall_time\": %f, "
                                "\"error\": {\"name\": "
                                "\"chip-load-saturated\", "
-                               "\"chip_load\": %hu, \"margin\": %hu}}",
-                               time::wall_time(), chip_load, margin);
+                               "\"chip_load\": %d, \"margin\": %d}}",
+                               time::wall_time(),
+                               static_cast<int>(chip_load),
+                               static_cast<int>(margin));
 
       {
         PacketStream output_packet;
