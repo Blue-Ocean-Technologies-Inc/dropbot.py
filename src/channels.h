@@ -335,14 +335,16 @@ public:
       // Configure ADC for measurement.
       auto &adc = *analog::adc_.adc[0];  // Use ADC 0.
       auto const resolution = adc.getResolution();
+      const int16_t max_analog =
+        ((resolution == 16) ? (1L << 15) : (1L << resolution)) - 1;
       adc.setReference(ADC_REFERENCE::REF_1V2);
       adc.wait_for_cal();
 
       uint16_t A11_raw = analog::s16_percentile_diff(A10, A11, n_samples, 25,
                                                      75);
       // Compute capacitance from measured square-wave RMS voltage amplitude.
-      // V2 = 0.5 * (float(A11) / MAX_ANALOG) * AREF
-      device_load_v = 0.5 * (A11_raw / float(1L << resolution)) * 1.2;
+      // V2 = 0.5 * (float(A11) / ANALOG_RANGE) * AREF
+      device_load_v = 0.5 * (A11_raw / (2 * float(max_analog))) * 1.2;
     });
     // C2 = V2 * C16 / HVAC
     const float C2 = device_load_v * 0.15e-6 / analog::high_voltage();
