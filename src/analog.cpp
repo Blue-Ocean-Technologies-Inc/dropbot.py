@@ -21,11 +21,8 @@ std::vector<uint16_t> analog_reads_simple(uint8_t pin, uint16_t n_samples) {
 std::vector<int16_t> differential_reads_simple(uint8_t pinP, uint8_t pinN,
                                                uint16_t n_samples) {
   std::vector<int16_t> analog_values(n_samples);
-  // XXX Teensy ADC library casts **16-bit** *differential* readings as
-  // **32-bit**, and doubles them.  To save space, we divide by two and cast
-  // back to `int16_t`.
   std::generate(analog_values.begin(), analog_values.end(), [&] () {
-    return adc_.adc[0]->analogReadDifferential(pinP, pinN) / 2;
+    return adc_.adc[0]->analogReadDifferential(pinP, pinN);
   });
 
   return analog_values;
