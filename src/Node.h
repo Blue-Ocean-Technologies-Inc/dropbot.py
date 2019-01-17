@@ -2904,6 +2904,65 @@ public:
     auto end = micros();
     return (end - start) * 1e-6;
   }
+
+  /**
+  * @brief Compute time to cycle through switching matrix; measure capacitance
+  * for each row; and compute individual capacitance for each channel.
+  *
+  * @param row_count  Number of rows in matrix.
+  * @param delay_s  Delay (in seconds) between row activations.
+  * @param repeats  Number of times to cycle through switching matrix.
+  * @param measure_C  If `true`, measure capacitance for each row.
+  * @param send_signal  If `true`, send signal each time final row has
+  *   completed, including the computed capacitance for each channel.
+  *
+  * @return Total time elapsed (in seconds).
+  */
+  float _benchmark_switching_matrix_controller(uint8_t row_count,
+                                               float delay_s,
+                                               uint32_t repeats,
+                                               bool measure_C,
+                                               bool send_signal) {
+    {
+      UInt8Array packed_channels = get_buffer();
+      packed_channels.length = 5;
+      std::fill(packed_channels.data, packed_channels.data +
+                packed_channels.length, 0);
+      packed_channels.data[0] = 0b00001111;
+      stop_switching_matrix();
+      turn_off_all_channels();
+      set_sensitive_channels(packed_channels);
+    }
+
+    UInt8Array channels = get_buffer();
+
+    std::iota(channels.data, channels.data + 4, 0);
+    set_duty_cycle(1, channels);
+    start_switching_matrix(row_count, delay_s);
+    const uint32_t delay_us_ = delay_s * 1e6;
+
+    auto start = micros();
+    uint8_t row_previous = 0b11111111;
+    for (auto i = 0; i < repeats; i++) {
+      for (auto j = 0; j < row_count; j++) {
+        while (true) {
+          const uint8_t row_ij =
+              matrix_controller_.update(*this,
+                                        SwitchingMatrixRowContoller::TICK,
+                                        micros(), measure_C, send_signal);
+          if (row_ij != row_previous) {
+            row_previous = row_ij;
+            break;
+          }
+        }
+      }
+    }
+    auto end = micros();
+    stop_switching_matrix();
+    turn_off_all_channels();
+    return (end - start) * 1e-6;
+  }
+
 };
 }  // namespace dropbot
 
