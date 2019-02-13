@@ -180,8 +180,33 @@ public:
       sensitive_channels_ = unpack_channels(packed_begin, packed_end);
     }
 
+    /**
+     * @brief  Update the state of the switching matrix controller.
+     *
+     * @tparam Node  DropBot control node class type.
+     * @param node  Reference to DropBot control node object.
+     * @param event  Code associated with event to trigger.
+     * @param t  Settling time to wait after applying settings of a row, e.g.,
+     *   before measuring capacitance.
+     * @param measure_C  Measure capacitance for each row in the switching
+     *   matrix.
+     * @param send_signal  Send signal after completion of each cycle through
+     *   the switching matrix.
+     *
+     * @return  Current row index in the switching matrix.
+     *
+     * Notes
+     * -----
+     *
+     * The `measure_C` and `send_signal` parameters were introduced to isolate
+     * the run time associated with each part of the update during performance
+     * benchmarking: **a)** updating the state machine; **b)** computing
+     * capacitance from ADC readings; **c)** processing callbacks connected to
+     * the signal indicating a new set of sensitive capacitances are available.
+     */
     template <typename Node>
-    void update(Node &node, Event event, SettlingTime t) {
+    auto update(Node &node, Event event, SettlingTime t, bool measure_C=true,
+                bool send_signal=true) {
       switch (state_) {
         case IDLE:
           if (event == START && row_count_ > 0) {
@@ -209,13 +234,18 @@ public:
             // Settling time has passed.
             if (row_i_ < m_.size()) {
               // XXX measure capacitance and store result in $\vec{m}$.
-              const auto capacitance = node.capacitance(0);
-              m_(row_i_, 0) = capacitance;
+              if (measure_C) {
+                m_(row_i_, 0) = node.capacitance(0);
+              } else {
+                m_(row_i_, 0) = 0;
+              }
             }
             row_i_ += 1;
             if (row_i_ >= row_count_) {
               y_ = OMEGA_ * m_;
-              sensitive_capacitances_.send(sensitive_channels_, y_);
+              if (send_signal) {
+                sensitive_capacitances_.send(sensitive_channels_, y_);
+              }
               row_i_ = 0;
             }
             state_ = SETTING_SWITCHING_MATRIX_ROW;
@@ -225,6 +255,7 @@ public:
           stop(node);
           break;
       }
+      return row_i_;
     }
 };
 
