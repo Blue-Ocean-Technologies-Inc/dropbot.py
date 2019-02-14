@@ -263,7 +263,7 @@ public:
   * either the high end or the low end of the input range.
   *
   * \version added: 1.61
-  * \version changed: X.X.X
+  * \version changed: 1.69
   *     Change arguments to _signed_ integers.
   */
   Signal<std::function<void(int16_t, int16_t)> > chip_load_saturated_;

@@ -269,7 +269,7 @@ public:
    *
    * \version changed: 1.43  Fix equation to divide by actuation voltage.
    *
-   * \version changed: X.X.X  Measure using differential mode and 1.2 V
+   * \version changed: 1.69  Measure using differential mode and 1.2 V
    *   reference voltage.
    *
    *
