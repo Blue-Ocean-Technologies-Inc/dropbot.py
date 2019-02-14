@@ -10,6 +10,7 @@
 #include <set>
 #include <vector>
 #include <Arduino.h>
+#include <Eigen/Dense>
 
 #include <NadaMQ.h>
 #include <CArrayDefs.h>
@@ -53,6 +54,7 @@
 #include "Signal.h"
 #include "SignalTimer.h"
 #include <ADC_Module.h>
+#include "SwitchingMatrix.h"
 
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
 #define CPU_RESTART_VAL 0x5FA0004
@@ -90,6 +92,8 @@ extern void dma_ch14_isr(void);
 extern void dma_ch15_isr(void);
 
 namespace dropbot {
+
+using switching_matrix::SwitchingMatrixRowContoller;
 
 const uint32_t EVENT_ACTUATED_CHANNEL_CAPACITANCES = (1 << 31);
 const uint32_t EVENT_CHANNELS_UPDATED              = (1 << 30);
@@ -200,6 +204,22 @@ public:
   static const uint8_t CAPACITANCE_10PF_PIN = 1;
   static const uint8_t CAPACITANCE_100PF_PIN = 2;
 
+  // High-voltage Output Enable pin
+  static const uint8_t OE_PIN = 22;
+
+  static const float R6;
+
+  static constexpr uint8_t CMD_GET_SENSITIVE_CHANNELS = 0xAA;
+  static constexpr uint8_t CMD_GET_SWITCHING_MATRIX_ROW = 0xA7;
+  static constexpr uint8_t CMD_SET_SENSITIVE_CHANNELS = 0xA9;
+  static constexpr uint8_t CMD_SET_SWITCHING_MATRIX_ROW = 0xA6;
+  static constexpr uint8_t PCA9505_CONFIG_IO_REGISTER_ = 0x18;
+  static constexpr uint8_t PCA9505_OUTPUT_PORT_REGISTER_ = 0x08;
+  static constexpr uint8_t CMD_GET_SENSITIVE_OFFSET = 0xAB;
+
+  static constexpr uint8_t CMD_GET_CHANNEL_DUTY_CYCLE = 0xAC;
+  static constexpr uint8_t CMD_SET_CHANNEL_DUTY_CYCLE = 0xAD;
+
   uint8_t buffer_[BUFFER_SIZE];
 
   uint32_t adc_period_us_;
@@ -283,6 +303,14 @@ public:
   * \version added: 1.57
   */
   SignalTimer signal_timer_ms_;
+  /**
+  * @brief Switching matrix controller.
+  *
+  * Updated on every `loop()` iteration.
+  *
+  * \version added: 2.0
+  */
+  SwitchingMatrixRowContoller matrix_controller_;
 
   /**
   * @brief Construct node.
@@ -313,6 +341,11 @@ public:
   *   range. Connect callbacks to `chip_load_saturated_` signal to halt (i.e.,
   *   disable all channels and turn off high-voltage) and send `halted` serial
   *   event.
+  *
+  * \version 2.0
+  *   Send `sensitive-capacitances` serial event when \f$\vec{y}\f$ is computed
+  *   by the switching matrix controller (i.e., at the end of each loop through
+  *   the switching matrix).
   */
   Node() : BaseNode(),
            BaseNodeConfig<config_t>(dropbot_Config_fields),
@@ -326,7 +359,7 @@ public:
                                InputDebounce::PinInMode::PIM_EXT_PULL_UP_RES,
                                0),
            capacitance_timestamp_ms_(0), target_count_(0),
-           drops_timestamp_ms_(0) {
+           drops_timestamp_ms_(0), matrix_controller_(40, 5e3) {
     pinMode(LED_BUILTIN, OUTPUT);
     dma_data_ = UInt8Array_init_default();
     clear_neighbours();
@@ -538,6 +571,36 @@ public:
                             buffer.length);
         output_packet.end(Serial);
       }
+    });
+
+    matrix_controller_.sensitive_capacitances_.connect(
+      [&] (auto channels, auto y) {
+        // Sensitive capacitances have been updated.  Send serial stream event.
+      UInt8Array buffer = this->get_buffer();
+      buffer.length = 0;
+
+      buffer.length += sprintf((char *)&buffer.data[buffer.length],
+                               "{\"event\": \"sensitive-capacitances\", "
+                               "\"wall_time\": %lu, "
+                               "\"C\": [", time::wall_time());
+
+      for (auto i = 0; i < channels.size(); i++) {
+        if (i > 0) {
+          buffer.length += sprintf((char *)&buffer.data[buffer.length], ", ");
+        }
+        buffer.length += sprintf((char *)&buffer.data[buffer.length],
+                                 "[%d, %g]", channels[i], y(i, 0));
+      }
+      buffer.length += sprintf((char *)&buffer.data[buffer.length], "]}");
+
+      {
+        PacketStream output_packet;
+        output_packet.start(Serial, buffer.length);
+        output_packet.write(Serial, (char *)buffer.data,
+                            buffer.length);
+        output_packet.end(Serial);
+      }
+
     });
   }
 
@@ -1170,6 +1233,8 @@ public:
                                            dma_stream_id_);
       }
     }
+    matrix_controller_.update(*this, SwitchingMatrixRowContoller::TICK,
+                              micros());
   }
   /** Returns current contents of DMA result buffer. */
   UInt8Array dma_data() const { return dma_data_; }
@@ -2327,6 +2392,7 @@ public:
     return false;
   }
   void enable_events() { state_._.event_mask |= EVENT_ENABLE; }
+
   /**
   * @brief Synchronize specified timestamp to current milliseconds counter.
   *
@@ -2380,6 +2446,463 @@ public:
     on_state_hv_output_enabled_changed(false);
     // Turn off all channels.
     channels_.disable_all_channels();
+  }
+
+  float _benchmark_eigen_inverse_double(uint32_t N, uint32_t repeats) {
+    /*
+    *  Benchmark Eigen library for computing $Y = (S_T S)^{-1} S_T M$
+    *  using `double` matrix data types.
+    */
+    return _benchmark_eigen_inverse<double>(N, repeats);
+  }
+
+  float _benchmark_eigen_inverse_float(uint32_t N, uint32_t repeats) {
+    /*
+    *  Benchmark Eigen library for computing $Y = (S_T S)^{-1} S_T M$
+    *  using `float` matrix data types.
+    */
+    return _benchmark_eigen_inverse<float>(N, repeats);
+  }
+
+  template <typename Float>
+  float _benchmark_eigen_inverse(uint32_t N, uint32_t repeats) {
+    /*
+    * Benchmark Eigen library for computing $Y = (S_T S)^{-1} S_T M$
+    *
+    * where:
+    *
+    *  - $S$ is a $N \times N$ switching matrix encoding the actuation state of
+    *    each channel during each measurement window in a measuring sequence,
+    *    such that each row of $S$ corresponds to a window within a measurement
+    *    period and each column corresponds to a _sensitive_ channel;
+    *  - $Y$ is a $N \times 1$ matrix encoding the electrical admittance of
+    *    each channel (where admittance is the inverse of the impedance) during
+    *    each measurement period;
+    *  - $M$ is a $N \times 1$ matrix M, containing a combined measurement for
+    *    each row in $S$, corresponding to the _actuated_ channels in the row.
+    *    Note that $SY = M$.
+    *
+    * Benchmarking steps:
+    *
+    *  1. Create a representative $N \times N$ switching matrix, $S$.
+    *  2. Create a representative electrical admittance $N \times 1$ matrix, $Y$.
+    *  3. Compute a mock capacitance measurement $N \times 1$ matrix, $M$,
+    *     containing simulated a combined measurement for each row in $S$,
+    *     corresponding to the actuated channels in the row.
+    *  4. Compute $S_T S$.
+    *  5. **Compute the inverse of $S S_T$** in 3 loops, repeating ``repeats``
+    *     times in each loop and recording the duration of each loop.
+    *  6. Return the minimum duration of a single inverse computation.
+    */
+    using namespace Eigen;
+
+    typedef Matrix<Float, Dynamic, Dynamic> MatrixF;
+
+    MatrixXi S = MatrixXi::Ones(N, N);
+
+    for (auto i = 0; i < S.cols(); i++) {
+        S(i, i) = 0;
+    }
+
+    MatrixF Y(S.cols(), 1);
+
+    for (auto i = 0; i < Y.rows(); i++) {
+        Y(i) = i + 1;
+    }
+
+    MatrixF M = S.cast<Float>() * Y;
+
+    auto S_TS = (S.transpose() * S).cast<Float>();
+
+    std::array<uint32_t, 3> durations;
+    std::fill(durations.begin(), durations.end(),
+              std::numeric_limits<uint32_t>::max());
+
+    for (auto it_duration = durations.begin(); it_duration != durations.end();
+         it_duration++) {
+      auto &duration = *it_duration;
+
+      auto start = micros();
+      for (uint32_t i = 0; i < repeats; i++) {
+        S_TS.inverse();
+      }
+      auto end = micros();
+      duration = end - start;
+    }
+    return (float(*std::min_element(durations.begin(), durations.end())) /
+            durations.size() * 1e-6);
+  }
+
+  void set_sensitive_channels(UInt8Array packed_channels) {
+    matrix_controller_.reset();
+    matrix_controller_.sensitive_channels(packed_channels.data,
+                                          packed_channels.data +
+                                          packed_channels.length);
+
+    constexpr uint8_t CMD_SET_SENSITIVE_CHANNELS = 0xA9;
+    i2c_safe([&] () {
+      // Broadcast message to **all** switching boards, using _general call_
+      // address, 0.
+      Wire.beginTransmission(0);
+      Wire.write(CMD_SET_SENSITIVE_CHANNELS);
+      Wire.write(packed_channels.data, packed_channels.length);
+      Wire.endTransmission();
+      delayMicroseconds(100); // needed when using Teensy
+    });
+  }
+
+  UInt8Array get_sensitive_channels() {
+    auto packed_channels = get_buffer();
+    packed_channels.length = 0;
+
+    i2c_safe([&] () {
+      // Broadcast sensitive channels request to all switching boards.
+      Wire.beginTransmission(0);
+      Wire.write(CMD_GET_SENSITIVE_CHANNELS);
+      Wire.endTransmission();
+
+      delayMicroseconds(100); // needed when using Teensy
+
+      // Read response from each board individually.
+      for (int board_id = 0; board_id < 3; board_id++) {
+        const auto i2c_address = (channels_.switching_board_i2c_address_ +
+                                  board_id);
+        //  1. Request response length from switching board.
+        Wire.requestFrom(i2c_address, 1);
+        if (Wire.available()) {
+          auto response_length = Wire.read();
+          //  2. Request response payload (do not include return code) from
+          //     switching board.
+          //   - XXX Response in form:
+          //
+          //         [payload:<uint8_t[]>][return code:<uint8_t>]
+          Wire.requestFrom(i2c_address, response_length - 1);
+          while (Wire.available()) {
+            auto port_i = Wire.read();
+            packed_channels.data[packed_channels.length++] = port_i;
+          }
+        }
+      }
+    });
+    return packed_channels;
+  }
+
+  UInt8Array get_sensitive_offsets() {
+    auto sensitive_offsets = get_buffer();
+    sensitive_offsets.length = 0;
+
+    i2c_safe([&] () {
+      // Broadcast sensitive offsets request to all switching boards.
+      Wire.beginTransmission(0);
+      Wire.write(CMD_GET_SENSITIVE_OFFSET);
+      Wire.endTransmission();
+
+      delayMicroseconds(100); // needed when using Teensy
+
+      // Read response from each board individually.
+      for (int board_id = 0; board_id < 3; board_id++) {
+        const auto i2c_address = (channels_.switching_board_i2c_address_ +
+                                  board_id);
+        Wire.requestFrom(i2c_address, 1);
+        if (Wire.available()) {
+          auto payload_length = Wire.read();
+          Wire.requestFrom(i2c_address, payload_length);
+          payload_length = Wire.available();
+          if (payload_length > 0) {
+            auto sensitive_offset = Wire.read();
+            sensitive_offsets.data[sensitive_offsets.length++] = sensitive_offset;
+          }
+        }
+      }
+    });
+    return sensitive_offsets;
+  }
+
+  /**
+  * @brief Apply duty cycle to **all** channels.
+  *
+  * @param duty_cycle  Duty cycle (in range $[0..1]$ inclusive).
+  */
+  void set_all_duty_cycles(float duty_cycle) {
+    auto channels = get_buffer();
+    channels.length = MAX_NUMBER_OF_CHANNELS;
+    std::iota(channels.data, channels.data + channels.length, 0);
+    set_duty_cycle(duty_cycle, channels);
+  }
+
+  /**
+  * @brief Apply duty cycle to list of channels.
+  *
+  * @param duty_cycle  Duty cycle (in range $[0..1]$ inclusive).
+  * @param channels  List of channel identifiers to which duty cycle should be
+  *   applied.
+  */
+  void set_duty_cycle(float duty_cycle, UInt8Array channels) {
+    matrix_controller_.sensitive_duty_cycles(duty_cycle, channels.data,
+                                             channels.data + channels.length);
+    // Process channels in chunks to avoid overflowing maximum I2C message
+    // length.
+    auto chunks_count = static_cast<uint8_t>(ceil(channels.length / 22.));
+    auto chunk_size = static_cast<uint8_t>(ceil(channels.length /
+                                                static_cast<float>
+                                                (chunks_count)));
+    i2c_safe([&] () {
+      // Send each chunk of channels list in separate I2C message.
+      for (auto chunk_i = 0; chunk_i < chunks_count; chunk_i++) {
+        auto start_i = chunk_i * chunk_size;
+        // Last chunk *may* be smaller than the rest if list channels does not
+        // divide evenly by the chunk size.
+        auto chunk_size_i = ((chunk_i + 1 < chunks_count) ? chunk_size
+                            : chunk_size - (chunks_count * chunk_size -
+                                            channels.length));
+
+        // Broadcast sensitive offsets request to all switching boards.
+        Wire.beginTransmission(0);
+        Wire.write(CMD_SET_CHANNEL_DUTY_CYCLE);
+        Wire.write(reinterpret_cast<uint8_t *>(&duty_cycle), sizeof(duty_cycle));
+        Wire.write(&channels.data[start_i], chunk_size_i);
+        Wire.endTransmission();
+      }
+    });
+  }
+
+  FloatArray sensitive_duty_cycles() {
+    auto duty_cycles = matrix_controller_.sensitive_duty_cycles();
+    return copy_to_buffer<FloatArray, decltype(duty_cycles.begin())>
+        (duty_cycles.begin(), duty_cycles.end());
+  }
+
+  UInt8Array sensitive_channels() {
+    auto channels = matrix_controller_.sensitive_channels();
+    return copy_to_buffer<UInt8Array, decltype(channels.begin())>
+        (channels.begin(), channels.end());
+  }
+
+  uint32_t switching_matrix_row_count() {
+    return matrix_controller_.row_count();
+  }
+
+  void set_switching_matrix_row_count(uint32_t row_count) {
+    matrix_controller_.reset(row_count);
+  }
+
+  UInt8Array S() {
+    auto S_ = matrix_controller_.S();
+    return copy_to_buffer<UInt8Array, decltype(S_.data())>
+        (S_.data(), S_.data() + S_.size());
+  }
+
+  FloatArray OMEGA() {
+    auto OMEGA_ = matrix_controller_.OMEGA();
+    return copy_to_buffer<FloatArray, decltype(OMEGA_.data())>
+        (OMEGA_.data(), OMEGA_.data() + OMEGA_.size());
+  }
+
+  FloatArray y() {
+    auto y_ = matrix_controller_.y();
+    return copy_to_buffer<FloatArray, decltype(y_.data())>
+        (y_.data(), y_.data() + y_.size());
+  }
+
+  FloatArray m() {
+    auto m_ = matrix_controller_.m();
+    return copy_to_buffer<FloatArray, decltype(m_.data())>
+        (m_.data(), m_.data() + m_.size());
+  }
+
+  /**
+  * @brief Return buffer cast to specified `CArrayDefs` array type.
+  *
+  * @tparam T  `CArrayDefs` array type, e.g., `FloatArray`, `UInt16Array`.
+  *
+  * @return  `get_buffer()` buffer cast as specified array type.
+  *
+  * Example
+  * -------
+  *
+  * ```c++
+  * // Length is re-calculated and set according to atom (e.g., `float`) size.
+    FloatArray result = get_type_buffer<FloatArray>();
+  * ```
+  */
+  template <typename T>
+  T get_type_buffer() {
+    T result;
+    auto buffer = get_buffer();
+    result.data = reinterpret_cast<decltype(result.data)>(buffer.data);
+    result.length = buffer.length / sizeof(result.data[0]);
+    return result;
+  }
+
+  /**
+  * @brief Copy from iterator range to typed CArrayDefs array.
+  *
+  * Data of returned CArrayDefs instance is held in shared buffer returned by
+  * `Node::get_buffer()`.  This method is useful, e.g., to return an arbitrary
+  * data range from an RPC method call.
+  *
+  * For example, see `Node::S()`.
+  *
+  * @tparam Array  CArrayDefs array type (e.g., `FloatArray`).
+  * @param begin  Beginning of source.
+  * @param end  End of source.
+  *
+  * @return  CArrayDefs array, with data stored in shared `Node` buffer.
+  */
+  template <typename Array, typename Iterator>
+  Array copy_to_buffer(Iterator begin, Iterator end) {
+    auto result = get_type_buffer<Array>();
+    result.length = end - begin;
+    std::copy(begin, end, result.data);
+    return result;
+  }
+
+  /**
+  * @brief Wrapper function to provide safe access to I2C bus.
+  *
+  * @param func  Function (e.g., lambda) to call while in safe I2C state.
+  *
+  * Example
+  * -------
+  *
+  * ```c++
+  * uint8_t matrix_row = 3;
+  * uint8_t row_count = 10;
+  *
+  * i2c_safe([&] () {
+  *   Wire.beginTransmission(0);
+  *   Wire.write(CMD_SET_SWITCHING_MATRIX_ROW);
+  *   Wire.write(matrix_row);
+  *   Wire.write(row_count);
+  *   Wire.endTransmission();
+  * });
+  * ```
+  */
+  template <typename Func>
+  void i2c_safe(Func func) {
+    // XXX Stop the timer (which toggles the HV square-wave driver) during i2c
+    // communication.
+    //
+    // See https://gitlab.com/sci-bots/dropbot.py/issues/26
+    if (state_._.hv_output_enabled) {
+      Timer1.stop(); // stop the timer during i2c transmission
+    }
+    func();
+    if (state_._.hv_output_enabled) {
+      Timer1.start(); // stop the timer during i2c transmission
+    }
+  }
+
+  /**
+  * @brief Duty cycle for specified electrode.
+  *
+  * @param channel  Channel number.
+  *
+  * @return Duty cycle, in range $[0..1]$ inclusive.
+  */
+  float get_duty_cycle(uint8_t channel) {
+    float duty_cycle = -1;
+    i2c_safe([&] () {
+      // Broadcast duty cycle request to all switching boards.
+      Wire.beginTransmission(0);
+      Wire.write(CMD_GET_CHANNEL_DUTY_CYCLE);
+      Wire.write(channel);
+      Wire.endTransmission();
+
+      delayMicroseconds(200); // needed when using Teensy
+
+      // Read response from each board individually.
+      for (int board_id = 0; board_id < 3; board_id++) {
+        const auto i2c_address = (channels_.switching_board_i2c_address_ +
+                                  board_id);
+        Wire.requestFrom(i2c_address, 1);
+        if (Wire.available()) {
+          auto payload_length = Wire.read();
+          if (payload_length > 0) {
+            Wire.requestFrom(i2c_address, payload_length);
+            payload_length = Wire.available();
+            if (payload_length >= sizeof(duty_cycle)) {
+              auto duty_cycle_bytes = reinterpret_cast<uint8_t *>(&duty_cycle);
+              for (auto i = 0; i < sizeof(duty_cycle); i++) {
+                duty_cycle_bytes[i] = Wire.read();
+              }
+              break;
+            }
+          }
+        }
+      }
+    });
+    return duty_cycle;
+  }
+
+  /**
+  * @brief Set active switching matrix row.
+  *
+  * @param matrix_row_i  Row index.
+  * @param row_count  Number of rows in matrix (required to compute state based
+  *   on duty cycle).
+  */
+  void set_switching_matrix_row(uint8_t matrix_row_i, uint8_t row_count) {
+    i2c_safe([&] () {
+      // Broadcast duty cycle request to all switching boards.
+      Wire.beginTransmission(0);
+      Wire.write(CMD_SET_SWITCHING_MATRIX_ROW);
+      Wire.write(matrix_row_i);
+      Wire.write(row_count);
+      Wire.endTransmission();
+    });
+  }
+
+  /**
+  * @brief Automatically start cycling through switching matrix rows.
+  *
+  * @param row_count  Number of rows in matrix (required to compute state based
+  *   on duty cycle).
+  * @param t_settling_s  Minimum number of seconds between row activations.
+  */
+  void start_switching_matrix(uint32_t row_count, float t_settling_s) {
+    matrix_controller_.reset(row_count, t_settling_s * 1e6);
+    matrix_controller_.update(*this, SwitchingMatrixRowContoller::START,
+                              micros());
+  }
+
+  /**
+  * @brief Resume cycling through switching matrix rows (after stop).
+  *
+  * Uses the same row count and settling time the matrix was started with.
+  */
+  void resume_switching_matrix() {
+    start_switching_matrix(matrix_controller_.row_count(),
+                           1e-6 * matrix_controller_.t_settling());
+  }
+
+  /**
+  * @brief Stop cycling through switching matrix rows.
+  */
+  void stop_switching_matrix() {
+    matrix_controller_.stop(*this);
+  }
+
+  /**
+  * @brief Compute time to cycle through switching matrix.
+  *
+  * @param row_count  Number of rows in matrix.
+  * @param delay_s  Delay (in seconds) between row activations.
+  * @param repeats  Number of times to cycle through switching matrix.
+  *
+  * @return Total time elapsed (in seconds).
+  */
+  float _benchmark_switching_matrix_row(uint8_t row_count, float delay_s,
+                                        uint32_t repeats) {
+    auto start = micros();
+    for (auto i = 0; i < repeats; i++) {
+      for (auto j = 0; j < row_count; j++) {
+        set_switching_matrix_row(j, row_count);
+        delayMicroseconds(delay_s * 1e6);
+      }
+    }
+    auto end = micros();
+    return (end - start) * 1e-6;
   }
 };
 }  // namespace dropbot
