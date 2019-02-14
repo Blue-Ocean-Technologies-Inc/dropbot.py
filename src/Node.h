@@ -308,7 +308,7 @@ public:
   *
   * Updated on every `loop()` iteration.
   *
-  * \version added: X.X.X
+  * \version added: 2.0
   */
   SwitchingMatrixRowContoller matrix_controller_;
 
@@ -342,7 +342,7 @@ public:
   *   disable all channels and turn off high-voltage) and send `halted` serial
   *   event.
   *
-  * \version X.X.X
+  * \version 2.0
   *   Send `sensitive-capacitances` serial event when \f$\vec{y}\f$ is computed
   *   by the switching matrix controller (i.e., at the end of each loop through
   *   the switching matrix).
