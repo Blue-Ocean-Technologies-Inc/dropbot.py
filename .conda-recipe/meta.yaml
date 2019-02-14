@@ -83,7 +83,8 @@ requirements:
     - beautifulsoup4
     - future
     #: ..versionadded:: 1.49
-    - hv-switching-board >=0.10
+    #: ..versionchanged:: 2.1.1
+    - hv-switching-board >=1.1
     - json-tricks
     #: .. versionadded:: 1.47
     - logging-helpers
@@ -145,7 +146,8 @@ outputs:
         - beautifulsoup4
         - conda-helpers >=0.20
         #: ..versionadded:: 1.49
-        - hv-switching-board >=0.10
+        #: ..versionchanged:: 2.1.1
+        - hv-switching-board >=1.1
         - json-tricks
         #: .. versionadded:: 1.47
         - logging-helpers
