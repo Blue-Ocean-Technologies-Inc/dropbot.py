@@ -3,6 +3,23 @@
 Firmware for the [DropBot digital microfluidics control system][1] and a Python
 module for communicating with it over a serial connection.
 
+<!-- vim-markdown-toc GFM -->
+
+* [Install](#install)
+* [Upload firmware](#upload-firmware)
+* [Conda package contents](#conda-package-contents)
+* [Usage](#usage)
+    * [Example interactive session](#example-interactive-session)
+* [Develop](#develop)
+    * [Adding new remote procedure call (RPC) methods](#adding-new-remote-procedure-call-rpc-methods)
+    * [Set up development environment (within a Conda environment)](#set-up-development-environment-within-a-conda-environment)
+    * [Build firmware](#build-firmware)
+    * [Flash/upload firmware](#flashupload-firmware)
+    * [Unlink development working copy](#unlink-development-working-copy)
+* [Contributors](#contributors)
+
+<!-- vim-markdown-toc -->
+
 -------------------------------------------------------------------------------
 
 Install

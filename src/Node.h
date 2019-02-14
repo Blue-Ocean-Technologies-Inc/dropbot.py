@@ -52,6 +52,7 @@
 #include "Time.h"
 #include "Signal.h"
 #include "SignalTimer.h"
+#include <ADC_Module.h>
 
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
 #define CPU_RESTART_VAL 0x5FA0004
@@ -201,7 +202,6 @@ public:
 
   uint8_t buffer_[BUFFER_SIZE];
 
-  ADC *adc_;
   uint32_t adc_period_us_;
   uint32_t adc_timestamp_us_;
   bool adc_tick_tock_;
@@ -263,8 +263,10 @@ public:
   * either the high end or the low end of the input range.
   *
   * \version added: 1.61
+  * \version changed: 1.69
+  *     Change arguments to _signed_ integers.
   */
-  Signal<std::function<void(uint16_t, uint16_t)> > chip_load_saturated_;
+  Signal<std::function<void(int16_t, int16_t)> > chip_load_saturated_;
   /**
   * @brief High-side current exceeded signal.
   *
@@ -392,7 +394,7 @@ public:
                     "\"target\": %g, "  // Target capacitance value
                     "\"time_us\": %lu, "  // end times in us
                     "\"n_samples\": %lu, "  // # of analog samples
-                    "\"count\": %lu, "  // # of consecutive readings > target
+                    "\"count\": %d, "  // # of consecutive readings > target
                     "\"V_a\": %g}",  // Actuation voltage
                     capacitance, state_._.target_capacitance, time_us,
                     config_._.capacitance_n_samples, target_count_,
@@ -483,34 +485,51 @@ public:
     // `chip_load_saturated_` signal.
     signal_timer_ms_.connect([&] (auto now) {
       if (state_._.hv_output_enabled && state_._.hv_output_selected) {
-        // High-voltage output is enabled and selected.
-        constexpr uint16_t max_analog = std::numeric_limits<uint16_t>::max();
-        const uint16_t chip_load = analogRead(analog::PIN_CHIP_LOAD_VOLTAGE);
-        const uint16_t margin = state_._.chip_load_range_margin * max_analog;
-        if ((chip_load > (max_analog - margin)) || (chip_load < margin)) {
-          chip_load_saturated_.send(chip_load, margin);
-        }
+        analog::adc_context([&] (auto adc_config) {
+          // High-voltage output is enabled and selected.
+          const uint8_t resolution = analog::adc_.adc[0]->getResolution();
+          // Maximum analog value is (2^15 - 1) for differential 16-bit
+          // resolution, since the 16th bit of the analog return type
+          // represents the sign. For resolutions less than 16-bit, a 16-bit
+          // data type is still used so (2^resolution - 1) is the maximum
+          // analog value.
+          const int16_t max_analog =
+            ((resolution == 16) ? (1L << 15) : (1L << resolution)) - 1;
+          analog::adc_.adc[0]->setReference(ADC_REFERENCE::REF_1V2);
+          analog::adc_.adc[0]->disablePGA();
+
+          const int16_t chip_load =
+            analog::adc_.adc[0]->analogReadDifferential(A10, A11);
+          const int16_t margin = (state_._.chip_load_range_margin *
+                                  static_cast<float>(max_analog));
+          if ((chip_load > (max_analog - margin))
+              || (chip_load < (margin - max_analog))) {
+            chip_load_saturated_.send(chip_load, margin);
+          }
+        });
       }
     }, 25);
 
     // XXX Halt (i.e., disable all channels and turn off high-voltage) when
     // chip load analog measurement has saturated (either upper or lower end of
     // analog scale).
-    chip_load_saturated_.connect([&] (uint16_t chip_load, uint16_t margin) {
+    chip_load_saturated_.connect([&] (int16_t chip_load, int16_t margin) {
       halt();
     });
 
     // Publish `halted` event when chip load analog measurement is saturated.
-    chip_load_saturated_.connect([&] (uint16_t chip_load, uint16_t margin) {
+    chip_load_saturated_.connect([&] (int16_t chip_load, int16_t margin) {
       UInt8Array buffer = this->get_buffer();
       buffer.length = 0;
 
       buffer.length += sprintf((char *)&buffer.data[buffer.length],
-                              "{\"event\": \"halted\", \"wall_time\": %lu, "
+                              "{\"event\": \"halted\", \"wall_time\": %f, "
                                "\"error\": {\"name\": "
                                "\"chip-load-saturated\", "
-                               "\"chip_load\": %hu, \"margin\": %hu}}",
-                               time::wall_time(), chip_load, margin);
+                               "\"chip_load\": %d, \"margin\": %d}}",
+                               time::wall_time(),
+                               static_cast<int>(chip_load),
+                               static_cast<int>(margin));
 
       {
         PacketStream output_packet;
@@ -620,6 +639,49 @@ public:
                                        high_percentile);
   }
 
+  uint16_t s16_percentile_diff(uint8_t pinP, uint8_t pinN, uint16_t n_samples,
+                               float low_percentile, float high_percentile) {
+    /*
+     * ..versionadded:: 1.41
+     *
+     * Measure samples from specified analog pin and compute difference between
+     * specified high and low percentiles.
+     *
+     * For example, :data:`low_percentile` as 25 and :data:`high_percentile` as
+     * 75 is equivalent to computing the `inter-quartile range <https://en.wikipedia.org/wiki/Interquartile_range>`_.
+     *
+     * Parameters
+     * ----------
+     * pinP : uint8_t
+     *     Positive pin.
+     * pinN : uint8_t
+     *     Negative pin.
+     * pinN  Negative pin.
+     * n_samples : uint16_t
+     *     Number of samples to measure.
+     * low_percentile : float
+     *     Low percentile of range.
+     * high_percentile : float
+     *     High percentile of range.
+     *
+     * Returns
+     * -------
+     * uint16_t
+     *     Difference between high and low percentiles.
+     */
+    uint16_t result = 0;
+    analog::adc_context([&] (auto adc_config) {
+      auto &adc = *analog::adc_.adc[0];  // Use ADC 0.
+      adc.setResolution(16);
+      adc.setReference(ADC_REFERENCE::REF_1V2);
+      adc.wait_for_cal();
+
+      result = analog::s16_percentile_diff(pinP, pinN, n_samples,
+                                           low_percentile, high_percentile);
+    });
+    return result;
+  }
+
   /**
   * @brief Measure high-side *root mean-squared (RMS)* voltage.
   *
@@ -634,12 +696,67 @@ public:
     return analog::high_voltage();
   }
 
+  /**
+  * @brief Measure high-side *root mean-squared (RMS)* output current.
+  *
+  * @return  High-side RMS current.
+  */
+  float output_current_rms() {
+    return analog::measure_output_current_rms(20);
+  }
+
+  /**
+  * @brief Measure high-side output current.
+  *
+  * @return  High-side maximum current.
+  */
+  float output_current() {
+    return analog::measure_output_current(20);
+  }
+
+  /**
+  * @brief Measure *root mean-squared (RMS)* input current.
+  *
+  * @return  RMS input current.
+  */
+  float input_current_rms() {
+    return analog::measure_input_current_rms(20);
+  }
+
+  /**
+  * @brief Measure input current.
+  *
+  * @return  Maximum input current.
+  */
+  float input_current() {
+    return analog::measure_input_current(20);
+  }
+
   UInt16Array analog_reads_simple(uint8_t pin, uint16_t n_samples) {
     UInt16Array output;
     output.data = reinterpret_cast<uint16_t *>(get_buffer().data);
     output.length = n_samples;
     std::generate(output.data, output.data + output.length,
                   [&] () { return analogRead(pin); });
+    return output;
+  }
+
+  /**
+  * @brief Read samples from differential pair of pins as fast as possible.
+  *
+  * @param pinP  Positive pin.
+  * @param pinN  Negative pin.
+  * @param n_samples  Number of samples to read.
+  *
+  * @return Array of signed integer differential reading.
+  */
+  Int16Array differential_reads_simple(uint8_t pinP, uint8_t pinN,
+                                       uint16_t n_samples) {
+    Int16Array output;
+    output.data = reinterpret_cast<int16_t *>(get_buffer().data);
+    output.length = n_samples;
+    std::generate(output.data, output.data + output.length,
+                  [&] () { return analogReadDifferential(pinP, pinN, 0); });
     return output;
   }
 
@@ -1356,6 +1473,112 @@ public:
 
   // ##########################################################################
   // # Teensy library mutator methods
+  /**
+  * @brief Serialize ADC configuration registers.
+  *
+  * \See analog_load_config()
+  *
+  * @param adc_num  Zero-based ADC index.
+  *
+  * @return  Serialized ADC configuration containing the contents of the
+  *   following 32-bit registers (in order): `SC1A`, `SC2`, `SC3`, `CFG1`,
+  *   `CFG2`.
+  */
+  UInt32Array analog_save_config(uint8_t adc_num) {
+    auto result = get_type_buffer<UInt32Array>();
+
+    if (adc_num >= ADC_NUM_ADCS) {
+      result.length = 0;
+    } else {
+      auto &config = *reinterpret_cast<ADC_Module::ADC_Config *>(result.data);
+      config = {0};
+      result.length = sizeof(config) / sizeof(uint32_t);
+      analog::adc_.adc[adc_num]->saveConfig(&config);
+    }
+    return result;
+  }
+
+  /**
+  * @brief Apply a serialized configuration to ADC registers.
+  *
+  * **Note: individual mutator functions (e.g., `setAveraging`, etc.) are
+  * called to make sure other internal state of `ADC_Module` is kept up to
+  * date.**  In contrast, if `ADC_Module::loadConfig()` was used directly, the
+  * `ADC_Module` internal state would become stale if the ADC register values
+  * changed.
+  *
+  * @param adc_num  Zero-based ADC index.
+  * @param config  Serialized ADC configuration containing the contents of the
+  *   following 32-bit registers (in order): `SC1A`, `SC2`, `SC3`, `CFG1`,
+  *   `CFG2`.
+  */
+  void analog_load_config(UInt32Array config, uint8_t adc_num) {
+    if (adc_num < ADC_NUM_ADCS && (config.length ==
+                                   sizeof(ADC_Module::ADC_Config) /
+                                   sizeof(uint32_t))) {
+      auto &_config = *reinterpret_cast<ADC_Module::ADC_Config *>(config.data);
+      analog::load_config(_config, adc_num);
+    }
+  }
+
+  /**
+  * @brief Programmable gain amplifier (PGA) state.
+  *
+  * @param adc_num  Zero-based ADC index.
+  *
+  * @return  `true` if PGA is enabled.
+  */
+  bool isPGAEnabled(uint8_t adc_num) {
+    if (adc_num < ADC_NUM_ADCS) {
+      return analog::adc_.adc[adc_num]->isPGAEnabled();
+    }
+    return false;
+  }
+
+  /**
+  * @brief Wait for analog calibration to complete.
+  *
+  * @param adc_num  Zero-based ADC index.
+  */
+  void analog_wait_for_calibration(uint8_t adc_num) {
+    if (adc_num < ADC_NUM_ADCS) {
+      analog::adc_.adc[adc_num]->wait_for_cal();
+    }
+  }
+
+  uint8_t _analog_reference(UInt32Array config) {
+    if (config.length == sizeof(ADC_Module::ADC_Config) / sizeof(uint32_t)) {
+      auto &adc_config = *reinterpret_cast<ADC_Module::ADC_Config *>(config.data);
+      return static_cast<uint8_t>(analog::_analog_reference(adc_config));
+    }
+    return 255;
+  }
+
+  uint8_t _sampling_speed(UInt32Array config) {
+    if (config.length == sizeof(ADC_Module::ADC_Config) / sizeof(uint32_t)) {
+      auto &adc_config = *reinterpret_cast<ADC_Module::ADC_Config *>(config.data);
+      return static_cast<uint8_t>(analog::_sampling_speed(adc_config));
+    }
+    return static_cast<uint8_t>(ADC_SAMPLING_SPEED::VERY_LOW_SPEED);
+  }
+
+
+  uint8_t _conversion_speed(UInt32Array config) {
+    if (config.length == sizeof(ADC_Module::ADC_Config) / sizeof(uint32_t)) {
+      auto &adc_config = *reinterpret_cast<ADC_Module::ADC_Config *>(config.data);
+      return static_cast<uint8_t>(analog::_conversion_speed(adc_config));
+    }
+    return static_cast<uint8_t>(ADC_CONVERSION_SPEED::VERY_LOW_SPEED);
+  }
+
+  uint8_t _averaging(UInt32Array config) {
+    if (config.length == sizeof(ADC_Module::ADC_Config) / sizeof(uint32_t)) {
+      auto &adc_config = *reinterpret_cast<ADC_Module::ADC_Config *>(config.data);
+      return static_cast<uint8_t>(analog::_averaging(adc_config));
+    }
+    return 0;
+  }
+
   int _analogRead(uint8_t pin, int8_t adc_num) {
   //! Returns the analog value of the pin.
   /** It waits until the value is read and then returns the result.
@@ -1364,7 +1587,7 @@ public:
   * If more than one ADC exists, it will select the module with less workload, you can force a selection using
   * adc_num. If you select ADC1 in Teensy 3.0 it will return ADC_ERROR_VALUE.
   */
-    return adc_->analogRead(pin, adc_num);
+    return analog::adc_.analogRead(pin, adc_num);
   }
   int analogReadContinuous(int8_t adc_num) {
   //! Reads the analog value of a continuous conversion.
@@ -1373,7 +1596,7 @@ public:
   *   If single-ended and 16 bits it's necessary to typecast it to an unsigned type (like uint16_t),
   *   otherwise values larger than 3.3/2 V are interpreted as negative!
   */
-    return adc_->analogReadContinuous(adc_num);
+    return analog::adc_.analogReadContinuous(adc_num);
   }
   int analogReadDifferential(uint8_t pinP, uint8_t pinN, int8_t adc_num) {
   //! Reads the differential analog value of two pins (pinP - pinN).
@@ -1387,14 +1610,14 @@ public:
   * If more than one ADC exists, it will select the module with less workload, you can force a selection using
   * adc_num
   */
-    return adc_->analogReadDifferential(pinP, pinN, adc_num);
+    return analog::adc_.analogReadDifferential(pinP, pinN, adc_num);
   }
   void setAveraging(uint8_t num, int8_t adc_num) {
     //! Set the number of averages
     /*!
      * \param num can be 0, 4, 8, 16 or 32.
      */
-    adc_->setAveraging(num, adc_num);
+    analog::adc_.setAveraging(num, adc_num);
   }
   void setConversionSpeed(uint8_t speed, int8_t adc_num) {
     //! Sets the conversion speed (changes the ADC clock, ADCK)
@@ -1415,7 +1638,7 @@ public:
      * but if F_BUS<F_ADCK, you can't use ADC_VERY_HIGH_SPEED for sampling speed.
      *
      */
-    adc_->setConversionSpeed((ADC_CONVERSION_SPEED)speed, adc_num);
+    analog::adc_.setConversionSpeed((ADC_CONVERSION_SPEED)speed, adc_num);
   }
   void setReference(uint8_t type, int8_t adc_num) {
     //! Set the voltage reference you prefer, default is 3.3 V (VCC)
@@ -1424,7 +1647,7 @@ public:
      *
      *  It recalibrates at the end.
      */
-    adc_->setReference((ADC_REFERENCE)type, adc_num);
+    analog::adc_.setReference((ADC_REFERENCE)type, adc_num);
   }
   void setResolution(uint8_t bits, int8_t adc_num) {
     //! Change the resolution of the measurement.
@@ -1437,7 +1660,7 @@ public:
      *
      *  Whenever you change the resolution, change also the comparison values (if you use them).
      */
-    adc_->setResolution(bits, adc_num);
+    analog::adc_.setResolution(bits, adc_num);
   }
   void setSamplingSpeed(uint8_t speed, int8_t adc_num) {
     //! Sets the sampling speed
@@ -1450,23 +1673,23 @@ public:
      * ADC_HIGH_SPEED (or ADC_HIGH_SPEED_16BITS) adds +6 ADCK.
      * ADC_VERY_HIGH_SPEED is the highest possible sampling speed (0 ADCK added).
      */
-    adc_->setSamplingSpeed((ADC_SAMPLING_SPEED)speed, adc_num);
+    analog::adc_.setSamplingSpeed((ADC_SAMPLING_SPEED)speed, adc_num);
   }
   void disableCompare(int8_t adc_num) {
   //! Disable the compare function
-    adc_->disableCompare(adc_num);
+    analog::adc_.disableCompare(adc_num);
   }
   void disableDMA(int8_t adc_num) {
   //! Disable ADC DMA request
-    adc_->disableDMA(adc_num);
+    analog::adc_.disableDMA(adc_num);
   }
   void disableInterrupts(int8_t adc_num) {
   //! Disable interrupts
-    adc_->disableInterrupts(adc_num);
+    analog::adc_.disableInterrupts(adc_num);
   }
   void disablePGA(int8_t adc_num) {
   //! Disable PGA
-    adc_->disablePGA(adc_num);
+    analog::adc_.disablePGA(adc_num);
   }
   void enableCompare(int16_t compValue, bool greaterThan, int8_t adc_num) {
   //! Enable the compare function to a single value
@@ -1475,7 +1698,7 @@ public:
   *  Call it after changing the resolution
   *  Use with interrupts or poll conversion completion with isComplete()
   */
-    adc_->enableCompare(compValue, greaterThan, adc_num);
+    analog::adc_.enableCompare(compValue, greaterThan, adc_num);
   }
   void enableCompareRange(int16_t lowerLimit, int16_t upperLimit, bool insideRange, bool inclusive, int8_t adc_num) {
   //! Enable the compare function to a range
@@ -1485,21 +1708,21 @@ public:
   *  Call it after changing the resolution
   *  Use with interrupts or poll conversion completion with isComplete()
   */
-    adc_->enableCompareRange(lowerLimit, upperLimit, insideRange, inclusive, adc_num);
+    analog::adc_.enableCompareRange(lowerLimit, upperLimit, insideRange, inclusive, adc_num);
   }
   void enableDMA(int8_t adc_num) {
   //! Enable DMA request
   /** An ADC DMA request will be raised when the conversion is completed
   *  (including hardware averages and if the comparison (if any) is true).
   */
-    adc_->enableDMA(adc_num);
+    analog::adc_.enableDMA(adc_num);
   }
   void enableInterrupts(int8_t adc_num) {
   //! Enable interrupts
   /** An IRQ_ADC0 Interrupt will be raised when the conversion is completed
   *  (including hardware averages and if the comparison (if any) is true).
   */
-    adc_->enableInterrupts(adc_num);
+    analog::adc_.enableInterrupts(adc_num);
   }
   void enablePGA(uint8_t gain, int8_t adc_num) {
   //! Enable and set PGA
@@ -1508,20 +1731,20 @@ public:
   *   \param gain can be 1, 2, 4, 8, 16, 32 or 64
   *
   */
-    adc_->enablePGA(gain, adc_num);
+    analog::adc_.enablePGA(gain, adc_num);
   }
   int readSingle(int8_t adc_num) {
   //! Reads the analog value of a single conversion.
   /** Set the conversion with with startSingleRead(pin) or startSingleDifferential(pinP, pinN).
   *   \return the converted value.
   */
-    return adc_->readSingle(adc_num);
+    return analog::adc_.readSingle(adc_num);
   }
   bool startContinuous(uint8_t pin, int8_t adc_num) {
   //! Starts continuous conversion on the pin.
   /** It returns as soon as the ADC is set, use analogReadContinuous() to read the value.
   */
-    return adc_->startContinuous(pin, adc_num);
+    return analog::adc_.startContinuous(pin, adc_num);
   }
   bool startContinuousDifferential(uint8_t pinP, uint8_t pinN, int8_t adc_num) {
   //! Starts continuous conversion between the pins (pinP-pinN).
@@ -1530,7 +1753,7 @@ public:
   * \param pinN must be A11 (if pinP=A10) or A13 (if pinP=A12).
   * Other pins will return ADC_ERROR_DIFF_VALUE.
   */
-    return adc_->startContinuousDifferential(pinP, pinN, adc_num);
+    return analog::adc_.startContinuousDifferential(pinP, pinN, adc_num);
   }
   bool startSingleDifferential(uint8_t pinP, uint8_t pinN, int8_t adc_num) {
   //! Start a differential conversion between two pins (pinP - pinN) and enables interrupts.
@@ -1541,7 +1764,7 @@ public:
   *   Other pins will return ADC_ERROR_DIFF_VALUE.
   *   If this function interrupts a measurement, it stores the settings in adc_config
   */
-    return adc_->startSingleDifferential(pinP, pinN, adc_num);
+    return analog::adc_.startSingleDifferential(pinP, pinN, adc_num);
   }
   bool startSingleRead(uint8_t pin, int8_t adc_num) {
   //! Starts an analog measurement on the pin and enables interrupts.
@@ -1549,28 +1772,28 @@ public:
   *   If the pin is incorrect it returns ADC_ERROR_VALUE
   *   If this function interrupts a measurement, it stores the settings in adc_config
   */
-    return adc_->startSingleRead(pin, adc_num);
+    return analog::adc_.startSingleRead(pin, adc_num);
   }
   void stopContinuous(int8_t adc_num) {
   //! Stops continuous conversion
-    adc_->stopContinuous(adc_num);
+    analog::adc_.stopContinuous(adc_num);
   }
 
   // ##########################################################################
   // # Teensy library accessor methods
   uint32_t getMaxValue(int8_t adc_num) {
   //! Returns the maximum value for a measurement: 2^res-1.
-    return adc_->getMaxValue(adc_num);
+    return analog::adc_.getMaxValue(adc_num);
   }
   uint8_t getPGA(int8_t adc_num) {
   //! Returns the PGA level
   /** PGA level = from 1 to 64
   */
-    return adc_->getPGA(adc_num);
+    return analog::adc_.getPGA(adc_num);
   }
   uint8_t getResolution(int8_t adc_num) {
   //! Returns the resolution of the ADC_Module.
-    return adc_->getResolution(adc_num);
+    return analog::adc_.getResolution(adc_num);
   }
   bool isComplete(int8_t adc_num) {
   //! Is an ADC conversion ready?
@@ -1579,19 +1802,19 @@ public:
   *  When a value is read this function returns 0 until a new value exists
   *  So it only makes sense to call it with continuous or non-blocking methods
   */
-    return adc_->isComplete(adc_num);
+    return analog::adc_.isComplete(adc_num);
   }
   bool isContinuous(int8_t adc_num) {
   //! Is the ADC in continuous mode?
-    return adc_->isContinuous(adc_num);
+    return analog::adc_.isContinuous(adc_num);
   }
   bool isConverting(int8_t adc_num) {
   //! Is the ADC converting at the moment?
-    return adc_->isConverting(adc_num);
+    return analog::adc_.isConverting(adc_num);
   }
   bool isDifferential(int8_t adc_num) {
   //! Is the ADC in differential mode?
-    return adc_->isDifferential(adc_num);
+    return analog::adc_.isDifferential(adc_num);
   }
 
   float select_on_board_test_capacitor(int8_t index) {
@@ -1978,6 +2201,10 @@ public:
     return seconds_per_update;
   }
 
+  float _benchmark_capacitance(uint16_t n_samples, uint32_t count) {
+    return channels_._benchmark_capacitance(n_samples, count);
+  }
+
   UInt8Array state_of_channels() {
     auto &state_of_channels = channels_.state_of_channels();
     UInt8Array output = get_buffer();
@@ -2061,13 +2288,23 @@ public:
     return analog::benchmark_analog_read(pin, n_samples);
   }
 
-  float benchmmark_u16_percentile_diff(uint8_t pin, uint16_t n_samples,
-                                       float low_percentile,
-                                       float high_percentile,
-                                       uint32_t n_repeats) {
-    return analog::benchmmark_u16_percentile_diff(pin, n_samples,
-                                                  low_percentile,
-                                                  high_percentile, n_repeats);
+  float benchmark_u16_percentile_diff(uint8_t pin, uint16_t n_samples,
+                                      float low_percentile,
+                                      float high_percentile,
+                                      uint32_t n_repeats) {
+    return analog::benchmark_u16_percentile_diff(pin, n_samples,
+                                                 low_percentile,
+                                                 high_percentile, n_repeats);
+  }
+
+  float benchmark_s16_percentile_diff(uint8_t pinP, uint8_t pinN,
+                                      uint16_t n_samples,
+                                      float low_percentile,
+                                      float high_percentile,
+                                      uint32_t n_repeats) {
+    return analog::benchmark_s16_percentile_diff(pinP, pinN, n_samples,
+                                                 low_percentile,
+                                                 high_percentile, n_repeats);
   }
 
   bool event_enabled(uint32_t event) {

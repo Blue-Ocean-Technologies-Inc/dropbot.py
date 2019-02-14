@@ -261,85 +261,91 @@ public:
    */
   std::vector<uint8_t> detect_shorts(uint8_t delay_ms);
 
+  /**
+   * @brief Measure device load capacitance based on the specified number of
+   * analog samples.
+   *
+   * \version added: 1.41
+   *
+   * \version changed: 1.43  Fix equation to divide by actuation voltage.
+   *
+   * \version changed: 1.69  Measure using differential mode and 1.2 V
+   *   reference voltage.
+   *
+   *
+   * Amplitude of measured square wave is calculated by computing the
+   * [inter-quartile range (IQR)][IQR], i.e., the difference between the 75th
+   * percentile and the 25th percentile.
+   *
+   * [IQR]: https://en.wikipedia.org/wiki/Interquartile_range
+   *
+   * See: https://gitlab.com/sci-bots/dropbot.py/issues/25
+   *
+   * Notes
+   * -----
+   *
+   * According to the figure below, the transfer function describes the
+   * following relationship::
+   *
+   *     V₂   Z₂
+   *     ── = ──
+   *     V₁   Z₁
+   *
+   * where \f$V_{1}\f$ denotes the high-voltage actuation signal and
+   * \f$V_{2}\f$ denotes the signal sufficiently attenuated to fall within the
+   * measurable input range of the analog-to-digital converter *(approx. 1.2
+   * V)*.  The feedback circuits for the control board is shown below.
+   *
+   * ```
+   *       V_1 @ frequency
+   *           ┯
+   *         ┌─┴─┐    ┌───┐
+   *         │Z_1│  ┌─┤Z_2├─┐
+   *         └─┬─┘  │ └───┘ │
+   *           │    │  │╲   ├───⊸ V_2
+   *           └────┴──│-╲__│
+   *                ┌──│+╱
+   *                │  │╱
+   *                │
+   *               ═╧═
+   * ```
+   *
+   * See [HVAC][HVAC] in DropBot HV square wave driver and `A11` and `C16` in
+   * [feedback filter][feedback filter]:
+   *
+   *  - `C16`: 0.15 uF
+   *
+   * Where ``V1`` and ``V2`` are root-mean-squared voltages, and Z1 == jwC1``
+   * and ``Z2 == jwC2``, ``C2 = V2 / V1 * C1``.
+   *
+   *
+   * [HVAC]: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/boost-converter-boost-converter.pdf
+   * [feedback filter]: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/feedback-feedback.pdf
+   *
+   * @param n_samples  Number of analog samples to measure. If 0, use default
+   *   from :attr:`config_._`.
+   *
+   * @return  Capacitance of device load in farads (F).
+   */
   float capacitance(uint16_t n_samples) {
-    /*
-     * .. versionadded:: 1.41
-     *
-     * Measure device load capacitance based on the specified number of analog
-     * samples.
-     *
-     * Amplitude of measured square wave is calculated by computing the `inter-quartile range (IQR) <https://en.wikipedia.org/wiki/Interquartile_range>`_,
-     * i.e., the difference between the 75th percentile and the 25th
-     * percentile.
-     *
-     * See: https://gitlab.com/sci-bots/dropbot.py/issues/25
-     *
-     * Notes
-     * -----
-     *
-     * According to the figure below, the transfer function describes the
-     * following relationship::
-     *
-     *     V₂   Z₂
-     *     ── = ──
-     *     V₁   Z₁
-     *
-     * where $V_{1}$ denotes the high-voltage actuation signal and $V_{2}$
-     * denotes the signal sufficiently attenuated to fall within the measurable
-     * input range of the analog-to-digital converter *(approx. 3.3 V)*.  The
-     * feedback circuits for the control board is shown below.
-     *
-     * .. code-block:: none
-     *
-     *       V_1 @ frequency
-     *           ┯
-     *         ┌─┴─┐    ┌───┐
-     *         │Z_1│  ┌─┤Z_2├─┐
-     *         └─┬─┘  │ └───┘ │
-     *           │    │  │╲   ├───⊸ V_2
-     *           └────┴──│-╲__│
-     *                ┌──│+╱
-     *                │  │╱
-     *                │
-     *               ═╧═
-     *
-     * See `HVAC`_ in DropBot HV square wave driver and `A11` and `C16` in
-     * `feedback filter`_:
-     *
-     *  - `C16`: 0.15 uF
-     *
-     * Where ``V1`` and ``V2`` are root-mean-squared voltages, and Z1 == jwC1``
-     * and ``Z2 == jwC2``, ``C2 = V2 / V1 * C1``.
-     *
-     * Parameters
-     * ----------
-     * n_samples : uint16_t
-     *     Number of analog samples to measure.
-     *
-     *     If 0, use default from :attr:`config_._`.
-     *
-     * Returns
-     * -------
-     * float
-     *     Capacitance of device load in farads (F).
-     *
-     *
-     * .. versionchanged:: 1.41
-     *     If 0, use default from :attr:`config_._`.
-     *
-     * .. versionchanged:: 1.43
-     *     Fix equation to divide by actuation voltage.
-     *
-     * .. _`HVAC`: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/boost-converter-boost-converter.pdf
-     * .. _`feedback filter`: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/feedback-feedback.pdf
-     */
-
     // Compute capacitance from measured square-wave RMS voltage amplitude.
-    const uint16_t A11_raw = analog::u16_percentile_diff(11, n_samples, 25, 75);
+    float device_load_v;
 
-    // Compute capacitance from measured square-wave RMS voltage amplitude.
-    // V2 = 0.5 * (float(A11) / MAX_ANALOG) * AREF
-    const float device_load_v = 0.5 * (A11_raw / float(1L << 16)) * 3.3;
+    analog::adc_context([&] (auto adc_config) {
+      // Configure ADC for measurement.
+      auto &adc = *analog::adc_.adc[0];  // Use ADC 0.
+      auto const resolution = adc.getResolution();
+      const int16_t max_analog =
+        ((resolution == 16) ? (1L << 15) : (1L << resolution)) - 1;
+      adc.setReference(ADC_REFERENCE::REF_1V2);
+      adc.wait_for_cal();
+
+      uint16_t A11_raw = analog::s16_percentile_diff(A10, A11, n_samples, 25,
+                                                     75);
+      // Compute capacitance from measured square-wave RMS voltage amplitude.
+      // V2 = 0.5 * (float(A11) / ANALOG_RANGE) * AREF
+      device_load_v = 0.5 * (A11_raw / (2 * float(max_analog))) * 1.2;
+    });
     // C2 = V2 * C16 / HVAC
     const float C2 = device_load_v * 0.15e-6 / analog::high_voltage();
     return C2;
@@ -474,6 +480,8 @@ public:
   }
 
   float _benchmark_channel_update(uint32_t count);
+
+  float _benchmark_capacitance(uint16_t n_samples, uint32_t count);
 };
 
 }  // namespace dropbot
