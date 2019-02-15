@@ -91,9 +91,13 @@ requirements:
     #: .. versionadded:: 1.47
     - matplotlib
     - nanopb-helpers >=0.11.1
+    #: .. versionadded:: X.X.X
+    - networkx
     - path_helpers
     - paver
     - pandoc
+    #: .. versionadded:: X.X.X
+    - pint
     - pip
     - platformio
     - platformio-framework-arduinoteensy >=1.136.0
@@ -109,6 +113,8 @@ requirements:
     - python
     # ..versionchanged:: 1.33
     - serial-device >=0.9
+    #: .. versionadded:: X.X.X
+    - svg-model
     #: ..versionadded:: 1.49
     - tabulate
     # ..versionchanged:: 1.37.3
@@ -154,8 +160,12 @@ outputs:
         #: .. versionadded:: 1.47
         - matplotlib
         - nanopb-helpers >=0.11.1
+        #: .. versionadded:: X.X.X
+        - networkx
         - pandoc
         - path_helpers
+        #: .. versionadded:: X.X.X
+        - pint
           #: ..versionchanged:: 0.48
         - platformio-helpers >=0.10
         # .. versionchanged:: 1.37.2
@@ -164,6 +174,8 @@ outputs:
         - python
         # ..versionchanged:: 1.33
         - serial-device >=0.9
+        #: .. versionadded:: X.X.X
+        - svg-model
         #: ..versionadded:: 1.49
         - tabulate
         # ..versionchanged:: 1.37.3
@@ -174,7 +186,9 @@ outputs:
         - dropbot
         - dropbot._version
         - dropbot.bin
+        - dropbot.chip
         - dropbot.config
+        - dropbot.dispense
         - dropbot.hardware_test
         - dropbot.metadata
         - dropbot.proxy
