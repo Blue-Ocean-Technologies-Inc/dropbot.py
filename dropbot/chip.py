@@ -139,11 +139,11 @@ def draw(svg_source, ax=None, labels=True):
     ax : matplotlib.axes._subplots.AxesSubplot, optional
         Axis to draw on.
 
-        .. versionadded:: X.X.X
+        .. versionadded:: 1.69.0
     labels : bool, optional
         Draw channel labels (default: ``True``).
 
-        .. versionadded:: X.X.X
+        .. versionadded:: 1.69.0
 
     Returns
     -------
