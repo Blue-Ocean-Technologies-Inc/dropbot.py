@@ -346,6 +346,10 @@ public:
   *   Send `sensitive-capacitances` serial event when \f$\vec{y}\f$ is computed
   *   by the switching matrix controller (i.e., at the end of each loop through
   *   the switching matrix).
+  *
+  * \version 2.1.0
+  *   Disable chip load saturation check if saturation margin (i.e.,
+  *   `state_._.chip_load_range_margin`) is negative.
   */
   Node() : BaseNode(),
            BaseNodeConfig<config_t>(dropbot_Config_fields),
@@ -401,7 +405,7 @@ public:
     }, 25);
 
     capacitance_measured_.connect([&] (float capacitance,
-                                        float actuation_voltage) {
+                                       float actuation_voltage) {
       // Send event if target capacitance has been set and exceeded.
       if (state_._.target_capacitance > 0) {
         if (capacitance >= state_._.target_capacitance) {
@@ -515,9 +519,11 @@ public:
 
     // Measure chip load voltage every 25 ms.  If measured voltage is within
     // specified margin at high end or low end of analog input range, send
-    // `chip_load_saturated_` signal.
+    // `chip_load_saturated_` signal.  If margin is negative, **disable chip
+    // load saturation check**.
     signal_timer_ms_.connect([&] (auto now) {
-      if (state_._.hv_output_enabled && state_._.hv_output_selected) {
+      if (state_._.hv_output_enabled && state_._.hv_output_selected &&
+          (state_._.chip_load_range_margin >= 0)) {
         analog::adc_context([&] (auto adc_config) {
           // High-voltage output is enabled and selected.
           const uint8_t resolution = analog::adc_.adc[0]->getResolution();
