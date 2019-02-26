@@ -314,7 +314,7 @@ public:
   *   disable all channels and turn off high-voltage) and send `halted` serial
   *   event.
   *
-  * \version X.X.X
+  * \version 1.70.0
   *   Disable chip load saturation check if saturation margin (i.e.,
   *   `state_._.chip_load_range_margin`) is negative.
   */
