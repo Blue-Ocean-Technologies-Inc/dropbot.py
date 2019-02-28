@@ -372,3 +372,51 @@ def move_results_to_frame(move_results):
     df.set_index('time (s)', append=True, inplace=True)
     df.reset_index(level=1, drop=True, inplace=True)
     return df
+
+
+@asyncio.coroutine
+def load(proxy, channels, threshold=50e-12, load_duration=.25,
+         detach_duration=2.):
+    '''Load reservoir to specified threshold capacitance.
+
+    Steps::
+
+     1. Load: actuate first electrode until threshold capacitance is met.
+     2. Detach: turn off first electrode and actuate the remaining electrodes
+        until threshold capacitance is met.
+
+    Parameters
+    ----------
+    channels : list
+        List of channel numbers to actuate.
+    threshold : float, optional
+        Minimum median capacitance in Farads (from most recent ``N`` samples)
+        before considering load complete (default: 50 pF).
+    load_duration : float, optional
+        Seconds before first electrode capacitance is considered stable
+        (default: 0.25).
+    detach_duration : float, optional
+        Seconds before detaching electrodes capacitance is considered stable
+        (default: 0.5).
+
+    Returns
+    -------
+    list
+        See `wait_on_capacitance()` for return type.
+    '''
+    # Load starting reservoir.
+    logging.debug('Wait for channel `%s` to be loaded', channels[:1])
+    yield asyncio.From(actuate(proxy, channels[:1],
+                               ft.partial(test_steady_state,
+                                          min_duration=load_duration,
+                                          threshold=1.1 * threshold)))
+
+    detach_channels = channels[1:]
+    logging.debug('Wait for liquid to detach from edge electrode `%s` to '
+                  '`%s`...', channels[:1], detach_channels)
+    messages = yield asyncio\
+        .From(actuate(proxy, detach_channels,
+                      ft.partial(test_steady_state,
+                                 min_duration=detach_duration,
+                                 threshold=threshold)))
+    raise asyncio.Return(messages)
