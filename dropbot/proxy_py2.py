@@ -127,6 +127,7 @@ try:
                 initialization.
             '''
             self.transaction_lock = threading.RLock()
+            self.__number_of_channels = 0
             try:
                 # Get list of exception types to ignore.
                 #
@@ -174,6 +175,18 @@ try:
                 logger.debug('Error connecting to device.', exc_info=True)
                 self.terminate()
                 raise
+
+        def _initialize_switching_boards(self):
+            return super(ProxyMixin, self).initialize_switching_boards()
+
+        def initialize_switching_boards(self):
+            '''
+            .. versionadded:: X.X.X
+                Wrap parent :meth:`initialize_switching_boards()` to cache
+                number of available channels.
+            '''
+            self.__number_of_channels = self._initialize_switching_boards()
+            return self.__number_of_channels
 
         def _connect(self, *args, **kwargs):
             '''
@@ -673,7 +686,12 @@ try:
 
         @property
         def number_of_channels(self):
-            return self._number_of_channels()
+            '''
+            .. versionchanged:: X.X.X
+                Return number of channels cached during most recent
+                initialization of switching boards.
+            '''
+            return self.__number_of_channels
 
         def detect_shorts(self, delay_ms=5):
             return super(ProxyMixin, self).detect_shorts(delay_ms).tolist()
