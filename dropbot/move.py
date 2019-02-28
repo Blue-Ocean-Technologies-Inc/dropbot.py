@@ -293,3 +293,82 @@ def move_liquid(proxy, route, min_duration=.3, wrapper=None):
         raise db.move.MoveTimeout(route, route_i)
 
     raise asyncio.Return(messages_)
+
+
+def move_results_to_frame(move_results):
+    '''Convert results from `move_liquid()` to a data frame.
+
+    The results from `move_liquid()` may be easily serialized as JSON.
+    However, when attempting to, for example, plot the results, it is easier to
+    manage the data in a data frame.
+
+    Parameters
+    ----------
+    move_results : list
+        Results returned by `move_liquid()` coroutine.
+
+    Returns
+    -------
+    pandas.DataFrame
+        For example::
+
+                                                     event     new_value     time_us  n_samples      V_a
+            channels         time (s)
+              0 - (110, 109) 0.000000  capacitance-updated  7.639510e-11  2951675894         50  114.943
+                             0.051765  capacitance-updated  7.559210e-11  2951727659         50  115.910
+                             0.103516  capacitance-updated  7.617850e-11  2951779410         50  114.729
+                             0.129394  capacitance-updated  7.569810e-11  2951805288         50  114.913
+                             0.181169  capacitance-updated  7.564950e-11  2951857063         50  114.696
+
+    Example
+    -------
+
+        import functools as ft
+
+        import dropbot as db
+        import dropbot.move
+        import trollius as asyncio
+
+        route = [110, 109, 115, 114, 115, 109, 110]
+
+        proxy = db.SerialProxy()
+
+        # Set actuation voltage to use.
+        proxy.voltage = 115
+        # Set DropBot capacitance updated interval to 25 ms.
+        proxy.update_state(capacitance_update_interval_ms=25)
+        # Apply each actuation for at least 0.3 seconds; allow up to 5
+        # seconds of actuation before attempting to retry.
+        task = db.move.move_liquid(proxy, route, min_duration=.3,
+                                   wrapper=ft.partial(asyncio.wait_for,
+                                   timeout=5))
+        loop = asyncio.get_event_loop()
+        # Collect DropBot `capacitance-updated` messages.
+        messages = loop.run_until_complete(task)
+        # Disable DropBot capacitance updates.
+        proxy.update_state(capacitance_update_interval_ms=0)
+        proxy.turn_off_all_channels()
+
+        df = db.move.move_results_to_frame(messages)
+        # Scale width of figure along with test duration.
+        width = int(df.index.get_level_values('time (s)')[-1])
+        # Plot capacitance readings associated with each move in a different
+        # colour.
+        axis = df.reset_index(level=0).groupby('channels').new_value\
+            .plot(style='x', legend=False, figsize=(width, 10))[0]
+        axis.set_ylim(0)
+    '''
+    # Combine `capacitance-updated` messages collected during each move into a
+    # single data frame.
+    keys = []
+    frames = []
+    for i, message_i in enumerate(move_results):
+        keys.append('%3d - %s' % (i, message_i['channels']))
+        frames.append(pd.DataFrame(message_i['messages']))
+    df = pd.concat(frames, keys=keys)
+    df.index.levels[0].name = 'channels'
+    df['time (s)'] = df['time_us'] * 1e-6
+    df['time (s)'] -= df['time (s)'].iloc[0]
+    df.set_index('time (s)', append=True, inplace=True)
+    df.reset_index(level=1, drop=True, inplace=True)
+    return df
