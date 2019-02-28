@@ -35,6 +35,12 @@ def actuate_channels(self, channels, timeout=None, allow_disabled=True):
         List of actuated channels.  If :data:`allow_disabled` is ``True``, the
         returned list of channels may differ from the specified list of
         channels.
+
+
+    .. versionchanged:: X.X.X
+        Use :meth:`dropbot.proxy_py2.ProxyMixin.set_state_of_channels()` with
+        ``append=False`` to set channel states.  This reduces the number of
+        required serial command transactions.
     '''
 
     # Add async and sync API for channel actuation to driver (maybe partially to firmware?):
@@ -48,7 +54,6 @@ def actuate_channels(self, channels, timeout=None, allow_disabled=True):
         channels_updated.set()
 
     def _actuate():
-        self.turn_off_all_channels()
         # Enable `channels-updated` DropBot signal.
         self.update_state(event_mask=self.state.event_mask |
                           db.proxy.EVENT_CHANNELS_UPDATED |
@@ -58,7 +63,8 @@ def actuate_channels(self, channels, timeout=None, allow_disabled=True):
         signal.connect(_on_channels_updated)
         try:
             # Request actuation of the specified channels.
-            self.state_of_channels = pd.Series(1, index=channels)
+            self.set_state_of_channels(pd.Series(1, index=channels),
+                                       append=False)
             if not channels_updated.wait(timeout):
                 raise RuntimeError('Timed out waiting for actuation')
             elif not hasattr(channels_updated, 'actuated'):

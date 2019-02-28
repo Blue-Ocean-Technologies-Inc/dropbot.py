@@ -585,7 +585,7 @@ try:
         def state_of_channels(self, states):
             self.set_state_of_channels(states)
 
-        def set_state_of_channels(self, states):
+        def set_state_of_channels(self, states, append=True):
             '''
             Pack array containing one entry per channel to bytes (8 channels
             per byte).  Set state of channels on device using state bytes.
@@ -600,10 +600,17 @@ try:
 
                 If :class:`pandas.Series`, values 0 or 1 for each corresponding
                 channel number listed in index.
+            append : bool, optional
+                If `True`, append states specified as a :class:`pandas.Series`.
+                Otherwise, overwrite existing channel states.
+
+
+            .. versionchanged:: X.X.X
+                Add ``append`` keyword argument.
             '''
             N = self.number_of_channels
             if isinstance(states, pd.Series):
-                if len(states) == N:
+                if len(states) == N or not append:
                     channel_states = np.zeros(N, dtype=int)
                 else:
                     channel_states = self.state_of_channels
@@ -612,13 +619,12 @@ try:
             else:
                 states = np.asarray(states, dtype=int)
 
-            if len(states) != N:
-                raise ValueError('Error setting state of channels.  Check '
-                                 'number of states matches channel count.')
-
+            state_bits = np.packbits(states.astype(int)[::-1])[::-1]
             for retry in range(3):
-                super(ProxyMixin, self).set_state_of_channels(
-                      np.packbits(states.astype(int)[::-1])[::-1])
+                if not super(ProxyMixin,
+                             self).set_state_of_channels(state_bits):
+                    raise ValueError('Error setting state of channels.  Check '
+                                     'number of states matches channel count.')
 
                 # Verify that the state we set matches the current state
                 # (don't include disabled channels)
