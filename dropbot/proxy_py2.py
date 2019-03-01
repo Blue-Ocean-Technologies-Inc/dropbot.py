@@ -181,7 +181,7 @@ try:
 
         def initialize_switching_boards(self):
             '''
-            .. versionadded:: X.X.X
+            .. versionadded:: 2.2.0
                 Wrap parent :meth:`initialize_switching_boards()` to cache
                 number of available channels.
             '''
@@ -605,7 +605,7 @@ try:
                 Otherwise, overwrite existing channel states.
 
 
-            .. versionchanged:: X.X.X
+            .. versionchanged:: 2.2.0
                 Add ``append`` keyword argument.
             '''
             N = self.number_of_channels
@@ -693,7 +693,7 @@ try:
         @property
         def number_of_channels(self):
             '''
-            .. versionchanged:: X.X.X
+            .. versionchanged:: 2.2.0
                 Return number of channels cached during most recent
                 initialization of switching boards.
             '''

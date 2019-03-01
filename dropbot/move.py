@@ -1,6 +1,6 @@
 '''Functions and coroutines for automating liquid movement.
 
-.. versionadded:: X.X.X
+.. versionadded:: 2.2.0
 
 Example
 -------
