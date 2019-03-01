@@ -127,6 +127,7 @@ try:
                 initialization.
             '''
             self.transaction_lock = threading.RLock()
+            self.__number_of_channels = 0
             try:
                 # Get list of exception types to ignore.
                 #
@@ -174,6 +175,18 @@ try:
                 logger.debug('Error connecting to device.', exc_info=True)
                 self.terminate()
                 raise
+
+        def _initialize_switching_boards(self):
+            return super(ProxyMixin, self).initialize_switching_boards()
+
+        def initialize_switching_boards(self):
+            '''
+            .. versionadded:: 1.71.0
+                Wrap parent :meth:`initialize_switching_boards()` to cache
+                number of available channels.
+            '''
+            self.__number_of_channels = self._initialize_switching_boards()
+            return self.__number_of_channels
 
         def _connect(self, *args, **kwargs):
             '''
@@ -572,7 +585,7 @@ try:
         def state_of_channels(self, states):
             self.set_state_of_channels(states)
 
-        def set_state_of_channels(self, states):
+        def set_state_of_channels(self, states, append=True):
             '''
             Pack array containing one entry per channel to bytes (8 channels
             per byte).  Set state of channels on device using state bytes.
@@ -587,10 +600,17 @@ try:
 
                 If :class:`pandas.Series`, values 0 or 1 for each corresponding
                 channel number listed in index.
+            append : bool, optional
+                If `True`, append states specified as a :class:`pandas.Series`.
+                Otherwise, overwrite existing channel states.
+
+
+            .. versionchanged:: 1.71.0
+                Add ``append`` keyword argument.
             '''
             N = self.number_of_channels
             if isinstance(states, pd.Series):
-                if len(states) == N:
+                if len(states) == N or not append:
                     channel_states = np.zeros(N, dtype=int)
                 else:
                     channel_states = self.state_of_channels
@@ -599,13 +619,12 @@ try:
             else:
                 states = np.asarray(states, dtype=int)
 
-            if len(states) != N:
-                raise ValueError('Error setting state of channels.  Check '
-                                 'number of states matches channel count.')
-
+            state_bits = np.packbits(states.astype(int)[::-1])[::-1]
             for retry in range(3):
-                super(ProxyMixin, self).set_state_of_channels(
-                      np.packbits(states.astype(int)[::-1])[::-1])
+                if not super(ProxyMixin,
+                             self).set_state_of_channels(state_bits):
+                    raise ValueError('Error setting state of channels.  Check '
+                                     'number of states matches channel count.')
 
                 # Verify that the state we set matches the current state
                 # (don't include disabled channels)
@@ -673,7 +692,12 @@ try:
 
         @property
         def number_of_channels(self):
-            return self._number_of_channels()
+            '''
+            .. versionchanged:: 1.71.0
+                Return number of channels cached during most recent
+                initialization of switching boards.
+            '''
+            return self.__number_of_channels
 
         def detect_shorts(self, delay_ms=5):
             return super(ProxyMixin, self).detect_shorts(delay_ms).tolist()
