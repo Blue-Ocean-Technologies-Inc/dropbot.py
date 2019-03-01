@@ -37,7 +37,7 @@ def actuate_channels(self, channels, timeout=None, allow_disabled=True):
         channels.
 
 
-    .. versionchanged:: X.X.X
+    .. versionchanged:: 1.71.0
         Use :meth:`dropbot.proxy_py2.ProxyMixin.set_state_of_channels()` with
         ``append=False`` to set channel states.  This reduces the number of
         required serial command transactions.
