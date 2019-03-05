@@ -1,6 +1,6 @@
 '''Functions and coroutines for automating liquid movement.
 
-.. versionadded:: X.X.X
+.. versionadded:: 1.72.0
 
 Example
 -------
@@ -256,7 +256,7 @@ def move_liquid(proxy, route, min_duration=.3, trail_length=1, wrapper=None):
     trail_length : int, optional
         Number of electrodes to actuate at the same time along route.
 
-        .. versionadded:: X.X.X
+        .. versionadded:: 1.72.0
     wrapper : callable, optional
         Function to wrap around calls to `actuate()`.
 
@@ -274,7 +274,7 @@ def move_liquid(proxy, route, min_duration=.3, trail_length=1, wrapper=None):
            actuation
 
 
-    .. versionchanged:: X.X.X
+    .. versionchanged:: 1.72.0
         Add `trail_length` keyword argument.
     '''
     if wrapper is None:
@@ -461,7 +461,7 @@ def gather_liquid(proxy, G, sources, target,
         Capacitance update interval in seconds (default: 0.025).
 
 
-    .. versionadded:: X.X.X
+    .. versionadded:: 1.72.0
     '''
     with db.dropbot_state(proxy,
                           capacitance_update_interval_ms=int(update_interval *
