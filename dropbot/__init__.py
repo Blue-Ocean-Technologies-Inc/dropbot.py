@@ -119,7 +119,7 @@ def dropbot_state(proxy, **kwargs):
         Keyword arguments are passed to `proxy.update_state()`.
 
 
-    .. versionadded:: X.X.X
+    .. versionadded:: 2.3.0
     '''
     with proxy.transaction_lock:
         if hasattr(proxy, 'stop_switching_matrix'):
