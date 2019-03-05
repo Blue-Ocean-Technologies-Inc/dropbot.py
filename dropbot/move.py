@@ -36,11 +36,15 @@ import functools as ft
 import itertools as it
 import logging
 
+import dropbot as db
+import dropbot.proxy
+import networkx as nx
 import pandas as pd
 import trollius as asyncio
 
-import dropbot as db
-import dropbot.proxy
+__all__ = ['MoveTimeout', 'actuate', 'actuate_channels', 'gather_liquid',
+           'load', 'move_liquid', 'move_results_to_frame', 'test_steady_state',
+           'wait_on_capacitance', 'window']
 
 
 class MoveTimeout(asyncio.TimeoutError):
@@ -430,3 +434,39 @@ def load(proxy, channels, threshold=50e-12, load_duration=.25,
                                  min_duration=detach_duration,
                                  threshold=threshold)))
     raise asyncio.Return(messages)
+
+
+@asyncio.coroutine
+def gather_liquid(proxy, G, sources, target,
+                  wrapper=ft.partial(asyncio.wait_for, timeout=4),
+                  update_interval=.025):
+    '''Sequentially move liquid from each specified source to shared target.
+
+    Parameters
+    ----------
+    proxy : dropbot.SerialProxy
+        DropBot serial handle.
+    G : networkx.Graph
+        Channel/electrode connection graph.
+    sources : list[int]
+        List of source channel numbers.
+    target : int
+        Target channel number.
+    wrapper : callable, optional
+        Function to wrap around calls to `move_liquid()`.
+
+        Useful, for example, to apply an actuation timeout using
+        `asyncio.wait_for()`.
+    update_interval : float, optional
+        Capacitance update interval in seconds (default: 0.025).
+
+
+    .. versionadded:: X.X.X
+    '''
+    with db.dropbot_state(proxy,
+                          capacitance_update_interval_ms=int(update_interval *
+                                                             1e3)):
+        for source_i in sources:
+            yield asyncio\
+                .From(move_liquid(proxy, nx.shortest_path(G, source_i, target),
+                                wrapper=wrapper))
