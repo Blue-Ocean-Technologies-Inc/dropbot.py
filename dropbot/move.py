@@ -220,7 +220,6 @@ def test_steady_state(messages, std_error=.02, min_duration=.3,
     return result and (d['50%'] >= threshold)
 
 
-# %timeit loop.run_until_complete(asyncio.wait_for(actuate_channels(proxy, []), 5))
 @asyncio.coroutine
 def actuate(proxy, channels, callback):
     '''Actuate channels and wait for callback to return `True`.
@@ -241,7 +240,7 @@ def actuate(proxy, channels, callback):
 
 
 @asyncio.coroutine
-def move_liquid(proxy, route, min_duration=.3, wrapper=None):
+def move_liquid(proxy, route, min_duration=.3, trail_length=1, wrapper=None):
     '''Move liquid along specified route (i.e., list of channels).
 
     Parameters
@@ -250,6 +249,10 @@ def move_liquid(proxy, route, min_duration=.3, wrapper=None):
         Ordered sequence of channels to move along.
     min_duration : float, optional
         Minimum time to apply each actuation.
+    trail_length : int, optional
+        Number of electrodes to actuate at the same time along route.
+
+        .. versionadded:: X.X.X
     wrapper : callable, optional
         Function to wrap around calls to `actuate()`.
 
@@ -265,6 +268,10 @@ def move_liquid(proxy, route, min_duration=.3, wrapper=None):
          - ``channels``: actuated channels
          - ``messages``: ``capacitance-updated`` messages received during the
            actuation
+
+
+    .. versionchanged:: X.X.X
+        Add `trail_length` keyword argument.
     '''
     if wrapper is None:
         def wrapper(task):
@@ -274,23 +281,26 @@ def move_liquid(proxy, route, min_duration=.3, wrapper=None):
 
     duration = min_duration
     try:
-        for route_i in db.move.window(route, 2):
-            source, target = route_i
-            print('\r%-50s' % ('Wait for steady state: %s' % [source, target]),
+        for route_i in window(route, trail_length + 1):
+            print('\r%-50s' % ('Wait for steady state: %s' % list(route_i)),
                   end='')
             messages = yield asyncio\
-                .From(wrapper(actuate(proxy, [source, target],
+                .From(wrapper(actuate(proxy, route_i,
                                       ft.partial(test_steady_state,
                                                  min_duration=duration))))
-            messages_.append({'channels': (source, target), 'messages': messages})
-            print('\r%-50s' % ('Wait for steady state: %s' % target), end='')
+            messages_.append({'channels': tuple(route_i),
+                              'messages': messages})
+            head_channels_i = list(route_i[-trail_length:])
+            print('\r%-50s' % ('Wait for steady state: %s' % head_channels_i),
+                  end='')
             messages = yield asyncio\
-                .From(wrapper(actuate(proxy, [target],
+                .From(wrapper(actuate(proxy, head_channels_i,
                                       ft.partial(test_steady_state,
                                                  min_duration=duration))))
-            messages_.append({'channels': (target, ), 'messages': messages})
+            messages_.append({'channels': tuple(head_channels_i),
+                              'messages': messages})
     except (asyncio.CancelledError, asyncio.TimeoutError):
-        raise db.move.MoveTimeout(route, route_i)
+        raise MoveTimeout(route, route_i)
 
     raise asyncio.Return(messages_)
 
@@ -406,7 +416,7 @@ def load(proxy, channels, threshold=50e-12, load_duration=.25,
     '''
     # Load starting reservoir.
     logging.debug('Wait for channel `%s` to be loaded', channels[:1])
-    yield asyncio.From(actuate(proxy, channels[:1],
+    yield asyncio.From(actuate(proxy, channels[:-1],
                                ft.partial(test_steady_state,
                                           min_duration=load_duration,
                                           threshold=1.1 * threshold)))
