@@ -15,14 +15,6 @@ namespace dropbot {
 constexpr uint16_t MAX_NUMBER_OF_CHANNELS = 120;
 
 
-struct ChannelNeighbours {
-  uint8_t up;
-  uint8_t down;
-  uint8_t left;
-  uint8_t right;
-};
-
-
 struct Switch {
   uint8_t board;
   uint8_t port;

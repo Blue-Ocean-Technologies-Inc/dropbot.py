@@ -11,6 +11,14 @@ namespace dropbot {
 namespace drops {
 
 
+struct ChannelNeighbours {
+  uint8_t up;
+  uint8_t down;
+  uint8_t left;
+  uint8_t right;
+};
+
+
 constexpr float C_THRESHOLD = 3e-12;
 
 
