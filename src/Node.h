@@ -220,7 +220,8 @@ public:
   uint16_t dma_stream_id_;
   bool watchdog_disable_request_;
   Channels channels_;
-  std::array<ChannelNeighbours, MAX_NUMBER_OF_CHANNELS> channel_neighbours_;
+  std::array<drops::ChannelNeighbours, MAX_NUMBER_OF_CHANNELS>
+      channel_neighbours_;
   base_node_rpc::FastAnalogWrite fast_analog_;
   std::vector<std::vector<uint8_t> > drops_;
 
