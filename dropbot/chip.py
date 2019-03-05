@@ -13,6 +13,10 @@ import pandas as pd
 import pint
 import svg_model
 
+
+__all__ = ['chip_info', 'draw', 'draw_w_segments', 'get_all_intersections',
+           'get_channel_neighbours', 'get_intersections', 'get_segments']
+
 ureg = pint.UnitRegistry()
 
 DEFAULT_DISTANCE_THRESHOLD = 0.1 * ureg.mm
