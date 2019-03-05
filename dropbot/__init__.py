@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 from collections import OrderedDict
+import contextlib
 import os.path
 import warnings
 
@@ -101,3 +102,43 @@ def get_firmwares():
                                           board_dir.walkfiles('*.hex')])
                         for board_dir in
                         package_path().joinpath('firmware').dirs()])
+
+
+@contextlib.contextmanager
+def dropbot_state(proxy, **kwargs):
+    '''
+    Context manager to set/restore DropBot state.
+
+    Automatically stop switching matrix upon entry and exit (if applicable).
+
+    Parameters
+    ----------
+    proxy : dropbot.SerialProxy
+        DropBot serial handle.
+    **kwargs
+        Keyword arguments are passed to `proxy.update_state()`.
+
+
+    .. versionadded:: X.X.X
+    '''
+    with proxy.transaction_lock:
+        if hasattr(proxy, 'stop_switching_matrix'):
+            proxy.stop_switching_matrix()
+        original_state = proxy.state
+        channel_states = proxy.state_of_channels
+        if kwargs:
+            with proxy.transaction_lock:
+                proxy.update_state(**kwargs)
+
+    try:
+        yield proxy
+    finally:
+        # Restore original control board state.
+        with proxy.transaction_lock:
+            if hasattr(proxy, 'stop_switching_matrix'):
+                proxy.stop_switching_matrix()
+            state = proxy.state
+            if not (state == original_state).all():
+                proxy.state = \
+                    original_state[state != original_state]
+            proxy.state_of_channels = channel_states
