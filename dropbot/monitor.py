@@ -274,17 +274,18 @@ if __name__ == '__main__':
 
     logging.basicConfig(level=logging.DEBUG)
 
-    dropbot = None
+    connected = asyncio.Event()
 
     @asyncio.coroutine
     def on_connected(sender, **message):
-        global dropbot
-        dropbot = message['dropbot']
+        connected.dropbot = message['dropbot']
         _L().info('sender=`%s`', sender)
-        map(_L().info, str(dropbot.properties).splitlines())
-        dropbot.update_state(capacitance_update_interval_ms=10,
-                             event_mask=db.EVENT_CHANNELS_UPDATED |
-                             db.EVENT_SHORTS_DETECTED | db.EVENT_ENABLE)
+        map(_L().info, str(connected.dropbot.properties).splitlines())
+        connected.dropbot.update_state(capacitance_update_interval_ms=10,
+                                       event_mask=db.EVENT_CHANNELS_UPDATED |
+                                       db.EVENT_SHORTS_DETECTED |
+                                       db.EVENT_ENABLE)
+        connected.set()
 
     @asyncio.coroutine
     def on_disconnected(*args, **kwargs):
@@ -349,7 +350,8 @@ if __name__ == '__main__':
                 break
         raise asyncio.Return(response)
 
-    debounced_dump = debounce.async.Debounce(dump, 250, max_wait=500, leading=True)
+    debounced_dump = debounce.async.Debounce(dump, 250, max_wait=500,
+                                             leading=True)
 
     def on_closed(*args):
         global dropbot
@@ -366,9 +368,11 @@ if __name__ == '__main__':
         if name_i in ('output_enabled', 'output_disabled'):
             continue
         elif name_i == 'capacitance-updated':
-            signals.signal(name_i).connect(ft.partial(asyncio.coroutine(debounced_dump), name_i), weak=False)
+            task = ft.partial(asyncio.coroutine(debounced_dump), name_i)
+            signals.signal(name_i).connect(task, weak=False)
         else:
-            signals.signal(name_i).connect(ft.partial(co_dump, name_i), weak=False)
+            signals.signal(name_i).connect(ft.partial(co_dump, name_i),
+                                           weak=False)
 
     signals.signal('closed').connect(on_closed, weak=False)
 
