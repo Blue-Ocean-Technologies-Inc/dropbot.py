@@ -1038,6 +1038,18 @@ public:
   }
 
   /**
+  * @brief Update channels::C16 when respective config value is changed.
+  *
+  * @param value
+  *
+  * \since X.X.X
+  */
+  bool on_config_C16_changed(float value) {
+    channels::C16 = value;
+    return true;
+  }
+
+  /**
   * @brief Update voltage_source::R7 when respective config value is changed.
   *
   * @param value

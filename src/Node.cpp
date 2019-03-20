@@ -19,7 +19,9 @@ void Node::begin() {
 
   config_.set_buffer(get_buffer());
   config_.validator_.set_node(*this);
+  // Set default values.
   config_.reset();
+  // Load values set explicitly in EEPROM.
   config_.load();
 
   state_.set_buffer(get_buffer());
