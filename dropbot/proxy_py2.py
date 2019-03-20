@@ -14,9 +14,11 @@ from teensy_minimal_rpc.adc_sampler import AdcDmaMixin
 import numpy as np
 import pandas as pd
 import serial
+import si_prefix as si
 import six
 
-from .core import dropbot_state
+from .config import Config
+from .core import dropbot_state, NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS
 from ._version import get_versions
 from .bin.upload import upload
 
@@ -355,6 +357,67 @@ try:
             return pd.Series(super(ProxyMixin,
                                    self).channel_capacitances(channels),
                              index=channels)
+
+        def reset_C16(self):
+            '''
+            Reset ``C16`` to default.
+
+            See [issue #42][i42] for more info.
+
+            [i42]: https://gitlab.com/sci-bots/dropbot.py/issues/42
+
+
+            .. versionadded:: X.X.X
+            '''
+            default_C16 = Config.DESCRIPTOR.fields_by_name['C16'].default_value
+            self.update_config(C16=default_C16)
+            logging.info('Reset `C16` as %sF', si.si_format(default_C16))
+            return default_C16
+
+        def calibrate_C16(self, N=10, reset=True):
+            '''
+            Calibrate ``C16`` using on-board test capacitors.
+
+            Calibration procedure::
+
+             1. Measure each on-board capacitor the specified number of times.
+             2. Compute correction factor for each on-board capacitor.
+             3. Set ``C16`` to average correction factor.
+
+            See [issue #42][i42] for more info.
+
+            [i42]: https://gitlab.com/sci-bots/dropbot.py/issues/42
+
+            Parameters
+            ----------
+            N : int, optional
+                Number of measurements per on-board capacitor.
+            reset : bool, optional
+                If `True`, set ``C16`` to default before performing
+                calibration.
+
+            Returns
+            -------
+            float
+                Calibrated ``C16`` value in farads.
+
+
+            .. versionadded:: X.X.X
+            '''
+            if reset:
+                self.reset_C16()
+            init_C16 = self.config.C16
+            nominal_C = NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS\
+                [NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS > 0]
+            df_C = pd.DataFrame(self.on_board_capacitance() for i in range(N))
+            correction = df_C.median()[nominal_C] / nominal_C.values
+            logging.debug('Correction factors relative to `C16` = %sF:',
+                          si.si_format(init_C16))
+            map(logging.debug, str(correction).splitlines())
+            C16_ = self.config.C16 / correction.mean()
+            self.update_config(C16=C16_)
+            logging.info('Calibrated `C16` as %sF', si.si_format(C16_))
+            return C16_
 
         def measure_capacitance(self, n_samples=50, amplitude='filtered_mean'):
             '''
