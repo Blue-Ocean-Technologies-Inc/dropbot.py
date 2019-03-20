@@ -336,6 +336,26 @@ try:
                 return pd.Series(C_i,
                                  index=NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS)
 
+        def channel_capacitances(self, channels):
+            '''
+            Wrap C++ method to return :class:`pandas.Series`.
+
+            Parameters
+            ----------
+            channels : list-like
+                List of channels for which to measure capacitance.
+            Returns
+            -------
+            pd.Series
+                Capacitance of each channel indexed by channel ID.
+
+
+            .. versionadded:: X.X.X
+            '''
+            return pd.Series(super(ProxyMixin,
+                                   self).channel_capacitances(channels),
+                             index=channels)
+
         def measure_capacitance(self, n_samples=50, amplitude='filtered_mean'):
             '''
             Parameters
