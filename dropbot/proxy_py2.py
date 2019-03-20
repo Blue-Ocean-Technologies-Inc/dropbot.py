@@ -16,6 +16,7 @@ import pandas as pd
 import serial
 import six
 
+from .core import dropbot_state
 from ._version import get_versions
 from .bin.upload import upload
 
@@ -302,6 +303,38 @@ try:
             self.i2c_write(address, [cmd] + data)
             n = self.i2c_read(address, 1)
             return self.i2c_read(address, n)
+
+        def on_board_capacitance(self):
+            '''
+            Measure no actuation load and each on-board test capacitor.
+
+            See on-board capacitors schematic [here][1].
+
+            [1]: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/on-board-calibration-On-board%20calibration.pdf
+
+            Returns
+            -------
+            pd.Series
+                Measured capacitance of each on-board test capacitor, indexed
+                by nominal capacitance.
+
+
+            .. versionadded:: X.X.X
+            '''
+            with dropbot_state(self):
+                self.turn_off_all_channels()
+                self.voltage = 50
+
+                C_i = []
+
+                for c_i in [-1, 0, 1, 2]:
+                    self.select_on_board_test_capacitor(c_i)
+                    C_i.append(self.capacitance(0))
+
+                self.select_on_board_test_capacitor(-1)
+
+                return pd.Series(C_i,
+                                 index=NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS)
 
         def measure_capacitance(self, n_samples=50, amplitude='filtered_mean'):
             '''
