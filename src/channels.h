@@ -21,7 +21,7 @@ namespace channels {
      *
      * See [schematic diagram][1].
      *
-     * \since X.X.X
+     * \since 1.73.0
      *
      * [1]: https://trello-attachments.s3.amazonaws.com/5c4b58289f679337b5b09afb/5c67076e0426676533c989ba/551ff5aef10f5d16b0db6ab3eb0574c9/image.png
      */

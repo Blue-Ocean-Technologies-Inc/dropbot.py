@@ -32,6 +32,6 @@ message Config {
 
   //: .. versionadded:: 1.41
   optional uint32 capacitance_n_samples = 60 [default = 50];
-  //: .. versionadded:: X.X.X
+  //: .. versionadded:: 1.73.0
   optional float C16 = 61 [default = 150e-9];
 }

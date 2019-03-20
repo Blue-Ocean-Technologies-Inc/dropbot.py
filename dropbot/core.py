@@ -1,7 +1,7 @@
 '''
 DropBot package functions, attributes, etc.
 
-.. versionadded:: X.X.X
+.. versionadded:: 1.73.0
 '''
 from __future__ import absolute_import
 from collections import OrderedDict
@@ -114,7 +114,7 @@ def dropbot_state(proxy, **kwargs):
         Keyword arguments are passed to `proxy.update_state()`.
 
 
-    .. versionadded:: 2.3.0
+    .. versionadded:: 1.72.0
     '''
     with proxy.transaction_lock:
         if hasattr(proxy, 'stop_switching_matrix'):
