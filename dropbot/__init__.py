@@ -1,6 +1,7 @@
 import warnings
 
 from .core import *
+from .core import __version__
 try:
     from .proxy import (Proxy, I2cProxy, SerialProxy,
                         EVENT_ACTUATED_CHANNEL_CAPACITANCES,
