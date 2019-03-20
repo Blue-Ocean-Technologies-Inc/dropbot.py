@@ -8,6 +8,13 @@
 
 namespace dropbot {
 
+namespace channels {
+
+  float C16 = 150e-9;
+
+}
+
+
 Switch channel_to_switch(uint8_t channel) {
     /*
      *  - 5 IO register ports per switching board.
