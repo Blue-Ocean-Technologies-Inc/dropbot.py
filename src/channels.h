@@ -12,6 +12,23 @@
 
 namespace dropbot {
 
+namespace channels {
+
+    /**
+     * @brief Capacitance of `C16` capacitor in chip load feedback circuit.
+     *
+     * This value is used in the calculation of chip load impedance.
+     *
+     * See [schematic diagram][1].
+     *
+     * \since X.X.X
+     *
+     * [1]: https://trello-attachments.s3.amazonaws.com/5c4b58289f679337b5b09afb/5c67076e0426676533c989ba/551ff5aef10f5d16b0db6ab3eb0574c9/image.png
+     */
+    extern float C16;
+
+}
+
 constexpr uint16_t MAX_NUMBER_OF_CHANNELS = 120;
 
 
@@ -337,7 +354,7 @@ public:
       device_load_v = 0.5 * (A11_raw / (2 * float(max_analog))) * 1.2;
     });
     // C2 = V2 * C16 / HVAC
-    const float C2 = device_load_v * 0.15e-6 / analog::high_voltage();
+    const float C2 = device_load_v * channels::C16 / analog::high_voltage();
     return C2;
   }
 
