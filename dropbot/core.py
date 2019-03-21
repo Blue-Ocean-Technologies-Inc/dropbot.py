@@ -1,7 +1,7 @@
 '''
 DropBot package functions, attributes, etc.
 
-.. versionadded:: X.X.X
+.. versionadded:: 2.4.0
 '''
 from __future__ import absolute_import
 from collections import OrderedDict

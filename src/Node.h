@@ -1105,7 +1105,7 @@ public:
   *
   * @param value
   *
-  * \since X.X.X
+  * \since 2.4.0
   */
   bool on_config_C16_changed(float value) {
     channels::C16 = value;

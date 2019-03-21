@@ -321,7 +321,7 @@ try:
                 by nominal capacitance.
 
 
-            .. versionadded:: X.X.X
+            .. versionadded:: 2.4.0
             '''
             with dropbot_state(self):
                 self.turn_off_all_channels()
@@ -352,7 +352,7 @@ try:
                 Capacitance of each channel indexed by channel ID.
 
 
-            .. versionadded:: X.X.X
+            .. versionadded:: 2.4.0
             '''
             return pd.Series(super(ProxyMixin,
                                    self).channel_capacitances(channels),
@@ -367,7 +367,7 @@ try:
             [i42]: https://gitlab.com/sci-bots/dropbot.py/issues/42
 
 
-            .. versionadded:: X.X.X
+            .. versionadded:: 2.4.0
             '''
             default_C16 = Config.DESCRIPTOR.fields_by_name['C16'].default_value
             self.update_config(C16=default_C16)
@@ -402,7 +402,7 @@ try:
                 Calibrated ``C16`` value in farads.
 
 
-            .. versionadded:: X.X.X
+            .. versionadded:: 2.4.0
             '''
             if reset:
                 self.reset_C16()
