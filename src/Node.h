@@ -2289,11 +2289,26 @@ public:
     return channels_._benchmark_capacitance(n_samples, count);
   }
 
+  /**
+   * @brief Get the state of detected channels.
+   *
+   * \version X.X.X
+   *     Only copy the states of the number of channels actually detected
+   *     (i.e., `channels_.channel_count_`).
+   *
+   * @return  State of channels as a bit-packed array.
+   */
   UInt8Array state_of_channels() {
     auto &state_of_channels = channels_.state_of_channels();
     UInt8Array output = get_buffer();
-    output.length = state_of_channels.size();
-    std::copy(state_of_channels.begin(), state_of_channels.end(), output.data);
+    // XXX The `state_of_channels` array is sized to handle the maximum number
+    // of channels.  However, there may be _fewer_ channels, e.g., in a system
+    // with some switching board slots empty.  Therefore, only copy the states
+    // of the number of channels actually detected (i.e.,
+    // `channels_.channel_count_`).
+    output.length = channels_.channel_count_ / 8;
+    std::copy(state_of_channels.begin(), state_of_channels.begin() +
+              output.length, output.data);
     return output;
   }
 
@@ -2305,28 +2320,49 @@ public:
     channels_.set_disabled_channels_mask(disabled_mask);
   }
 
+  /**
+   * @brief Get disabled channels mask.
+   *
+   * \version X.X.X
+   *     Only copy the mask for channels actually detected (i.e.,
+   *     `channels_.channel_count_`).
+   *
+   * @return  Disabled channels mask as a bit-packed array.
+   */
   UInt8Array disabled_channels_mask() {
     auto &mask = channels_.disabled_channels_mask();
     UInt8Array output = get_buffer();
-    output.length = mask.size();
-    std::copy(mask.begin(), mask.end(), output.data);
+    output.length = channels_.channel_count_ / 8;
+    std::copy(mask.begin(), mask.begin() + output.length, output.data);
     return output;
   }
 
+  /**
+   * @brief Set actuation state of switching board channels.
+   *
+   * If `EVENT_CHANNELS_UPDATED` is enabled in event mask, send
+   * `channels-updated` event stream packet containing:
+   *      - `"n"`: number of actuated channel
+   *      - `"actuated"`: list of actuated channel identifiers.
+   *      - `"start"`: millisecond counter before setting shift registers
+   *      - `"end"`: millisecond counter after setting shift registers
+   *
+   * \version 1.53
+   *     Send `channels-updated` event stream packet.
+   *
+   * \version X.X.X
+   *     Fix handling of fewer channels than `MAX_NUMBER_OF_CHANNELS`.
+   *
+   * @param channel_states  Bit-packed channels states array.
+   *
+   * @return  `true` if update succeeded; `false` otherwise.
+   */
   bool set_state_of_channels(UInt8Array channel_states) {
-    /*
-     * .. versionchanged:: 1.53
-     *     Send ``channels-updated`` event stream packet containing:
-     *      - ``"n"``: number of actuated channel
-     *      - ``"actuated"``: list of actuated channel identifiers.
-     *      - ``"start"``: millisecond counter before setting shift registers
-     *      - ``"end"``: millisecond counter after setting shift registers
-     */
     const unsigned long start = microseconds();
     {
       Channels::packed_channels_t states;
 
-      if (channel_states.length != states.size()) {
+      if (channel_states.length != channels_.channel_count_ / 8) {
         return false;
       }
       std::copy(channel_states.data, channel_states.data +

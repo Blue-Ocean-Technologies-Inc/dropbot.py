@@ -80,7 +80,8 @@ Channels::packed_channels_t const &Channels::state_of_channels() {
   //
   // See https://gitlab.com/sci-bots/dropbot.py/issues/26
   Timer1.stop(); // stop the timer during i2c transmission
-  for (uint8_t chip = 0; chip < channel_count_ / 40; chip++) {
+  const auto chip_count = channel_count_ / 40;  // # of detected boards
+  for (uint8_t chip = 0; chip < chip_count; chip++) {
     for (uint8_t port = 0; port < 5; port++) {
       Wire.beginTransmission(switching_board_i2c_address_ + chip);
       Wire.write(PCA9505_OUTPUT_PORT_REGISTER + port);
@@ -117,7 +118,8 @@ void Channels::_update_channels(bool force) {
   //   Each register represent 8 channels (i.e. the first register on the
   // first PCA9505 chip stores the state of channels 0-7, the second register
   // represents channels 8-15, etc.).
-  for (uint8_t chip = 0; chip < channel_count_ / 40; chip++) {
+  const auto chip_count = channel_count_ / 40;  // # of detected boards
+  for (uint8_t chip = 0; chip < chip_count; chip++) {
     for (uint8_t port = 0; port < 5; port++) {
       data[0] = PCA9505_OUTPUT_PORT_REGISTER + port;
       data[1] = ~(state_of_channels_[chip * 5 + port] &
