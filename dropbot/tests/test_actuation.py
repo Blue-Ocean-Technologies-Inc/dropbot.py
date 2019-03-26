@@ -22,6 +22,14 @@ def test_actuate_channels_thread_safety():
                 eq_(future.result(), [channel])
 
 
+def test_actuate_channels_count():
+    'Verify number of actuated channels against requested channels.'
+    with proxy_context(ignore=True) as proxy:
+        channel_count = proxy.number_of_channels
+        eq_(channel_count, len(proxy.state_of_channels))
+        proxy.set_state_of_channels(channel_count * [0])
+
+
 def test_actuate_channels_disabled_channels():
     with proxy_context(ignore=True) as proxy:
         with proxy.transaction_lock:
@@ -33,7 +41,8 @@ def test_actuate_channels_disabled_channels():
                 new_mask[:] = 0
 
                 # Actuate without any channels disabled.
-                actuated = actuate_channels(proxy, channels, allow_disabled=False)
+                actuated = actuate_channels(proxy, channels,
+                                            allow_disabled=False)
                 eq_(actuated, channels)
 
                 # Disable all even channels.
@@ -41,13 +50,15 @@ def test_actuate_channels_disabled_channels():
                 new_mask[::2] = 1
                 proxy.disabled_channels_mask = new_mask
 
-                # Verify exception is raised if disabled channels are not allowed.
+                # Verify exception is raised if disabled channels are not
+                # allowed.
                 raises(RuntimeError)(actuate_channels)(proxy, channels,
                                                        allow_disabled=False)
 
-                # Verify exception is **not** raised if disabled channels **are**
-                # allowed.
-                actuated = actuate_channels(proxy, channels, allow_disabled=True)
+                # Verify exception is **not** raised if disabled channels
+                # **are** allowed.
+                actuated = actuate_channels(proxy, channels,
+                                            allow_disabled=True)
                 eq_(actuated, channels[1::2])
             finally:
                 proxy.disabled_channels_mask = original_mask
