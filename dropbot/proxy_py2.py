@@ -729,12 +729,12 @@ try:
                 If channel states read back from DropBot do not match the
                 requested states.
 
-                .. versionadded:: X.X.X
+                .. versionadded:: 1.73.2
 
 
             .. versionchanged:: 1.71.0
                 Add ``append`` keyword argument.
-            .. versionchanged:: X.X.X
+            .. versionchanged:: 1.73.2
                 Add ``verify`` keyword argument.  Remove call to deprecated
                 :meth:`reset_switching_boards()`.
             '''
@@ -757,7 +757,7 @@ try:
 
         def reset_switching_boards(self):
             '''
-            .. deprecated:: X.X.X
+            .. deprecated:: 1.73.2
                 Not supported by DropBot v3 hardware.
             '''
             raise DeprecationWarning()

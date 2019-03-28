@@ -2227,7 +2227,7 @@ public:
   /**
    * @brief Get the state of detected channels.
    *
-   * \version X.X.X
+   * \version 1.73.2
    *     Only copy the states of the number of channels actually detected
    *     (i.e., `channels_.channel_count_`).
    *
@@ -2258,7 +2258,7 @@ public:
   /**
    * @brief Get disabled channels mask.
    *
-   * \version X.X.X
+   * \version 1.73.2
    *     Only copy the mask for channels actually detected (i.e.,
    *     `channels_.channel_count_`).
    *
@@ -2285,7 +2285,7 @@ public:
    * \version 1.53
    *     Send `channels-updated` event stream packet.
    *
-   * \version X.X.X
+   * \version 1.73.2
    *     Fix handling of fewer channels than `MAX_NUMBER_OF_CHANNELS`.
    *
    * @param channel_states  Bit-packed channels states array.
