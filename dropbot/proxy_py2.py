@@ -701,7 +701,7 @@ try:
         def state_of_channels(self, states):
             self.set_state_of_channels(states)
 
-        def set_state_of_channels(self, states, append=True):
+        def set_state_of_channels(self, states, append=True, verify=True):
             '''
             Pack array containing one entry per channel to bytes (8 channels
             per byte).  Set state of channels on device using state bytes.
@@ -719,10 +719,24 @@ try:
             append : bool, optional
                 If `True`, append states specified as a :class:`pandas.Series`.
                 Otherwise, overwrite existing channel states.
+            verify : bool, optional
+                If `True`, read channel states back from DropBot and verify
+                against requested states.
+
+            Raises
+            ------
+            CommunicationError
+                If channel states read back from DropBot do not match the
+                requested states.
+
+                .. versionadded:: X.X.X
 
 
             .. versionchanged:: 1.71.0
                 Add ``append`` keyword argument.
+            .. versionchanged:: X.X.X
+                Add ``verify`` keyword argument.  Remove call to deprecated
+                :meth:`reset_switching_boards()`.
             '''
             N = self.number_of_channels
             if isinstance(states, pd.Series):
@@ -736,42 +750,17 @@ try:
                 states = np.asarray(states, dtype=int)
 
             state_bits = np.packbits(states.astype(int)[::-1])[::-1]
-            for retry in range(3):
-                if not super(ProxyMixin,
-                             self).set_state_of_channels(state_bits):
-                    raise ValueError('Error setting state of channels.  Check '
-                                     'number of states matches channel count.')
-
-                # Verify that the state we set matches the current state
-                # (don't include disabled channels)
-                current_state = self.state_of_channels
-                try:
-                    assert(np.all((states.astype(np.uint8) &
-                                   ~self.disabled_channels_mask) ==
-                           current_state))
-                    return
-                except Exception:
-                    # if not, reset the switching boards and try again
-                    self.reset_switching_boards()
-                    continue
-
-            # If we get to here, we were unable to verify the state
-            raise CommunicationError('Error setting the state of channels')
+            if not super(ProxyMixin,
+                            self).set_state_of_channels(state_bits):
+                raise ValueError('Error setting state of channels.  Check '
+                                 'number of stateappends matches channel count.')
 
         def reset_switching_boards(self):
             '''
-            If pin A9 (D23) is jumpered to the reset pins of the switching
-            boards, this method provides a software reset.
+            .. deprecated:: X.X.X
+                Not supported by DropBot v3 hardware.
             '''
-            self.pin_mode(23, 1)
-            self.digital_write(23, 0)
-            self.digital_write(23, 1)
-
-            # Wait long enough for the boards to reset and become addressable
-            # again on the i2c bus (seems to take ~2.5 s based on empirical
-            # testing)
-            time.sleep(5)
-            self.initialize_switching_boards()
+            raise DeprecationWarning()
 
         @property
         def baud_rate(self):
