@@ -47,7 +47,8 @@ inline float min_waveform_voltage() {
 /**
  * @brief Set output high voltage.
  *
- * @param voltage  Target RMS voltage.
+ * @param voltage  Target RMS voltage, absolute minimum of 1 V (regardless of
+ *     `pot_max`).
  *
  * @return  `true` if voltage was set, otherwise `false`.
  *
@@ -58,8 +59,8 @@ inline float min_waveform_voltage() {
  * [i44]: https://gitlab.com/sci-bots/dropbot.py/issues/44
  */
 inline bool _set_voltage(float voltage) {
-  const float pot_value = max(0, R6 / ( 2 * voltage / 1.5 - 1 ) - R7);
-  const uint8_t wiper_value = min(pot_value / pot_max * 255, 255);
+  const float pot_value = max(0., R6 / ((2 * max(1, voltage) / 1.5) - 1) - R7);
+  const uint8_t wiper_value = min(pot_value / pot_max * 255, 255.);
   if (voltage <= max_voltage) {
     // This method is triggered whenever a voltage is included in a state
     // update.
