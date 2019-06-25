@@ -44,10 +44,23 @@ inline float min_waveform_voltage() {
   return 1.5 / 2.0 * (R6 / (pot_max + R7) + 1);
 }
 
+/**
+ * @brief Set output high voltage.
+ *
+ * @param voltage  Target RMS voltage.
+ *
+ * @return  `true` if voltage was set, otherwise `false`.
+ *
+ *
+ * \version X.X.X  Clamp out-of-range values for `pot_value` and `wiper_value`
+ *     (fixes [issue 44][i44]).
+ *
+ * [i44]: https://gitlab.com/sci-bots/dropbot.py/issues/44
+ */
 inline bool _set_voltage(float voltage) {
-  const float pot_value = R6 / ( 2 * voltage / 1.5 - 1 ) - R7;
-  const uint8_t wiper_value = pot_value / pot_max * 255;
-  if (voltage <= max_voltage && wiper_value < 256 && pot_value >= 0 ) {
+  const float pot_value = max(0, R6 / ( 2 * voltage / 1.5 - 1 ) - R7);
+  const uint8_t wiper_value = min(pot_value / pot_max * 255, 255);
+  if (voltage <= max_voltage) {
     // This method is triggered whenever a voltage is included in a state
     // update.
     i2c.beginTransmission(44);
