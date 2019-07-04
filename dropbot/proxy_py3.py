@@ -6,7 +6,9 @@ import time
 
 from .bin.upload import upload
 from .node import Proxy
-from .proxy_py2 import ProxyMixin
+from .proxy_py2 import (ProxyMixin, EVENT_ACTUATED_CHANNEL_CAPACITANCES,
+                        EVENT_CHANNELS_UPDATED, EVENT_SHORTS_DETECTED,
+                        EVENT_DROPS_DETECTED, EVENT_ENABLE)
 
 
 class SerialProxy(ProxyMixin, Proxy):
