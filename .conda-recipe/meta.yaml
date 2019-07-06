@@ -77,8 +77,9 @@ requirements:
     #: ..versionchanged:: 1.55
     #: ..versionchanged:: 1.62
     #: ..versionchanged:: 1.64.1
-    #: .. versionchanged:: 1.65
-    - base-node-rpc >=0.51.1
+    #: ..versionchanged:: 1.65
+    #: ..versionchanged:: X.X.X
+    - base-node-rpc >=0.51.5
     # ..versionchanged:: 1.62
     - beautifulsoup4
     - future
@@ -127,7 +128,8 @@ outputs:
         - arduino-fast-digital
         - arduino-slow-soft-wire >=1.0.1
         - base-node-dev >=0.13.1
-        - base-node-rpc >=0.51.1
+        #: ..versionchanged:: X.X.X
+        - base-node-rpc >=0.51.5
         - platformio-tool-scons
         - platformio-tool-teensy >=1.21.0
         - teensy-minimal-rpc-dev >=0.8.1
@@ -138,7 +140,8 @@ outputs:
     requirements:
       run:
         #: ..versionadded:: 1.65
-        - asyncio-helpers
+        #: ..versionchanged:: X.X.X
+        - asyncio-helpers >=0.4.2
         - {{ pin_subpackage(PKG_NAME + '-dev', max_pin='x.x') }}
         - base-node >=0.13.1
         # ..versionchanged:: 1.62

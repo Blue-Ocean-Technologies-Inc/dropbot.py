@@ -167,12 +167,6 @@ try:
                 elif I2cAddressNotSet not in ignore:
                     raise I2cAddressNotSet()
 
-                # Synchronize device millisecond counter to UTC time upon
-                # connection.
-                self.signals.signal('connected').connect(lambda *args:
-                                                         self.sync_time(),
-                                                         weak=False)
-
                 self.signals.signal('connected').send({'event': 'connected'})
             except Exception:
                 logger.debug('Error connecting to device.', exc_info=True)
@@ -202,18 +196,6 @@ try:
             '''
             super(ProxyMixin, self)._connect(*args, **kwargs)
             self.signals.signal('connected').send({'event': 'connected'})
-
-        def sync_time(self):
-            '''
-            Synchronize device millisecond counter to UTC time.
-
-
-            .. versionadded:: 1.55
-            '''
-            now = dt.datetime.utcnow()
-            utc_timestamp = (calendar.timegm(now.utctimetuple()) +
-                             now.microsecond * 1e-6)
-            super(ProxyMixin, self).sync_time(utc_timestamp)
 
         @property
         def wall_time(self):
