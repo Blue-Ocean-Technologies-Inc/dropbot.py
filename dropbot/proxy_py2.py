@@ -476,7 +476,7 @@ try:
                 value = pd.Series(values, index=amplitude)
             else:
                 value = values[0]
-            return value / self.measure_voltage() * 0.15e-6
+            return value / self.measure_voltage() * self.config.C16
 
         def get_environment_state(self, i2c_address=0x27):
             '''
