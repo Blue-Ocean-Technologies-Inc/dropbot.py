@@ -1,15 +1,9 @@
-'''
-DropBot package functions, attributes, etc.
-
-.. versionadded:: 1.73.0
-'''
-from __future__ import absolute_import
-from collections import OrderedDict
+# coding: utf-8
+import os
 import contextlib
-import os.path
+import pandas as pd
 
 from path_helpers import path
-import pandas as pd
 
 from ._version import get_versions
 
@@ -20,17 +14,13 @@ del get_versions
 '''
 .. versionadded:: 1.30
 '''
-NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS = pd.Series([0, 10e-12, 100e-12,
-                                                     470e-12],
-                                                    name='Capacitance (F)')
+NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS = pd.Series([0, 10e-12, 100e-12, 470e-12], name='Capacitance (F)')
 
 # Resolve data directory path (with support for frozen Python apps).
-DATA_DIR = path(os.environ.get('DROPBOT_DATA_DIR', path(__file__).parent
-                               .joinpath('static'))).normpath()
+DATA_DIR = path(os.environ.get('DROPBOT_DATA_DIR', path(__file__).parent.joinpath('static'))).normpath()
 if not DATA_DIR.isdir():
     # Add support for frozen apps, where data may be stored in a zip file.
-    DATA_DIR = os.path.join(*[d for d in DATA_DIR.splitall()
-                              if not d.endswith('.zip')])
+    DATA_DIR = os.path.join(*[d for d in DATA_DIR.splitall() if not d.endswith('.zip')])
 
 
 def package_path():

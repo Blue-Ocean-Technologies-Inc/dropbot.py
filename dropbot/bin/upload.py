@@ -1,21 +1,22 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, print_function, unicode_literals
-import itertools as it
-import platform
-import subprocess as sp
 import sys
-import threading
 import time
+import platform
+import threading
+
+import colorama as co
+import itertools as it
+import subprocess as sp
+
+import base_node_rpc as bnr
+import conda_helpers as ch
 
 from logging_helpers import _L
 from platformio_helpers.upload import upload_conda
-import base_node_rpc as bnr
-import colorama as co
-import conda_helpers as ch
 
 
 def upload():
-    '''
+    """
     .. versionchanged:: 1.29
         Add ``dropbot-upload`` entry point (i.e., make script callable as
         ``dropbot-upload`` from system command shell).
@@ -33,7 +34,7 @@ def upload():
     IOError
         _(Windows only)_ If DropBot is not found within 5 seconds after
         PlatformIO upload tool has closed.
-    '''
+    """
     if platform.system() == 'Windows':
         # Upload using Teensy GUI to allow auto-reboot on Windows.
         #
@@ -42,8 +43,7 @@ def upload():
         # [i19]: https://gitlab.com/sci-bots/dropbot.py/issues/19
 
         # Launch Teensy graphical uploader program.
-        teensy_tools_dir = (ch.conda_prefix() / 'share' / 'platformio' /
-                            'packages' / 'tool-teensy')
+        teensy_tools_dir = (ch.conda_prefix() / 'share' / 'platformio' / 'packages' / 'tool-teensy')
         teensy_exe_path = teensy_tools_dir.joinpath('teensy.exe')
         teensy_loader = sp.Popen([teensy_exe_path])
 
@@ -65,28 +65,24 @@ def upload():
             wait_complete = threading.Event()
 
             def wait_for_reboot():
-                '''
+                """
                 Display status while waiting for Teensy to reboot into
                 programming mode.
-                '''
+                """
                 # Update no faster than `stderr` flush interval (if set).
                 update_interval = 2 * getattr(sys.stderr, 'flush_interval', .2)
 
-                message = (co.Fore.MAGENTA + 'Waiting for Teensy program '
-                           'button to be pushed...', co.Fore.BLUE + '(press '
-                           'Ctrl-C to abort)')
+                message = (f'{co.Fore.MAGENTA}Waiting for Teensy program button to be pushed...',
+                           f'{co.Fore.BLUE}(press `Ctrl-C` to abort)')
                 while not reboot_done.wait(update_interval):
-                    print('\r' + co.Fore.WHITE + next(waiting_indicator),
-                          *message, end='', file=sys.stderr)
+                    print(f'\r{co.Fore.WHITE}{next(waiting_indicator)} ', *message, end='', file=sys.stderr)
                 else:
-                    print('\r' + co.Fore.MAGENTA + 'Teensy upload:',
-                          status.message if status.is_set()
-                          else co.Fore.RED + 'ERROR', 100 * ' ',
+                    print(f'\r{co.Fore.MAGENTA}Teensy upload:',
+                          status.message if status.is_set() else co.Fore.RED + 'ERROR', 100 * ' ',
                           file=sys.stderr)
                 wait_complete.set()
 
-            # Launch background thread to display status while waiting for
-            # programming button to be pressed.
+            # Launch background thread to display status while waiting for the programming button to be pressed.
             thread = threading.Thread(target=wait_for_reboot)
             thread.daemon = True
             thread.start()
@@ -95,19 +91,17 @@ def upload():
             reboot_process = None
 
             def _cancel():
-                '''
-                Clean up Teensy reboot process, set status to cancelled, and
-                stop reboot attempt(s).
-                '''
+                """
+                Clean up Teensy reboot process, set status to cancelled, and stop reboot attempt(s).
+                """
                 if reboot_process is not None:
                     reboot_process.kill()
-                status.message = co.Fore.YELLOW + 'CANCELLED'
+                status.message = f'{co.Fore.YELLOW}CANCELLED'
                 status.set()
                 reboot_done.set()
 
             try:
-                # Keep retrying firmware upload until either a) Teensy GUI
-                # window is closed; or b) Ctrl-C is pressed.
+                # Keep retrying firmware upload until either a) Teensy GUI window is closed; or b) Ctrl-C is pressed.
                 while not wait_complete.is_set() and \
                         teensy_loader.poll() is None:
                     reboot_process = sp.Popen(teensy_reboot_exe,
@@ -126,7 +120,7 @@ def upload():
                     return_code = reboot_process.returncode
 
                     if return_code == 0:
-                        status.message = co.Fore.LIGHTGREEN_EX + 'SUCCESS'
+                        status.message = f'{co.Fore.LIGHTGREEN_EX}SUCCESS'
                         status.set()
                         break
             except KeyboardInterrupt:
@@ -134,7 +128,7 @@ def upload():
             finally:
                 reboot_done.set()
                 wait_complete.wait(5)
-                print(co.Fore.RESET + co.Back.RESET + '', file=sys.stderr,
+                print(f'{co.Fore.RESET}{co.Back.RESET}', file=sys.stderr,
                       end='')
 
         try:
@@ -148,8 +142,7 @@ def upload():
             # Verify that DropBot device is found before closing Teensy Loader.
             for i in range(5):
                 df_i = bnr.available_devices()
-                if 'device_name' in df_i and df_i[df_i.device_name ==
-                                                  'dropbot'].shape[0] > 0:
+                if 'device_name' in df_i and df_i[df_i.device_name == 'dropbot'].shape[0] > 0:
                     _L().debug('DropBot found - firmware update successful.')
                     break
                 else:

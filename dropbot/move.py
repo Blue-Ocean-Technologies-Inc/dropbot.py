@@ -1,4 +1,4 @@
-'''Functions and coroutines for automating liquid movement.
+"""Functions and coroutines for automating liquid movement.
 
 .. versionadded:: 1.71.0
 
@@ -29,18 +29,19 @@ Example
     # Disable DropBot capacitance updates.
     proxy.update_state(capacitance_update_interval_ms=0)
     proxy.turn_off_all_channels()
-'''
-from __future__ import (absolute_import, print_function, unicode_literals,
-                        division)
-import functools as ft
-import itertools as it
+"""
+import asyncio
 import logging
 
-import dropbot as db
-import dropbot.proxy
-import networkx as nx
+import numpy as np
 import pandas as pd
-import trollius as asyncio
+import networkx as nx
+import functools as ft
+import itertools as it
+
+from typing import Optional, Union
+
+from .proxy import SerialProxy, dropbot_state, EVENT_CHANNELS_UPDATED
 
 __all__ = ['MoveTimeout', 'actuate', 'actuate_channels', 'gather_liquid',
            'load', 'move_liquid', 'move_results_to_frame', 'test_steady_state',
@@ -48,7 +49,8 @@ __all__ = ['MoveTimeout', 'actuate', 'actuate_channels', 'gather_liquid',
 
 
 class MoveTimeout(asyncio.TimeoutError):
-    '''Exception occurred while performing move along route.
+    """
+    Exception occurred while performing move along route.
 
     Attributes
     ----------
@@ -56,22 +58,23 @@ class MoveTimeout(asyncio.TimeoutError):
         List of channels along route.
     route_i : tuple[int, int]
         Source and target channel of failed move.
-    '''
+    """
+
     def __init__(self, route, route_i, *args, **kwargs):
         self.route = route
         self.route_i = route_i
-        super(MoveTimeout, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
 
-def window(seq, n):
-    '''
+def window(seq: Union[list, np.array], n: int):
+    """
     Returns
     -------
     iter
         Sliding window (of width n) over data from the iterable::
 
             s -> (s0,s1,...s[n-1]), (s1,s2,...,sn), ...
-    '''
+    """
     it_ = iter(seq)
     result = tuple(it.islice(it_, n))
     if len(result) == n:
@@ -81,12 +84,13 @@ def window(seq, n):
         yield result
 
 
-@asyncio.coroutine
-def wait_on_capacitance(proxy, callback):
-    '''Return once callback returns `True`.
+async def wait_on_capacitance(proxy_: SerialProxy, callback: callable) -> list:
+    """
+    Return once callback returns `True`.
 
     Parameters
     ----------
+    proxy_: dropbot.SerialProxy
     callback
         Callback function accepting a list of ``capacitance-updated`` messages
         as only argument.
@@ -102,7 +106,7 @@ def wait_on_capacitance(proxy, callback):
          - ``time_us``: DropBot microsecond 32-bit counter
          - ``n_samples``: number of samples used for RMS measurement
          - ``V_a``: measured actuation voltage during capacitance reading
-    '''
+    """
     move_done = asyncio.Event()
     loop = asyncio.get_event_loop()
 
@@ -119,16 +123,17 @@ def wait_on_capacitance(proxy, callback):
             logging.debug('capacitance event error.', exc_info=True)
             return
 
-    proxy.signals.signal('capacitance-updated').connect(_on_capacitance)
-    yield asyncio.From(move_done.wait())
-    raise asyncio.Return(messages)
+    proxy_.signals.signal('capacitance-updated').connect(_on_capacitance)
+    await move_done.wait()
+    return messages
 
 
-@asyncio.coroutine
-def actuate_channels(self, channels, allow_disabled=True):
-    '''
+async def actuate_channels(proxy_: SerialProxy, channels: Union[list, np.array],
+                           allow_disabled: Optional[bool] = True) -> list:
+    """
     Parameters
     ----------
+    proxy_: dropbot.SerialProxy
     channels : list
         List of channel numbers to actuate.
     allow_disabled : bool, optional
@@ -151,7 +156,7 @@ def actuate_channels(self, channels, allow_disabled=True):
         If list actuated channels does not match the requested channels
         (missing disabled channels are ignored if ``allowed_disabled`` is
         `True`).
-    '''
+    """
     loop = asyncio.get_event_loop()
 
     channels_updated = asyncio.Event()
@@ -161,32 +166,31 @@ def actuate_channels(self, channels, allow_disabled=True):
         loop.call_soon_threadsafe(channels_updated.set)
 
     # Enable `channels-updated` DropBot signal.
-    self.enable_event(db.proxy.EVENT_CHANNELS_UPDATED)
+    proxy_.enable_event(EVENT_CHANNELS_UPDATED)
 
     # Request to be notified when the set of actuated channels changes.
-    signal = self.signals.signal('channels-updated')
+    signal = proxy_.signals.signal('channels-updated')
     signal.connect(_on_channels_updated)
 
     # Request actuation of the specified channels.
-    self.set_state_of_channels(pd.Series(1, index=channels), append=False)
+    proxy_.set_state_of_channels(pd.Series(1, index=channels), append=False)
 
-    yield asyncio.From(channels_updated.wait())
+    await channels_updated.wait()
     if not allow_disabled and (set(channels_updated.actuated) !=
                                set(channels)):
-        raise RuntimeError('Actuated channels `%s` do not match '
-                           'expected channels `%s`' %
-                           (channels_updated.actuated, channels))
+        raise RuntimeError(f'Actuated channels `{channels_updated.actuated}` do not match '
+                           f'expected channels `{channels}`')
     elif set(channels_updated.actuated) - set(channels):
         # Disabled channels are allowed.
-        raise RuntimeError('Actuated channels `%s` are not included in'
-                           ' expected channels `%s`' %
-                           (channels_updated.actuated, channels))
-    raise asyncio.Return(channels_updated.actuated)
+        raise RuntimeError(f'Actuated channels `{channels_updated.actuated}` are not included in'
+                           f' expected channels `{channels}`')
+    return channels_updated.actuated
 
 
-def test_steady_state(messages, std_error=.02, min_duration=.3,
-                      threshold=10e-12):
-    '''Callback to check for capacitance steady state.
+def test_steady_state(messages: list, std_error: Optional[float] = .02,
+                      min_duration: Optional[float] = .3, threshold: Optional[float] = 10e-12) -> bool:
+    """
+    Callback to check for capacitance steady state.
 
     Parameters can be set using `functools.partial()`.
 
@@ -211,7 +215,7 @@ def test_steady_state(messages, std_error=.02, min_duration=.3,
     threshold : float, optional
         Minimum median capacitance in Farads (from most recent 100 samples)
         before considering steady state as reached.
-    '''
+    """
     df = pd.DataFrame(messages[-100:])
     df['time'] = df.time_us * 1e-6
     df['time'] -= df.time.iloc[0]
@@ -219,36 +223,40 @@ def test_steady_state(messages, std_error=.02, min_duration=.3,
     if (df.index.values[-1] - df.index.values[0]) < min_duration:
         return False
     start = df.index.values[-1] - min_duration
-    d = df.new_value.loc[start:].describe()
-    result = (d['std'] / d['50%']) < std_error
-    return result and (d['50%'] >= threshold)
+    std = df.new_value.loc[start:].std()
+    q50 = df.new_value.loc[start:].quantile(q=0.5)
+    result = (std / q50) < std_error
+    return result and (q50 >= threshold)
 
 
-@asyncio.coroutine
-def actuate(proxy, channels, callback):
-    '''Actuate channels and wait for callback to return `True`.
+async def actuate(proxy_: SerialProxy, channels: Union[list, np.array], callback: callable) -> list:
+    """
+    Actuate channels and wait for callback to return `True`.
 
     Parameters
     ----------
+    proxy_: dropbot.SerialProxy
     channels : list
         List of channel numbers to actuate.
     callback
         Callback function accepting a list of ``capacitance-updated`` messages
         as only argument.
-    '''
+    """
     # Actuate channels.
-    yield asyncio.From(actuate_channels(proxy, channels))
+    await actuate_channels(proxy_, channels)
     # Wait for callback.
-    result = yield asyncio.From(wait_on_capacitance(proxy, callback))
-    raise asyncio.Return(result)
+    result = await wait_on_capacitance(proxy_, callback)
+    return result
 
 
-@asyncio.coroutine
-def move_liquid(proxy, route, min_duration=.3, trail_length=1, wrapper=None):
-    '''Move liquid along specified route (i.e., list of channels).
+async def move_liquid(proxy_: SerialProxy, route: list, min_duration: Optional[float] = .3,
+                      trail_length: Optional[int] = 1, wrapper: Optional[callable] = None) -> list:
+    """
+    Move liquid along specified route (i.e., list of channels).
 
     Parameters
     ----------
+    proxy_: drobpot.SerialProxy
     route : list[int]
         Ordered sequence of channels to move along.
     min_duration : float, optional
@@ -276,7 +284,7 @@ def move_liquid(proxy, route, min_duration=.3, trail_length=1, wrapper=None):
 
     .. versionchanged:: 1.72.0
         Add `trail_length` keyword argument.
-    '''
+    """
     if wrapper is None:
         def wrapper(task):
             return task
@@ -284,33 +292,29 @@ def move_liquid(proxy, route, min_duration=.3, trail_length=1, wrapper=None):
     messages_ = []
 
     duration = min_duration
+    route_i = 0
     try:
         for route_i in window(route, trail_length + 1):
-            print('\r%-50s' % ('Wait for steady state: %s' % list(route_i)),
-                  end='')
-            messages = yield asyncio\
-                .From(wrapper(actuate(proxy, route_i,
-                                      ft.partial(test_steady_state,
-                                                 min_duration=duration))))
+            print(f'\r{"Wait for steady state:":<50} {list(route_i)}', end='')
+            messages = await wrapper(actuate(proxy_, route_i, ft.partial(test_steady_state,
+                                                                         min_duration=duration)))
             messages_.append({'channels': tuple(route_i),
                               'messages': messages})
             head_channels_i = list(route_i[-trail_length:])
-            print('\r%-50s' % ('Wait for steady state: %s' % head_channels_i),
-                  end='')
-            messages = yield asyncio\
-                .From(wrapper(actuate(proxy, head_channels_i,
-                                      ft.partial(test_steady_state,
-                                                 min_duration=duration))))
+            print(f'\r{"Wait for steady state:":<50} {head_channels_i}', end='')
+            messages = await wrapper(actuate(proxy_, head_channels_i, ft.partial(test_steady_state,
+                                                                                 min_duration=duration)))
             messages_.append({'channels': tuple(head_channels_i),
                               'messages': messages})
     except (asyncio.CancelledError, asyncio.TimeoutError):
         raise MoveTimeout(route, route_i)
 
-    raise asyncio.Return(messages_)
+    return messages_
 
 
-def move_results_to_frame(move_results):
-    '''Convert results from `move_liquid()` to a data frame.
+def move_results_to_frame(move_results: list) -> pd.DataFrame:
+    """
+    Convert results from `move_liquid()` to a data frame.
 
     The results from `move_liquid()` may be easily serialized as JSON.
     However, when attempting to, for example, plot the results, it is easier to
@@ -371,7 +375,7 @@ def move_results_to_frame(move_results):
         axis = df.reset_index(level=0).groupby('channels').new_value\
             .plot(style='x', legend=False, figsize=(width, 10))[0]
         axis.set_ylim(0)
-    '''
+    """
     # Combine `capacitance-updated` messages collected during each move into a
     # single data frame.
     keys = []
@@ -388,10 +392,10 @@ def move_results_to_frame(move_results):
     return df
 
 
-@asyncio.coroutine
-def load(proxy, channels, threshold=50e-12, load_duration=.25,
-         detach_duration=2.):
-    '''Load reservoir to specified threshold capacitance.
+async def load(proxy_: SerialProxy, channels: list, threshold: Optional[float] = 50e-12,
+               load_duration: Optional[float] = .25, detach_duration: Optional[float] = 2.) -> list:
+    """
+    Load reservoir to specified threshold capacitance.
 
     Steps::
 
@@ -401,6 +405,7 @@ def load(proxy, channels, threshold=50e-12, load_duration=.25,
 
     Parameters
     ----------
+    proxy_: dropbot.SerialProxy
     channels : list
         List of channel numbers to actuate.
     threshold : float, optional
@@ -417,36 +422,32 @@ def load(proxy, channels, threshold=50e-12, load_duration=.25,
     -------
     list
         See `wait_on_capacitance()` for return type.
-    '''
+    """
     # Load starting reservoir.
-    logging.debug('Wait for channel `%s` to be loaded', channels[:1])
-    yield asyncio.From(actuate(proxy, channels[:-1],
-                               ft.partial(test_steady_state,
-                                          min_duration=load_duration,
-                                          threshold=1.1 * threshold)))
+    logging.debug(f'Wait for channel `{channels[:1]}` to be loaded')
+    await actuate(proxy_, channels[:-1], ft.partial(test_steady_state,
+                                                    min_duration=load_duration,
+                                                    threshold=1.1 * threshold))
 
     detach_channels = channels[1:]
-    logging.debug('Wait for liquid to detach from edge electrode `%s` to '
-                  '`%s`...', channels[:1], detach_channels)
-    messages = yield asyncio\
-        .From(actuate(proxy, detach_channels,
-                      ft.partial(test_steady_state,
-                                 min_duration=detach_duration,
-                                 threshold=threshold)))
-    raise asyncio.Return(messages)
+    logging.debug(f'Wait for liquid to detach from edge electrode `{channels[:1]}` to `{detach_channels}`...')
+    messages = await actuate(proxy_, detach_channels, ft.partial(test_steady_state,
+                                                                 min_duration=detach_duration,
+                                                                 threshold=threshold))
+    return messages
 
 
-@asyncio.coroutine
-def gather_liquid(proxy, G, sources, target,
-                  wrapper=ft.partial(asyncio.wait_for, timeout=4),
-                  update_interval=.025):
-    '''Sequentially move liquid from each specified source to shared target.
+async def gather_liquid(proxy_: SerialProxy, graph: nx.Graph, sources: list, target: int,
+                        wrapper: Optional[callable] = ft.partial(asyncio.wait_for, timeout=4),
+                        update_interval: Optional[float] = .025) -> None:
+    """
+    Sequentially move liquid from each specified source to a shared target.
 
     Parameters
     ----------
-    proxy : dropbot.SerialProxy
+    proxy_ : dropbot.SerialProxy
         DropBot serial handle.
-    G : networkx.Graph
+    graph : networkx.Graph
         Channel/electrode connection graph.
     sources : list[int]
         List of source channel numbers.
@@ -462,11 +463,7 @@ def gather_liquid(proxy, G, sources, target,
 
 
     .. versionadded:: 1.72.0
-    '''
-    with db.dropbot_state(proxy,
-                          capacitance_update_interval_ms=int(update_interval *
-                                                             1e3)):
+    """
+    with dropbot_state(proxy_, capacitance_update_interval_ms=int(update_interval * 1e3)):
         for source_i in sources:
-            yield asyncio\
-                .From(move_liquid(proxy, nx.shortest_path(G, source_i, target),
-                                wrapper=wrapper))
+            await move_liquid(proxy_, nx.shortest_path(graph, source_i, target), wrapper=wrapper)

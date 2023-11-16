@@ -27,10 +27,18 @@
 #ifndef TwoWireKinetis_h
 #define TwoWireKinetis_h
 
-#if defined(__arm__) && defined(TEENSYDUINO)
+#if defined(__arm__) && defined(TEENSYDUINO) && (defined(__MKL26Z64__) || defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__))
 
-#include <inttypes.h>
-#include "Arduino.h"
+#include <Arduino.h>
+#include <stdint.h>
+
+#if defined(__MKL26Z64__) || defined(__MK20DX128__)
+#define BUFFER_LENGTH 40
+#elif defined(__MK20DX256__)
+#define BUFFER_LENGTH 72
+#else
+#define BUFFER_LENGTH 136
+#endif
 
 #define WIRE_HAS_END 1
 
@@ -77,7 +85,7 @@ class TwoWire : public Stream
 public:
 	// Hardware description struct
 	typedef struct {
-		volatile uint32_t &clock_gate_register;
+		uintptr_t clock_gate_register;
 		uint32_t clock_gate_mask;
 		uint8_t  sda_pin[5];
 		uint8_t  sda_mux[5];
@@ -93,6 +101,7 @@ public:
 	constexpr TwoWire(uintptr_t port_addr, const I2C_Hardware_t &myhardware)
 		: port_addr(port_addr), hardware(myhardware) {
 	}
+	friend uintptr_t Teensyduino_Test_constinit_Wire(int instance, int index);
 	void begin();
 	void begin(uint8_t address);
 	void begin(int address) {
@@ -115,6 +124,9 @@ public:
 		return endTransmission(1);
 	}
 	uint8_t requestFrom(uint8_t address, uint8_t quantity, uint8_t sendStop);
+	uint8_t requestFrom(uint8_t address, uint8_t quantity, bool sendStop) {
+		return requestFrom(address, quantity, (uint8_t)(sendStop ? 1 : 0));
+	}
 	uint8_t requestFrom(uint8_t address, uint8_t quantity) {
 		return requestFrom(address, quantity, (uint8_t)1);
 	}
@@ -125,6 +137,7 @@ public:
 	uint8_t requestFrom(int address, int quantity) {
 		return requestFrom((uint8_t)address, (uint8_t)quantity, (uint8_t)1);
 	}
+	uint8_t requestFrom(uint8_t addr, uint8_t qty, uint32_t iaddr, uint8_t n, uint8_t stop);
 	virtual size_t write(uint8_t data);
 	virtual size_t write(const uint8_t *data, size_t quantity);
 	virtual int available(void) {
@@ -186,11 +199,11 @@ private:
 	bool wait_idle(void);
 	uintptr_t port_addr;
 	const I2C_Hardware_t &hardware;
-	uint8_t rxBuffer[TWI_BUFFER_LENGTH] = {};
+	uint8_t rxBuffer[BUFFER_LENGTH] = {};
 	uint8_t rxBufferIndex = 0;
 	uint8_t rxBufferLength = 0;
 	uint8_t txAddress = 0;
-	uint8_t txBuffer[TWI_BUFFER_LENGTH+1] = {};
+	uint8_t txBuffer[BUFFER_LENGTH+1] = {};
 	uint8_t txBufferIndex = 0;
 	uint8_t txBufferLength = 0;
 	uint8_t transmitting = 0;
@@ -231,7 +244,9 @@ public:
 	inline TWBRemulation & operator = (int val) __attribute__((always_inline)) {
 		if (val == 12 || val == ((F_CPU / 400000) - 16) / 2) { // 22, 52, 112
 			I2C0_C1 = 0;
-			#if F_BUS == 120000000
+			#if F_BUS == 128000000
+			I2C0_F = I2C_F_DIV320; // 400 kHz
+			#elif F_BUS == 120000000
 			I2C0_F = I2C_F_DIV288; // 416 kHz
 			#elif F_BUS == 108000000
 			I2C0_F = I2C_F_DIV256; // 422 kHz
@@ -271,7 +286,9 @@ public:
 			I2C0_C1 = I2C_C1_IICEN;
 		} else if (val == 72 || val == ((F_CPU / 100000) - 16) / 2) { // 112, 232, 472
 			I2C0_C1 = 0;
-			#if F_BUS == 120000000
+			#if F_BUS == 128000000
+			I2C0_F = I2C_F_DIV1280; // 100 kHz
+			#elif F_BUS == 120000000
 			I2C0_F = I2C_F_DIV1152; // 104 kHz
 			#elif F_BUS == 108000000
 			I2C0_F = I2C_F_DIV1024; // 105 kHz
@@ -313,7 +330,9 @@ public:
 		return *this;
 	}
 	inline operator int () const __attribute__((always_inline)) {
-		#if F_BUS == 120000000
+		#if F_BUS == 128000000
+		if (I2C0_F == I2C_F_DIV320) return 12;
+		#elif F_BUS == 120000000
 		if (I2C0_F == I2C_F_DIV288) return 12;
 		#elif F_BUS == 108000000
 		if (I2C0_F == I2C_F_DIV256) return 12;

@@ -1,23 +1,50 @@
-'''
-.. versionadded:: 1.65
-'''
-from __future__ import division, print_function, unicode_literals
+# coding: utf-8
 import datetime as dt
 import threading
-import types
 import uuid
 
-from asyncio_helpers import ensure_event_loop
-import dropbot as db
-import dropbot.proxy
+from dropbot.proxy import EVENT_ENABLE, EVENT_CHANNELS_UPDATED
 import pandas as pd
-import trollius as asyncio
+import asyncio
 
 
-def actuate_channels(self, channels, timeout=None, allow_disabled=True):
-    '''
+def new_file_event_loop() -> asyncio.AbstractEventLoop:
+    """
+    Create an asyncio event loop compatible with file IO events, e.g., serial
+    device events.
+
+    Returns
+    -------
+    asyncio.ProactorEventLoop or asyncio.SelectorEventLoop
+    """
+    return asyncio.new_event_loop()
+
+
+def ensure_event_loop() -> asyncio.AbstractEventLoop:
+    """
+    Ensure that an asyncio event loop has been bound to the local thread
+    context.
+
+    Returns
+    -------
+    asyncio.ProactorEventLoop or asyncio.SelectorEventLoop
+    """
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError as e:
+        if 'There is no current event loop' in str(e):
+            loop = new_file_event_loop()
+            asyncio.set_event_loop(loop)
+        else:
+            raise
+    return loop
+
+
+def actuate_channels(proxy_, channels, timeout=None, allow_disabled=True):
+    """
     Parameters
     ----------
+    proxy_: dropbot.SerialProxy
     channels : list
         List of channel numbers to actuate.
     timeout : float, optional
@@ -41,7 +68,7 @@ def actuate_channels(self, channels, timeout=None, allow_disabled=True):
         Use :meth:`dropbot.proxy_py2.ProxyMixin.set_state_of_channels()` with
         ``append=False`` to set channel states.  This reduces the number of
         required serial command transactions.
-    '''
+    """
 
     # Add async and sync API for channel actuation to driver (maybe partially to firmware?):
     #
@@ -55,48 +82,42 @@ def actuate_channels(self, channels, timeout=None, allow_disabled=True):
 
     def _actuate():
         # Enable `channels-updated` DropBot signal.
-        self.update_state(event_mask=self.state.event_mask |
-                          db.proxy.EVENT_CHANNELS_UPDATED |
-                          db.proxy.EVENT_ENABLE)
+        proxy_.update_state(event_mask=proxy_.state.event_mask | EVENT_CHANNELS_UPDATED | EVENT_ENABLE)
         # Request to be notified when the set of actuated channels changes.
-        signal = self.signals.signal('channels-updated')
+        signal = proxy_.signals.signal('channels-updated')
         signal.connect(_on_channels_updated)
         try:
             # Request actuation of the specified channels.
-            self.set_state_of_channels(pd.Series(1, index=channels),
-                                       append=False)
+            proxy_.set_state_of_channels(pd.Series(1, index=channels), append=False)
             if not channels_updated.wait(timeout):
                 raise RuntimeError('Timed out waiting for actuation')
             elif not hasattr(channels_updated, 'actuated'):
                 raise RuntimeError('Actuation was cancelled.')
-            elif not allow_disabled and (set(channels_updated.actuated) !=
-                                         set(channels)):
+            elif not allow_disabled and (set(channels_updated.actuated) != set(channels)):
                 raise RuntimeError('Actuated channels `%s` do not match '
                                    'expected channels `%s`' %
                                    (channels_updated.actuated, channels))
             elif set(channels_updated.actuated) - set(channels):
                 # Disabled channels are allowed.
-                raise RuntimeError('Actuated channels `%s` are not included in'
-                                   ' expected channels `%s`' %
-                                   (channels_updated.actuated, channels))
+                raise RuntimeError(f'Actuated channels `{channels_updated.actuated}` are not included in'
+                                   f' expected channels `{channels}`')
         finally:
             signal.disconnect(_on_channels_updated)
         return channels_updated.actuated
 
-    with self.transaction_lock:
+    with proxy_.transaction_lock:
         return _actuate()
 
 
-@asyncio.coroutine
-def co_target_capacitance(self, channels, target_capacitance, count=3,
-                          **kwargs):
-    '''
+async def co_target_capacitance(proxy_, channels, target_capacitance, count=3, **kwargs):
+    """
     XXX Coroutine XXX
 
     Actuate specified channels and wait until target capacitance is reached.
 
     Parameters
     ----------
+    proxy_: dropbot.SerialProxy
     channels : list-like
         Channels to actuate.
     target_capacitance : float
@@ -112,9 +133,9 @@ def co_target_capacitance(self, channels, target_capacitance, count=3,
          - ``start``: time channels were actuated (`datetime.datetime`).
          - ``end``: time target capacitance was reached (`datetime.datetime`).
          - ``actuated_channels``: actuated channels (`list`).
-    '''
+    """
     actuation_uuid1 = uuid.uuid1()
-    with self.transaction_lock:
+    with proxy_.transaction_lock:
         capacitance_messages = []
 
         def _on_capacitance(message):
@@ -127,48 +148,44 @@ def co_target_capacitance(self, channels, target_capacitance, count=3,
             message['start'] = start
             message['actuated_channels'] = actuated_channels
             threshold_reached.result = message
-            self.signals.signal('capacitance-exceeded').disconnect(_on_done)
+            proxy_.signals.signal('capacitance-exceeded').disconnect(_on_done)
             loop.call_soon_threadsafe(threshold_reached.set)
 
         threshold_reached = asyncio.Event()
         loop = ensure_event_loop()
 
         # Perform actuation and wait until actuation has been applied.
-        actuated_channels = actuate_channels(self, channels, **kwargs)
+        actuated_channels = actuate_channels(proxy_, channels, **kwargs)
 
         # Connect to capacitance exceeded DropBot events, i.e., when specified
         # target capacitance has been exceeded.
-        self.signals.signal('capacitance-exceeded').connect(_on_done)
+        proxy_.signals.signal('capacitance-exceeded').connect(_on_done)
 
         # Record timestamp where actuation has been verified as applied.
         start = dt.datetime.now()
 
         # Connect to `capacitance-updated` signal to record capacitance values
         # measured during actuation.
-        self.signals.signal('capacitance-updated').connect(_on_capacitance)
+        proxy_.signals.signal('capacitance-updated').connect(_on_capacitance)
 
         # Set `target_capacitance` to non-zero value to enable DropBot
         # `capacitance-exceeded` event once target capacitance is reached and
         # sustained for `target_count` consecutive readings.
-        self.update_state(target_capacitance=target_capacitance,
-                          target_count=count)
+        proxy_.update_state(target_capacitance=target_capacitance, target_count=count)
 
         try:
-            yield asyncio.From(threshold_reached.wait())
-            # Attach list of capacitance update messages recorded during
-            # actuation to result.
-            threshold_reached.result['capacitance_updates'] = \
-                capacitance_messages
-            raise asyncio.Return(threshold_reached.result)
+            await threshold_reached.wait()
+            # Attach a list of capacitance update messages recorded during actuation to result.
+            threshold_reached.result['capacitance_updates'] = capacitance_messages
+            return threshold_reached.result
         finally:
-            self.signals.signal('capacitance-updated')\
-                .disconnect(_on_capacitance)
-            self.signals.signal('capacitance-exceeded').disconnect(_on_done)
+            proxy_.signals.signal('capacitance-updated').disconnect(_on_capacitance)
+            proxy_.signals.signal('capacitance-exceeded').disconnect(_on_done)
 
 
-def execute_actuation(self, chip_info_, specific_capacitance, channels,
-                      duration_s=1.5, volume_threshold=None, **kwargs):
-    '''
+async def execute_actuation(proxy_, chip_info_, specific_capacitance, channels,
+                            duration_s=1.5, volume_threshold=None, **kwargs):
+    """
     XXX Coroutine XXX
 
     High-level wrapper around threshold event to:
@@ -180,6 +197,7 @@ def execute_actuation(self, chip_info_, specific_capacitance, channels,
 
     Parameters
     ----------
+    proxy_: dropbot.SerialProxy
     chip_info_ : dict
         Chip information, as returned by :func:`dropbot.chip.chip_info`.
     specific_capacitance : float
@@ -212,8 +230,9 @@ def execute_actuation(self, chip_info_, specific_capacitance, channels,
     ------
     RuntimeError
         If target capacitance was not reached after specified timeout.
-    '''
-    if isinstance(channels[0], types.IntType):
+    """
+
+    if isinstance(channels[0], int):
         # Channels were specified.
         electrodes = chip_info_['channel_electrodes'].loc[channels]
     else:
@@ -222,14 +241,12 @@ def execute_actuation(self, chip_info_, specific_capacitance, channels,
         channels = chip_info_['electrode_channels'].loc[electrodes].astype(int)
 
     def _actuated_result_info(actuated_channels):
-        actuated_electrodes = (chip_info_['channel_electrodes']
-                               .loc[actuated_channels])
-        return {'actuated_area': (chip_info_['electrode_shapes']['area']
-                                  .loc[actuated_electrodes]).sum(),
+        actuated_electrodes = (chip_info_['channel_electrodes'].loc[actuated_channels])
+        return {'actuated_area': (chip_info_['electrode_shapes']['area'].loc[actuated_electrodes]).sum(),
                 'actuated_electrodes': actuated_electrodes,
                 'actuated_channels': actuated_channels}
 
-    with self.transaction_lock:
+    with proxy_.transaction_lock:
         if not volume_threshold:
             # ## Case 1: no volume threshold specified.
             capacitance_messages = []
@@ -243,21 +260,18 @@ def execute_actuation(self, chip_info_, specific_capacitance, channels,
             #  1. Set control board state of channels according to requested
             #     actuation states; and
             #  2. Wait for channels to be actuated.
-            actuated_channels = actuate_channels(self, channels,
-                                                 timeout=duration_s)
+            actuated_channels = actuate_channels(proxy_, channels, timeout=duration_s)
             result['start'] = dt.datetime.now()
             #  3. Connect to `capacitance-updated` signal to record capacitance
             #     values measured during the step.
-            (self.signals.signal('capacitance-updated')
-                .connect(_on_capacitance_updated))
+            proxy_.signals.signal('capacitance-updated').connect(_on_capacitance_updated)
             #  4. Delay for specified duration.
             try:
-                yield asyncio.From(asyncio.sleep(duration_s))
+                await asyncio.sleep(duration_s)
                 result['end'] = dt.datetime.now()
                 result.update(_actuated_result_info(actuated_channels))
             finally:
-                (self.signals.signal('capacitance-updated')
-                 .disconnect(_on_capacitance_updated))
+                proxy_.signals.signal('capacitance-updated').disconnect(_on_capacitance_updated)
         else:
             # ## Case 2: volume threshold specified.
             #
@@ -274,14 +288,10 @@ def execute_actuation(self, chip_info_, specific_capacitance, channels,
 
             # Wait for target capacitance to be reached in background thread,
             # timing out if the specified duration is exceeded.
-            co_future = co_target_capacitance(self, channels,
-                                              target_capacitance,
-                                              allow_disabled=False,
-                                              timeout=duration_s, **kwargs)
+            co_future = co_target_capacitance(proxy_, channels, target_capacitance,
+                                              allow_disabled=False, timeout=duration_s, **kwargs)
             try:
-                dropbot_event = yield asyncio.From(asyncio
-                                                   .wait_for(co_future,
-                                                             duration_s))
+                dropbot_event = await asyncio.wait_for(co_future, timeout=duration_s)
                 capacitance_messages = dropbot_event['capacitance_updates']
                 result.update(dropbot_event)
             except asyncio.TimeoutError:
@@ -290,5 +300,25 @@ def execute_actuation(self, chip_info_, specific_capacitance, channels,
             # Add actuated area to capacitance update messages.
             for capacitance_i in capacitance_messages:
                 capacitance_i['acuated_area'] = result['actuated_area']
+        return result
 
-        raise asyncio.Return(result)
+
+if __name__ == '__main__':
+    import dropbot
+    from pprint import pprint
+
+    db = dropbot.SerialProxy()
+    chip_info = {'channel_electrodes': pd.Series([1, 2, 3, 4, 5, 6, 7, 8]),
+                 'electrode_channels': pd.Series([1, 2, 3, 4, 5, 6, 7, 8]),
+                 'electrode_shapes': {'area': pd.Series([4, 4, 4, 4, 4, 4, 4, 4])}
+                 }
+
+
+    async def tester(*args, **kwargs):
+        result = await execute_actuation(*args, **kwargs)
+        pprint(result)
+
+
+    loop = asyncio.get_event_loop()
+    task = loop.create_task(tester(db, chip_info, 1e-10, [1, 2, 3]))
+    loop.run_until_complete(task)

@@ -24,9 +24,10 @@
  * THE SOFTWARE.
  */
 
+#include <Arduino.h>
 #include "Wire.h"
 
-#if defined(__arm__) && defined(TEENSYDUINO)
+#if defined(__arm__) && defined(TEENSYDUINO) && (defined(__MKL26Z64__) || defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__))
 
 #include "kinetis.h"
 #include <string.h> // for memcpy
@@ -50,6 +51,8 @@
 void sda_rising_isr0(void);
 void sda_rising_isr1(void);
 
+#define CLOCK_GATE_REG(addr) (*(volatile uint32_t *)(addr))
+
 void TwoWire::begin(void)
 {
 	//serial_begin(BAUD2DIV(115200));
@@ -63,7 +66,7 @@ void TwoWire::begin(void)
 	user_onRequest = NULL;
 	user_onReceive = NULL;
 	slave_mode = 0;
-	hardware.clock_gate_register |= hardware.clock_gate_mask;
+	CLOCK_GATE_REG(hardware.clock_gate_register) |= hardware.clock_gate_mask;
 	port().C1 = 0;
 	// On Teensy 3.0 external pullup resistors *MUST* be used
 	// the PORT_PCR_PE bit is ignored when in I2C mode
@@ -89,9 +92,18 @@ void TwoWire::begin(void)
 
 void TwoWire::setClock(uint32_t frequency)
 {
-	if (!(hardware.clock_gate_register & hardware.clock_gate_mask)) return;
+	if (!(CLOCK_GATE_REG(hardware.clock_gate_register) & hardware.clock_gate_mask)) return;
 
-#if F_BUS == 120000000
+#if F_BUS == 128000000
+	if (frequency < 400000) {
+		port().F = I2C_F_DIV1280; // 100 kHz
+	} else if (frequency < 1000000) {
+		port().F = I2C_F_DIV320; // 400 kHz
+	} else {
+		port().F = I2C_F_DIV128; // 1 MHz
+	}
+	port().FLT = 4;
+#elif F_BUS == 120000000
 	if (frequency < 400000) {
 		port().F = I2C_F_DIV1152; // 104 kHz
 	} else if (frequency < 1000000) {
@@ -244,7 +256,7 @@ void TwoWire::setClock(uint32_t frequency)
 	port().F = 0x00; // 100 kHz
 	port().FLT = 1;
 #else
-#error "F_BUS must be 120, 108, 96, 90, 80, 72, 64, 60, 56, 54, 48, 40, 36, 24, 16, 8, 4 or 2 MHz"
+#error "F_BUS must be 128, 120, 108, 96, 90, 80, 72, 64, 60, 56, 54, 48, 40, 36, 24, 16, 8, 4 or 2 MHz"
 #endif
 }
 
@@ -258,7 +270,7 @@ void TwoWire::setSDA(uint8_t pin)
 		if (sda_pin == pin) break;
 		if (++newindex >= sizeof(hardware.sda_pin)) return;
 	}
-	if ((hardware.clock_gate_register & hardware.clock_gate_mask)) {
+	if ((CLOCK_GATE_REG(hardware.clock_gate_register) & hardware.clock_gate_mask)) {
 		volatile uint32_t *reg;
 		reg = portConfigRegister(hardware.sda_pin[sda_pin_index]);
 		*reg = 0;
@@ -279,7 +291,7 @@ void TwoWire::setSCL(uint8_t pin)
 		if (scl_pin == pin) break;
 		if (++newindex >= sizeof(hardware.scl_pin)) return;
 	}
-	if ((hardware.clock_gate_register & hardware.clock_gate_mask)) {
+	if ((CLOCK_GATE_REG(hardware.clock_gate_register) & hardware.clock_gate_mask)) {
 		volatile uint32_t *reg;
 		reg = portConfigRegister(hardware.scl_pin[scl_pin_index]);
 		*reg = 0;
@@ -301,7 +313,7 @@ void TwoWire::begin(uint8_t address)
 
 void TwoWire::end()
 {
-	if (!(hardware.clock_gate_register & hardware.clock_gate_mask)) return;
+	if (!(CLOCK_GATE_REG(hardware.clock_gate_register) & hardware.clock_gate_mask)) return;
 	NVIC_DISABLE_IRQ(hardware.irq);
 	// TODO: should this try to create a stop condition??
 	port().C1 = 0;
@@ -310,7 +322,7 @@ void TwoWire::end()
 	*reg = 0;
 	reg = portConfigRegister(hardware.sda_pin[sda_pin_index]);
 	*reg = 0;
-	hardware.clock_gate_register &= ~hardware.clock_gate_mask;
+	CLOCK_GATE_REG(hardware.clock_gate_register) &= ~hardware.clock_gate_mask;
 }
 
 
@@ -414,7 +426,7 @@ void TwoWire::isr(void)
 		//digitalWriteFast(4, HIGH);
 		data = port().D;
 		//serial_phex(data);
-		if (rxBufferLength < TWI_BUFFER_LENGTH && receiving) {
+		if (rxBufferLength < BUFFER_LENGTH && receiving) {
 			rxBuffer[rxBufferLength++] = data;
 		}
 		//digitalWriteFast(4, LOW);
@@ -473,7 +485,7 @@ void TwoWire::sda_rising_isr(void)
 size_t TwoWire::write(uint8_t data)
 {
 	if (transmitting || slave_mode) {
-		if (txBufferLength >= TWI_BUFFER_LENGTH+1) {
+		if (txBufferLength >= BUFFER_LENGTH+1) {
 			setWriteError();
 			return 0;
 		}
@@ -486,7 +498,7 @@ size_t TwoWire::write(uint8_t data)
 size_t TwoWire::write(const uint8_t *data, size_t quantity)
 {
 	if (transmitting || slave_mode) {
-		size_t avail = TWI_BUFFER_LENGTH+1 - txBufferLength;
+		size_t avail = BUFFER_LENGTH+1 - txBufferLength;
 		if (quantity > avail) {
 			quantity = avail;
 			setWriteError();
@@ -624,7 +636,7 @@ uint8_t TwoWire::endTransmission(uint8_t sendStop)
 				ret = 2; // 2:received NACK on transmit of address
 			} else {
 				//Serial.printf("endTransmission err7\n");
-				ret = 3; // 3:received NACK on transmit of data
+				ret = 3; // 3:received NACK on transmit of data 
 			}
 			sendStop = 1;
 			break;
@@ -742,7 +754,7 @@ uint8_t TwoWire::requestFrom(uint8_t address, uint8_t length, uint8_t sendStop)
 		}
 		length--;
 		if (length == 1) port().C1 = I2C_C1_IICEN | I2C_C1_MST | I2C_C1_TXAK;
-		if (count < TWI_BUFFER_LENGTH) {
+		if (count < BUFFER_LENGTH) {
 			rxBuffer[count++] = port().D;
 		} else {
 			tmp = port().D;
@@ -779,7 +791,7 @@ uint8_t TwoWire::requestFrom(uint8_t address, uint8_t length, uint8_t sendStop)
 		return count;
 	}
 	port().C1 = I2C_C1_IICEN | I2C_C1_MST | I2C_C1_TX;
-	if (count < TWI_BUFFER_LENGTH) {
+	if (count < BUFFER_LENGTH) {
 		rxBuffer[count++] = port().D;
 	} else {
 		tmp = port().D;
@@ -792,6 +804,23 @@ uint8_t TwoWire::requestFrom(uint8_t address, uint8_t length, uint8_t sendStop)
 	if (sendStop) port().C1 = I2C_C1_IICEN;
 	rxBufferLength = count;
 	return count;
+}
+
+uint8_t TwoWire::requestFrom(uint8_t addr, uint8_t qty, uint32_t iaddr, uint8_t n, uint8_t stop)
+{
+	if (n > 0) {
+		union { uint32_t ul; uint8_t b[4]; } iaddress;
+		iaddress.ul = iaddr;
+		beginTransmission(addr);
+		if (n > 3) n = 3;
+		do {
+			n = n - 1;
+			write(iaddress.b[n]);
+		} while (n > 0);
+		endTransmission(false);
+	}
+	if (qty > BUFFER_LENGTH) qty = BUFFER_LENGTH;
+	return requestFrom(addr, qty, stop);
 }
 
 // for compatibility with examples that directly call this AVR-specific function
@@ -810,7 +839,7 @@ uint8_t twi_writeTo(uint8_t address, uint8_t* data, uint8_t length, uint8_t wait
 }
 
 constexpr TwoWire::I2C_Hardware_t TwoWire::i2c0_hardware = {
-	SIM_SCGC4, SIM_SCGC4_I2C0,
+	SIM_SCGC4_ADDRESS, SIM_SCGC4_I2C0,
 #if defined(__MKL26Z64__) || defined(__MK20DX128__) || defined(__MK20DX256__)
 	18, 17, 255, 255, 255,
 	2, 2, 0, 0, 0,
@@ -827,7 +856,7 @@ constexpr TwoWire::I2C_Hardware_t TwoWire::i2c0_hardware = {
 
 #if defined(__MKL26Z64__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
 constexpr TwoWire::I2C_Hardware_t TwoWire::i2c1_hardware = {
-	SIM_SCGC4, SIM_SCGC4_I2C1,
+	SIM_SCGC4_ADDRESS, SIM_SCGC4_I2C1,
 #if defined(__MKL26Z64__)
 	23, 255, 255, 255, 255,
 	2, 0, 0, 0, 0,
@@ -850,7 +879,7 @@ constexpr TwoWire::I2C_Hardware_t TwoWire::i2c1_hardware = {
 
 #if defined(__MK64FX512__) || defined(__MK66FX1M0__)
 constexpr TwoWire::I2C_Hardware_t TwoWire::i2c2_hardware = {
-	SIM_SCGC1, SIM_SCGC1_I2C2,
+	SIM_SCGC1_ADDRESS, SIM_SCGC1_I2C2,
 #if defined(__MK64FX512__) || defined(__MK66FX1M0__)
 	4, 255, 255, 255, 255,
 	5, 0, 0, 0, 0,
@@ -863,7 +892,7 @@ constexpr TwoWire::I2C_Hardware_t TwoWire::i2c2_hardware = {
 
 #if defined(__MK66FX1M0__)
 constexpr TwoWire::I2C_Hardware_t TwoWire::i2c3_hardware = {
-	SIM_SCGC1, SIM_SCGC1_I2C3,
+	SIM_SCGC1_ADDRESS, SIM_SCGC1_I2C3,
 #if defined(__MK66FX1M0__)
 	56, 255, 255, 255, 255,
 	2, 0, 0, 0, 0,
@@ -880,22 +909,22 @@ constexpr TwoWire::I2C_Hardware_t TwoWire::i2c3_hardware = {
 #define MAKE_CONST(x) (__builtin_constant_p(x) ? (x) : (x))
 
 #ifdef WIRE_IMPLEMENT_WIRE
-constexpr uintptr_t i2c0_addr = uintptr_t(MAKE_CONST(&KINETIS_I2C0));
+constexpr uintptr_t i2c0_addr = KINETIS_I2C0_ADDRESS;
 TwoWire Wire(i2c0_addr, TwoWire::i2c0_hardware);
 void i2c0_isr(void) { Wire.isr(); }
 #endif
 #ifdef WIRE_IMPLEMENT_WIRE1
-constexpr uintptr_t i2c1_addr = uintptr_t(MAKE_CONST(&KINETIS_I2C1));
+constexpr uintptr_t i2c1_addr = KINETIS_I2C1_ADDRESS;
 TwoWire Wire1(i2c1_addr, TwoWire::i2c1_hardware);
 void i2c1_isr(void) { Wire1.isr(); }
 #endif
 #ifdef WIRE_IMPLEMENT_WIRE2
-constexpr uintptr_t i2c2_addr = uintptr_t(MAKE_CONST(&KINETIS_I2C2));
+constexpr uintptr_t i2c2_addr = KINETIS_I2C2_ADDRESS;
 TwoWire Wire2(i2c2_addr, TwoWire::i2c2_hardware);
 void i2c2_isr(void) { Wire2.isr(); }
 #endif
 #ifdef WIRE_IMPLEMENT_WIRE3
-constexpr uintptr_t i2c3_addr = uintptr_t(MAKE_CONST(&KINETIS_I2C3));
+constexpr uintptr_t i2c3_addr = KINETIS_I2C3_ADDRESS;
 TwoWire Wire3(i2c3_addr, TwoWire::i2c3_hardware);
 void i2c3_isr(void) { Wire3.isr(); }
 #endif

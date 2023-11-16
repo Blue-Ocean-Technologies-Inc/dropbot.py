@@ -5,26 +5,24 @@
     If 12V power is not detected, prompt to either a) ignore and connect
     anyway; or b) skip the DropBot.
 '''
-from __future__ import division, print_function, unicode_literals
-import platform
 import time
 
-from logging_helpers import _L
 import base_node_rpc as bnr
-import base_node_rpc.async
-import dropbot as db
-import dropbot.proxy
-import trollius as asyncio
 
+from pprint import pprint
+from logging_helpers import _L
+from dropbot.proxy import SerialProxy, NoPower, EVENT_CHANNELS_UPDATED, EVENT_SHORTS_DETECTED, EVENT_ENABLE, __version__
+from dropbot.bin import upload
 
 DROPBOT_SIGNAL_NAMES = ('halted', 'output_enabled',
                         'output_disabled', 'capacitance-updated',
                         'channels-updated', 'shorts-detected')
 
+dropbot = None
 
-@asyncio.coroutine
-def monitor(signals):
-    '''
+
+async def monitor(signals_: dict):
+    """
     Establish and maintain a DropBot connection.
 
     XXX Coroutine XXX
@@ -45,7 +43,7 @@ def monitor(signals):
 
     Parameters
     ----------
-    signals : blinker.Namespace
+    signals_: dict of aiosignals
         Namespace for DropBot monitor signals.
 
     Sends
@@ -73,10 +71,10 @@ def monitor(signals):
     >>> def dump(*args, **kwargs):
     >>>     print('args=`%s`, kwargs=`%s`' % (args, kwargs))
     >>>
-    >>> signals.signal('chip-inserted').connect(dump, weak=False)
+    >>> signals_.signal('chip-inserted').connect(dump, weak=False)
     >>> loop = asyncio.ProactorEventLoop()
     >>> asyncio.set_event_loop(loop)
-    >>> task = loop.create_task(db.monitor.dropbot_monitor(signals))
+    >>> task = loop.create_task(db.monitor.dropbot_monitor(signals_))
     >>> # Stop monitor after 15 seconds.
     >>> loop.call_later(15, task.cancel)
     >>> loop.run_until_complete(task)
@@ -89,150 +87,136 @@ def monitor(signals):
     .. versionchanged:: 1.68
         Send `'no-power'` signal if 12V power supply not connected.  Receivers
         may return `'ignore'` to attempt to connect anyway.
-    '''
+    """
     loop = asyncio.get_event_loop()
+    global dropbot
     dropbot = None
 
-    @asyncio.coroutine
-    def co_flash_firmware():
+    async def co_flash_firmware():
         if dropbot is not None:
             dropbot.terminate()
-        db.bin.upload.upload()
+        upload.upload()
         time.sleep(.5)
 
-    def flash_firmware(dropbot):
+    def flash_firmware(dropbot_):
         loop.create_task(co_flash_firmware())
 
-    signals.signal('flash-firmware') \
-        .connect(lambda *args: loop.call_soon_threadsafe(flash_firmware,
-                                                         dropbot), weak=False)
+    register_signal('flash-firmware',
+                    lambda *args: loop.call_soon_threadsafe(flash_firmware, dropbot))
 
-    def reboot(dropbot):
-        if dropbot is not None:
-            dropbot._reboot()
+    def reboot(dropbot_):
+        if dropbot_ is not None:
+            dropbot_._reboot()
 
-    signals.signal('reboot') \
-        .connect(lambda *args: loop.call_soon_threadsafe(reboot, dropbot),
-                 weak=False)
+    register_signal('reboot',
+                    lambda *args: loop.call_soon_threadsafe(reboot, dropbot))
 
-    def reconnect(dropbot):
-        if dropbot is not None:
-            dropbot.terminate()
+    def reconnect(dropbot_):
+        if dropbot_ is not None:
+            dropbot_.terminate()
 
-    signals.signal('reconnect') \
-        .connect(lambda *args: loop.call_soon_threadsafe(reconnect, dropbot),
-                 weak=False)
+    register_signal('reconnect',
+                    lambda *args: loop.call_soon_threadsafe(reconnect, dropbot))
 
     try:
         while True:
             # Multiple DropBot devices were found.
             # Get list of available devices.
-            df_comports = yield asyncio.From(bnr.async
-                                             ._available_devices(timeout=.1))
+            df_comports = await bnr.ser_async._available_devices(timeout=.1)
 
             if 'device_name' not in df_comports or not df_comports.shape[0]:
-                yield asyncio.From(asyncio.sleep(.1))
+                await asyncio.sleep(.1)
                 continue
 
             # Automatically select DropBot with highest version, with ties
             # going to the lowest port name (i.e., `COM1` before `COM2`).
-            df_comports = df_comports.loc[df_comports.device_name ==
-                                          'dropbot'].copy()
+            df_comports = df_comports.loc[df_comports.device_name == 'dropbot'].copy()
             df_comports.reset_index(inplace=True)
 
-            df_comports.sort_values(['device_version', 'port'],
-                                    ascending=[False, True], inplace=True)
+            df_comports.sort_values(['device_version', 'port'], ascending=[False, True], inplace=True)
             df_comports.set_index('port', inplace=True)
+            if not len(df_comports):
+                continue
+
             port = df_comports.index[0]
 
-            @asyncio.coroutine
-            def _attempt_connect(**kwargs):
+            async def _attempt_connect(**kwargs):
                 ignore = kwargs.pop('ignore', [])
                 try:
                     # Attempt to connect to automatically selected port.
-                    dropbot = db.SerialProxy(port=port, ignore=ignore,
-                                             **kwargs)
-                    raise asyncio.Return(dropbot)
-                except db.proxy.NoPower as exception:
+                    dropbot_ = SerialProxy(port=port, ignore=ignore, **kwargs)
+                    return dropbot_
+                except NoPower as exception:
                     # No 12V power supply detected on DropBot.
                     _L().debug('No 12V power supply detected.')
-                    responses = signals.signal('no-power').send('keep_alive')
+                    response_future = asyncio.Future()
+                    await signals_['no-power'].send('keep_alive', future=response_future)
+                    response = response_future.result()
 
-                    for t in asyncio.as_completed([loop.create_task(r[1])
-                                                   for r in responses]):
-                        response = yield asyncio.From(t)
-                        if response == 'ignore':
-                            ignore.append(db.proxy.NoPower)
-                            break
+                    if response == 'ignore':
+                        ignore.append(NoPower)
                     else:
                         raise exception
+
                 except bnr.proxy.DeviceVersionMismatch as exception:
                     # Firmware version does not match driver version.
-                    _L().debug('Driver version (`%s`) does not match firmware '
-                            'version (`%s`)', db.__version__,
-                            exception.device_version)
-                    responses = signals.signal('version-mismatch')\
-                        .send('keep_alive', driver_version=db.__version__,
-                            firmware_version=exception.device_version)
+                    _L().debug(f"Driver version (`{__version__}`) does not match firmware "
+                               f"version (`{exception.device_version}`)")
+
+                    response_future = asyncio.Future()
+                    await signals_['version-mismatch'].send('keep_alive', driver_version=__version__,
+                                                            firmware_version=exception.device_version,
+                                                            future=response_future)
+                    response = response_future.result()
 
                     update = False
 
-                    for t in asyncio.as_completed([loop.create_task(r[1])
-                                                   for r in responses]):
-                        response = yield asyncio.From(t)
-                        if response == 'ignore':
-                            ignore.append(bnr.proxy.DeviceVersionMismatch)
-                            break
-                        elif response == 'update':
-                            update = True
-                            break
+                    if response == 'ignore':
+                        ignore.append(bnr.proxy.DeviceVersionMismatch)
+                    elif response == 'update':
+                        update = True
                     else:
                         raise
 
                     if update:
                         # Flash firmware and retry connection.
                         _L().info('Flash firmware and retry connection.')
-                        yield asyncio.From(co_flash_firmware())
+                        await co_flash_firmware()
 
-                dropbot = yield asyncio.From(_attempt_connect(ignore=ignore,
-                                                              **kwargs))
-                raise asyncio.Return(dropbot)
+                dropbot_ = await _attempt_connect(ignore=ignore, **kwargs)
+                return dropbot_
 
             try:
-                dropbot = yield asyncio.From(_attempt_connect())
-            # except bnr.proxy.DeviceNotFound:
+                dropbot = await _attempt_connect()
+                pass
+            except bnr.proxy.DeviceNotFound:
+                raise 'Could not find device'
             except asyncio.CancelledError:
                 raise
             except Exception:
                 _L().debug('Error connecting to DropBot.', exc_info=True)
-                yield asyncio.From(asyncio.sleep(.1))
+                await asyncio.sleep(.1)
                 continue
 
             def co_connect(name):
                 def _wrapped(sender, **message):
-                    @asyncio.coroutine
-                    def co_callback(message):
-                        listeners = signals.signal(name).send('keep_alive',
-                                                              **message)
-                        yield asyncio.From(asyncio.gather(*(l[1] for l in listeners)))
+                    async def co_callback(message_):
+                        signal = signals_.get(name)
+                        if signal:
+                            await signal.send('keep_alive', **message_)
+                        # await asyncio.gather(*(listener[1] for listener in listeners))
 
-                    return loop.call_soon_threadsafe(loop.create_task,
-                                                     co_callback(sender,
-                                                                 **message))
+                    return loop.call_soon_threadsafe(loop.create_task, co_callback(sender, **message))
+
                 return _wrapped
 
-            for name_i in DROPBOT_SIGNAL_NAMES:
-                dropbot.signals.signal(name_i).connect(co_connect(name_i),
-                                                       weak=False)
+            for name_j in DROPBOT_SIGNAL_NAMES:
+                dropbot.signals.signal(name_j).connect(co_connect(name_j), weak=False)
 
-            dropbot.signals.signal('output_enabled')\
-                .connect(co_connect('chip-inserted'), weak=False)
-            dropbot.signals.signal('output_disabled')\
-                .connect(co_connect('chip-removed'), weak=False)
+            dropbot.signals.signal('output_enabled').connect(co_connect('chip-inserted'), weak=False)
+            dropbot.signals.signal('output_disabled').connect(co_connect('chip-removed'), weak=False)
 
-            responses = signals.signal('connected').send('keep_alive',
-                                                         dropbot=dropbot)
-            yield asyncio.From(asyncio.gather(*(r[1] for r in responses)))
+            await signals_['connected'].send('keep_alive', dropbot=dropbot)
 
             OUTPUT_ENABLE_PIN = 22
             # Chip may have been inserted before connecting, so `chip-inserted`
@@ -246,71 +230,75 @@ def monitor(signals):
 
             disconnected = asyncio.Event()
 
-            dropbot.serial_signals.signal('disconnected')\
-                .connect(lambda *args:
-                         loop.call_soon_threadsafe(disconnected.set),
-                         weak=False)
+            dropbot.signals.signal('disconnected').connect(lambda *args:
+                                                           loop.call_soon_threadsafe(disconnected.set),
+                                                           weak=False)
 
-            yield asyncio.From(disconnected.wait())
+            await disconnected.wait()
 
             dropbot.terminate()
 
-            responses = signals.signal('disconnected').send('keep_alive')
-            yield asyncio.From(asyncio.gather(*(r[1] for r in responses)))
+            responses = signals_['disconnected'].send('keep_alive')
+            await asyncio.gather(*(r[1] for r in responses))
     finally:
-        signals.signal('closed').send('keep_alive')
+        signals_['closed'].send('keep_alive')
         if dropbot is not None:
             dropbot.terminate()
 
 
 if __name__ == '__main__':
     import logging
+    import asyncio
+    import aiosignal
+
     import functools as ft
 
-    import blinker
-    import debounce.async
-    import trollius as asyncio
-    import debounce
+    from debounce import DebounceAsync
 
     logging.basicConfig(level=logging.DEBUG)
 
     connected = asyncio.Event()
 
-    @asyncio.coroutine
-    def on_connected(sender, **message):
+
+    async def on_connected(sender, **message):
         connected.dropbot = message['dropbot']
-        _L().info('sender=`%s`', sender)
+        _L().info(f'sender=`{sender}`')
         map(_L().info, str(connected.dropbot.properties).splitlines())
         connected.dropbot.update_state(capacitance_update_interval_ms=10,
-                                       event_mask=db.EVENT_CHANNELS_UPDATED |
-                                       db.EVENT_SHORTS_DETECTED |
-                                       db.EVENT_ENABLE)
+                                       event_mask=EVENT_CHANNELS_UPDATED |
+                                                  EVENT_SHORTS_DETECTED |
+                                                  EVENT_ENABLE)
         connected.set()
 
-    @asyncio.coroutine
-    def on_disconnected(*args, **kwargs):
+
+    async def on_disconnected(*args, **kwargs):
         global dropbot
         dropbot = None
-        _L().info('args=`%s`, kwargs=`%s`', args, kwargs)
+        _L().info(f'args=`{args}`, kwargs=`{kwargs}`')
 
-    @asyncio.coroutine
-    def on_halted(*args, **kwargs):
-        _L().info('args=`%s`, kwargs=`%s`', args, kwargs)
+
+    async def on_halted(*args, **kwargs):
+        _L().info(f'args=`{args}`, kwargs=`{kwargs}`')
+
 
     def dump(name, *args, **kwargs):
-        print('\r[%s] args=`%s`, kwargs=`%s`%-20s' % (name, args, kwargs, '')),
+        pprint(f'\r[{name}] args=`{args}`, kwargs=`{kwargs}`'),
 
-    @asyncio.coroutine
-    def co_dump(*args, **kwargs):
-        raise asyncio.Return(dump(*args, **kwargs))
 
-    @asyncio.coroutine
-    def on_version_mismatch(*args, **kwargs):
-        _L().info('args=`%s`, kwargs=`%s`', args, kwargs)
-        message = ('Driver version `%(driver_version)s` does not match '
-                   'firmware `%(firmware_version)s` version.' % kwargs)
+    async def co_dump(*args, **kwargs):
+        future = kwargs.get('future')
+        if future:
+            future.set_result(dump(*args, **kwargs))
+        else:
+            return dump(*args, **kwargs)
+
+
+    async def on_version_mismatch(*args, **kwargs):
+        _L().info(f'args=`{args}`, kwargs=`{kwargs}`')
+        message = (f"Driver version `kwargs['driver_version']` does not match "
+                   f"firmware `kwargs['firmware_version']` version.")
         while True:
-            response = raw_input(message + ' [I]gnore/[u]pdate/[s]kip: ')
+            response = input(f"{message} [I]gnore/[u]pdate/[s]kip: ")
             if not response:
                 # Default response is `ignore` and try to connect anyway.
                 response = 'ignore'
@@ -320,20 +308,23 @@ if __name__ == '__main__':
                     response = action
                     break
             else:
-                print('Invalid response: `%s`' % response)
+                print(f'Invalid response: `{response}`')
                 response = None
 
             if response is not None:
                 break
         if response == 'skip':
             raise IOError(message)
-        raise asyncio.Return(response)
+        future = kwargs.get('future')
+        if future:
+            future.set_result(response)
+        return response
 
-    @asyncio.coroutine
-    def on_no_power(*args, **kwargs):
+
+    async def on_no_power(*args, **kwargs):
         while True:
-            response = raw_input('No 12V power supply detected.  '
-                                 '[I]gnore/[s]kip: ')
+            response = input('No 12V power supply detected. '
+                             '[I]gnore/[s]kip: ')
             if not response:
                 # Default response is `ignore` and try to connect anyway.
                 response = 'ignore'
@@ -343,43 +334,52 @@ if __name__ == '__main__':
                     response = action
                     break
             else:
-                print('Invalid response: `%s`' % response)
+                print(f'Invalid response: `{response}`')
                 response = None
 
             if response is not None:
                 break
-        raise asyncio.Return(response)
+        future = kwargs.get('future')
+        if future:
+            future.set_result(response)
+        return response
 
-    debounced_dump = debounce.async.Debounce(dump, 250, max_wait=500,
-                                             leading=True)
+
+    debounced_dump = DebounceAsync(dump, 250, max_wait=500, leading=True)
+
 
     def on_closed(*args):
         global dropbot
         dropbot = None
 
-    signals = blinker.Namespace()
 
-    signals.signal('version-mismatch').connect(on_version_mismatch, weak=False)
-    signals.signal('no-power').connect(on_no_power, weak=False)
-    signals.signal('connected').connect(on_connected, weak=False)
-    signals.signal('disconnected').connect(on_disconnected, weak=False)
+    signal_register = {}
+
+
+    def register_signal(signame, func):
+        new_signal = aiosignal.Signal(signame)
+        new_signal.append(func)
+        new_signal.freeze()
+        signal_register[signame] = new_signal
+
+
+    register_signal('version-mismatch', on_version_mismatch)
+    register_signal('no-power', on_no_power)
+    register_signal('connected', on_connected)
+    register_signal('disconnected', on_disconnected)
 
     for name_i in DROPBOT_SIGNAL_NAMES + ('chip-inserted', 'chip-removed'):
         if name_i in ('output_enabled', 'output_disabled'):
             continue
         elif name_i == 'capacitance-updated':
-            task = ft.partial(asyncio.coroutine(debounced_dump), name_i)
-            signals.signal(name_i).connect(task, weak=False)
+            task = ft.partial(debounced_dump, name_i)
+            register_signal(name_i, task)
         else:
-            signals.signal(name_i).connect(ft.partial(co_dump, name_i),
-                                           weak=False)
+            task = ft.partial(co_dump, name_i)
+            register_signal(name_i, task)
 
-    signals.signal('closed').connect(on_closed, weak=False)
+    register_signal('closed', on_closed)
 
-    if platform.system() == 'Windows':
-        loop = asyncio.ProactorEventLoop()
-        asyncio.set_event_loop(loop)
-    else:
-        loop = asyncio.get_event_loop()
-    task = loop.create_task(monitor(signals))
+    loop = asyncio.get_event_loop()
+    task = loop.create_task(monitor(signal_register))
     loop.run_until_complete(task)

@@ -1,7 +1,7 @@
-from __future__ import print_function, unicode_literals, absolute_import, division
+# coding: utf-8
+import pandas as pd
 
 import arduino_helpers.hardware.teensy as teensy
-import pandas as pd
 
 CONVERSION_SPEEDS = dict(zip(['VERY_LOW_SPEED', 'LOW_SPEED', 'MED_SPEED',
                               'HI_SPEED', 'HI_SPEED_16_BITS',
@@ -11,25 +11,24 @@ SAMPLING_SPEEDS = dict(zip(['VERY_LOW_SPEED', 'LOW_SPEED', 'MED_SPEED',
 
 ADC_SC2_REFSEL0_BIT = 0
 ADC_CFG2_ADHSC = 0x04
-ADC_CFG1_ADLSMP_BIT = 4
-#define ADC_CFG2_ADLSTS1_BIT (1)
-#define ADC_CFG2_ADLSTS0_BIT (0)
+# define ADC_CFG2_ADLSTS1_BIT (1)
+# define ADC_CFG2_ADLSTS0_BIT (0)
 # Sampling speed
 ADC_CFG1_ADLSMP_BIT = 4
 ADC_CFG2_ADLSTS1_BIT = 1
 ADC_CFG2_ADLSTS0_BIT = 0
 
-ADC_SC3_AVGE_BIT = (2)
-ADC_SC3_AVGS1_BIT = (1)
-ADC_SC3_AVGS0_BIT = (0)
+ADC_SC3_AVGE_BIT = 2
+ADC_SC3_AVGS1_BIT = 1
+ADC_SC3_AVGS0_BIT = 0
 
 
 def ADC_CFG1_ADIV(n):
-    return (((n) & 3) << 5)  # Clock divide select, 0=direct, 1=div2, 2=div4, 3=div8
+    return (n & 3) << 5  # Clock divide select, 0=direct, 1=div2, 2=div4, 3=div8
 
 
 def ADC_CFG1_ADICLK(n):
-    return (((n) & 3) << 0)  # Input clock, 0=bus, 1=bus/2, 2=OSCERCLK, 3=async
+    return (n & 3) << 0  # Input clock, 0=bus, 1=bus/2, 2=OSCERCLK, 3=async
 
 
 # 36 MHz bus clock (see `proxy.D__F_BUS()`)
@@ -38,11 +37,11 @@ ADC_CFG1_4_5MHZ = (ADC_CFG1_ADIV(2) + ADC_CFG1_ADICLK(1))
 ADC_CFG1_9MHZ = (ADC_CFG1_ADIV(1) + ADC_CFG1_ADICLK(1))
 ADC_CFG1_18MHZ = (ADC_CFG1_ADIV(0) + ADC_CFG1_ADICLK(1))
 
-ADC_CFG1_LOW_SPEED = (ADC_CFG1_2_25MHZ)
+ADC_CFG1_LOW_SPEED = ADC_CFG1_2_25MHZ
 ADC_CFG1_VERY_LOW_SPEED = ADC_CFG1_LOW_SPEED
-ADC_CFG1_MED_SPEED = (ADC_CFG1_9MHZ)
-ADC_CFG1_HI_SPEED_16_BITS = (ADC_CFG1_9MHZ)
-ADC_CFG1_HI_SPEED = (ADC_CFG1_18MHZ)
+ADC_CFG1_MED_SPEED = ADC_CFG1_9MHZ
+ADC_CFG1_HI_SPEED_16_BITS = ADC_CFG1_9MHZ
+ADC_CFG1_HI_SPEED = ADC_CFG1_18MHZ
 ADC_CFG1_VERY_HIGH_SPEED = ADC_CFG1_HI_SPEED
 
 
@@ -57,7 +56,7 @@ def _averaging(adc_config):
 def _conversion_speed(adc_config):
     speed = adc_config.CFG1 & 0b1100011
 
-    if (adc_config.CFG2 & ADC_CFG2_ADHSC):
+    if adc_config.CFG2 & ADC_CFG2_ADHSC:
         # Either HI_SPEED_16_BITS, HI_SPEED, or VERY_HIGH_SPEED
         if speed == ADC_CFG1_VERY_HIGH_SPEED:
             return 'VERY_HIGH_SPEED'
@@ -76,15 +75,20 @@ def _conversion_speed(adc_config):
 
 
 def _sampling_speed(adc_config):
+    sampling_speed = 'VERY_LOW_SPEED'
     if not (adc_config.CFG1 & (1 << ADC_CFG1_ADLSMP_BIT)):
         sampling_speed = 'VERY_HIGH_SPEED'
-    elif adc_config.CFG2 & ((1 << ADC_CFG2_ADLSTS1_BIT) | (1 << ADC_CFG2_ADLSTS0_BIT)) == ((1 << ADC_CFG2_ADLSTS1_BIT) | (1 << ADC_CFG2_ADLSTS0_BIT)):
+    elif adc_config.CFG2 & ((1 << ADC_CFG2_ADLSTS1_BIT) | (1 << ADC_CFG2_ADLSTS0_BIT)) == (
+            (1 << ADC_CFG2_ADLSTS1_BIT) | (1 << ADC_CFG2_ADLSTS0_BIT)):
         sampling_speed = 'HIGH_SPEED'
-    elif adc_config.CFG2 & ((1 << ADC_CFG2_ADLSTS1_BIT) | (1 << ADC_CFG2_ADLSTS0_BIT)) == ((1 << ADC_CFG2_ADLSTS1_BIT) | (0 << ADC_CFG2_ADLSTS0_BIT)):
+    elif adc_config.CFG2 & ((1 << ADC_CFG2_ADLSTS1_BIT) | (1 << ADC_CFG2_ADLSTS0_BIT)) == (
+            (1 << ADC_CFG2_ADLSTS1_BIT) | (0 << ADC_CFG2_ADLSTS0_BIT)):
         sampling_speed = 'MED_SPEED'
-    elif adc_config.CFG2 & ((1 << ADC_CFG2_ADLSTS1_BIT) | (1 << ADC_CFG2_ADLSTS0_BIT)) == ((0 << ADC_CFG2_ADLSTS1_BIT) | (1 << ADC_CFG2_ADLSTS0_BIT)):
+    elif adc_config.CFG2 & ((1 << ADC_CFG2_ADLSTS1_BIT) | (1 << ADC_CFG2_ADLSTS0_BIT)) == (
+            (0 << ADC_CFG2_ADLSTS1_BIT) | (1 << ADC_CFG2_ADLSTS0_BIT)):
         sampling_speed = 'LOW_SPEED'
-    elif adc_config.CFG2 & ((1 << ADC_CFG2_ADLSTS1_BIT) | (1 << ADC_CFG2_ADLSTS0_BIT)) == ((0 << ADC_CFG2_ADLSTS1_BIT) | (0 << ADC_CFG2_ADLSTS0_BIT)):
+    elif adc_config.CFG2 & ((1 << ADC_CFG2_ADLSTS1_BIT) | (1 << ADC_CFG2_ADLSTS0_BIT)) == (
+            (0 << ADC_CFG2_ADLSTS1_BIT) | (0 << ADC_CFG2_ADLSTS0_BIT)):
         sampling_speed = 'VERY_LOW_SPEED'
     return sampling_speed
 
@@ -104,7 +108,7 @@ def _adc_config(proxy):
 
 
 def _adc_load_config(proxy, adc_config, adc_num=0):
-    '''
+    """
     Apply configuration to ADC.
 
     Parameters
@@ -118,7 +122,7 @@ def _adc_load_config(proxy, adc_config, adc_num=0):
         - ``reference``
     adc_num : int, optional
         ADC index number (default=``0``).
-    '''
+    """
     proxy.setAveraging(adc_config['averaging'], adc_num)
     proxy.setConversionSpeed(CONVERSION_SPEEDS[adc_config['conversion_speed']],
                              adc_num)

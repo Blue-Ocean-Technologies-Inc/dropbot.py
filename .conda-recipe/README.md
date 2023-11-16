@@ -15,9 +15,9 @@ Build recipe:
 Install
 =======
 
-The pre-built package may be installed from the [`sci-bots`][2] channel using:
+The pre-built package may be installed from the [`alexsk`][2] channel using:
 
-    conda install -c sci-bots dropbot
+    conda install -c alexsk dropbot
 
 
 [1]: https://anaconda.org/sci-bots/dropbot

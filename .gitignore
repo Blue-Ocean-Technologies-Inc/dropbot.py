@@ -2,7 +2,6 @@
 *.hex
 *.pyc
 .ropeproject
-setup.py
 paver-minilib.zip
 docs/build
 dist/*
@@ -29,7 +28,11 @@ lib/
 *.exe
 .idea
 .pioenvs/
+.pio/
 src/NodeCommandProcessor.h
 */metadata.py
 dropbot/notebooks/.results
 .piolibdeps
+.pytest_cache
+# Mac crap
+.DS_Store

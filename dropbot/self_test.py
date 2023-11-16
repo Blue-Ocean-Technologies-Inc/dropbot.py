@@ -1,20 +1,21 @@
-from __future__ import absolute_import
-import datetime as dt
+# coding: utf-8
+import bs4
+import pint
+import jinja2
 import logging
 import pkgutil
-import subprocess as sp
 import tempfile
-
-import bs4
-import jinja2
 import json_tricks
-import matplotlib as mpl
 import matplotlib.pyplot
 import matplotlib.ticker
+
 import numpy as np
 import pandas as pd
+import datetime as dt
+import subprocess as sp
+import matplotlib as mpl
+
 import path_helpers as ph
-import si_prefix as si
 
 from . import NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS
 # Import test functions used by `self_test`.
@@ -22,9 +23,8 @@ from .hardware_test import (ALL_TESTS, system_info, test_system_metrics,
                             test_i2c, test_voltage, test_shorts,
                             test_on_board_feedback_calibration,
                             test_channels)
-import six
-from six.moves import map
-from six.moves import range
+
+ureg = pint.UnitRegistry()
 
 logger = logging.getLogger(name=__name__)
 
@@ -34,12 +34,11 @@ __all__ = ['format_system_info_results', 'format_test_channels_results',
            'format_test_shorts_results', 'format_test_system_metrics_results',
            'format_test_voltage_results']
 
-CAPACITANCE_FORMATTER = mpl.ticker.FuncFormatter(lambda x, *args: '%sF' %
-                                                 si.si_format(x))
+CAPACITANCE_FORMATTER = mpl.ticker.FuncFormatter(lambda x, *args: f"{ureg.Quantity(x, ureg.F).to('pF'):.1f}")
 
 
 def format_system_info_results(info):
-    '''
+    """
     .. versionadded:: 1.28
 
     Parameters
@@ -52,7 +51,7 @@ def format_system_info_results(info):
     str
         Summary of :func:`dropbot.hardware_test.system_info` results in
         Markdown format.
-    '''
+    """
     template = jinja2.Template(r'''
 # Control board (UUID: `{{ info['control board']['uuid'] }}`) #
 
@@ -74,7 +73,7 @@ def format_system_info_results(info):
 
 
 def format_test_system_metrics_results(results):
-    '''
+    """
     .. versionadded:: 1.39
 
     Parameters
@@ -87,7 +86,7 @@ def format_test_system_metrics_results(results):
     str
         Summary of :func:`dropbot.hardware_test.test_system_metrics` results in
         Markdown format.
-    '''
+    """
     template = jinja2.Template(r'''
 # System Metrics: #
 
@@ -101,18 +100,17 @@ def format_test_system_metrics_results(results):
     del results['duration']
 
     # Specify SI units for recognized properties.
-    units = {'analog_reference': 'V',
-             'temperature': 'degrees C',
-             'voltage_limit': 'V'}
-    for property_i, unit_i in six.iteritems(units):
-        results[property_i] = '%s%s' % (si.si_format(results[property_i],
-                                                     precision=2), unit_i)
+    units = {'analog_reference': ureg.V,
+             'temperature': ureg.degC,
+             'voltage_limit': ureg.V}
+    for property_i, unit_i in units.items():
+        results[property_i] = f"{ureg.Quantity(results[property_i], ureg.V ):.2f}"
 
     return template.render(results=results).strip()
 
 
 def format_test_i2c_results(results):
-    '''
+    """
     .. versionadded:: 1.28
 
     .. versionchanged:: 1.29.2
@@ -131,7 +129,7 @@ def format_test_i2c_results(results):
     str
         Summary of :func:`dropbot.hardware_test.test_i2c` results in Markdown
         format.
-    '''
+    """
     template = jinja2.Template(r'''
 # I2C scan: #
 {% if results['i2c_scan'] %}
@@ -152,7 +150,7 @@ No devices found on I2C bus.
 
 
 def format_test_voltage_results(results, figure_path=None):
-    '''
+    """
     .. versionadded:: 1.28
 
     .. versionchanged:: 1.30
@@ -177,9 +175,8 @@ def format_test_voltage_results(results, figure_path=None):
 
         If :data:`figure_path` was specified, summary figure is written to the
         specified path.
-    '''
-    voltages = pd.DataFrame(np.column_stack([results['target_voltage'],
-                                             results['measured_voltage']]),
+    """
+    voltages = pd.DataFrame(np.column_stack([results['target_voltage'], results['measured_voltage']]),
                             columns=['target', 'measured'])
     # Calculate the average rms error
     error = voltages['measured'] - voltages['target']
@@ -188,7 +185,7 @@ def format_test_voltage_results(results, figure_path=None):
     if figure_path:
         figure_path = ph.path(figure_path).realpath()
         # Make parent directories if they don't exist.
-        figure_path.parent.makedirs_p()
+        figure_path.parent.makedirs(exist_ok=True)
         axis = plot_test_voltage_results(results)
         fig = axis.get_figure()
         fig.tight_layout()
@@ -207,13 +204,13 @@ def format_test_voltage_results(results, figure_path=None):
     '''.strip())
 
     return template.render(results=results, voltages=voltages
-                           .applymap(lambda x: '%sV' % si.si_format(x)),
+                           .applymap(lambda x: f"{ureg.Quantity(x, ureg.V):.1f}"),
                            rms_error=rms_error,
                            figure_path=figure_path).strip()
 
 
 def plot_test_voltage_results(results, axis=None):
-    '''
+    """
     .. versionadded:: 1.28
 
     Plot summary of results from :func:`dropbot.hardware_test.test_voltage`.
@@ -232,7 +229,7 @@ def plot_test_voltage_results(results, axis=None):
     axis : matplotlib.axes._subplots.AxesSubplot
         A `matplotlib` axis plotting the measured voltage against the target
         voltage.
-    '''
+    """
     if axis is None:
         fig, axis = mpl.pyplot.subplots(figsize=(3.5, 3.5))
         axis.set_aspect(True)
@@ -246,9 +243,8 @@ def plot_test_voltage_results(results, axis=None):
     return axis
 
 
-def format_test_on_board_feedback_calibration_results(results,
-                                                      figure_path=None):
-    '''
+def format_test_on_board_feedback_calibration_results(results, figure_path=None):
+    """
     .. versionadded:: 1.28
 
     .. versionchanged:: 1.30
@@ -279,7 +275,7 @@ def format_test_on_board_feedback_calibration_results(results,
 
         If :data:`figure_path` was specified, summary figure is written to the
         specified path.
-    '''
+    """
     C_nominal = NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS
     c_measured = np.array(results['c_measured'])
 
@@ -287,16 +283,14 @@ def format_test_on_board_feedback_calibration_results(results,
     if len(c_measured.shape) == 1:
         c_measured = np.reshape(c_measured, [len(C_nominal), 1])
 
-    capacitances = (pd.DataFrame(np.column_stack([C_nominal.values,
-                                                  np.mean(c_measured, 1)]),
-                                 columns=['nominal',
-                                          'measured']).T
-                    .applymap(lambda x: '%sF' % si.si_format(x)))
+    capacitances = (pd.DataFrame(np.column_stack([C_nominal.values, np.mean(c_measured, 1)]),
+                                 columns=['nominal', 'measured']).T
+                    .applymap(lambda x: f"{ureg.Quantity(x, ureg.F).to('pF'):.1f}"))
 
     if figure_path:
         figure_path = ph.path(figure_path).realpath()
         # Make parent directories if they don't exist.
-        figure_path.parent.makedirs_p()
+        figure_path.parent.makedirs(exist_ok=True)
         axis = plot_test_on_board_feedback_calibration_results(results)
         fig = axis.get_figure()
         fig.tight_layout()
@@ -316,7 +310,7 @@ def format_test_on_board_feedback_calibration_results(results,
 
 
 def plot_test_on_board_feedback_calibration_results(results, axis=None):
-    '''
+    """
     .. versionadded:: 1.28
 
     .. versionchanged:: 1.30
@@ -346,7 +340,7 @@ def plot_test_on_board_feedback_calibration_results(results, axis=None):
     axis : matplotlib.axes._subplots.AxesSubplot
         A `matplotlib` axis plotting the measured on-board capacitance against
         the nominal values of the on-board feedback calibration capacitors.
-    '''
+    """
     if axis is None:
         fig, axis = mpl.pyplot.subplots(figsize=(3, 3))
         axis.set_aspect(True)
@@ -371,7 +365,7 @@ def plot_test_on_board_feedback_calibration_results(results, axis=None):
 
 
 def format_test_shorts_results(results):
-    '''
+    """
     .. versionadded:: 1.28
 
     Parameters
@@ -384,7 +378,7 @@ def format_test_shorts_results(results):
     str
         Summary of :func:`dropbot.hardware_test.test_shorts` results in
         Markdown format.
-    '''
+    """
     template = jinja2.Template(r'''
 # Test shorts results: #
 {% if results['shorts'] %}
@@ -397,7 +391,7 @@ def format_test_shorts_results(results):
 
 
 def format_test_channels_results(results, figure_path=None):
-    '''
+    """
     .. versionadded:: 1.28
 
     .. versionchanged:: 1.30
@@ -424,7 +418,7 @@ def format_test_channels_results(results, figure_path=None):
 
         If :data:`figure_path` was specified, summary figure is written to the
         specified path.
-    '''
+    """
     c = np.array(results['c'])
     test_channels_ = np.array(results['test_channels'])
     shorts = results['shorts']
@@ -449,7 +443,7 @@ def format_test_channels_results(results, figure_path=None):
     if len(c) and figure_path:
         figure_path = ph.path(figure_path).realpath()
         # Make parent directories if they don't exist.
-        figure_path.parent.makedirs_p()
+        figure_path.parent.makedirs(exist_ok=True)
         axes = plot_test_channels_results(results)
         fig = axes[0].get_figure()
         fig.tight_layout()
@@ -494,7 +488,7 @@ The following channels failed ({{ bad_channels_count }} of {{ n_channels }} / **
 
 
 def plot_test_channels_results(results, axes=None):
-    '''
+    """
     .. versionadded:: 1.28
 
     Plot summary of results from :func:`dropbot.hardware_test.test_channels`.
@@ -518,7 +512,7 @@ def plot_test_channels_results(results, axes=None):
 
         The histogram of the measured capacitances across all channels is
         plotted on the second axis.
-    '''
+    """
     c = np.array(results['c'])
 
     if axes is None:
@@ -542,7 +536,7 @@ def plot_test_channels_results(results, axes=None):
 
 
 def self_test(proxy, tests=None):
-    '''
+    """
     .. versionadded:: 1.28
 
     Perform quality control tests.
@@ -560,7 +554,7 @@ def self_test(proxy, tests=None):
     -------
     dict
         Results from all tests.
-    '''
+    """
     total_time = 0
 
     if tests is None:
@@ -581,7 +575,7 @@ def self_test(proxy, tests=None):
 
 def _generate_test_channels_results(channels=20, n_reps=3, c_min=3e-12,
                                     c_max=12e-12, short_count=3, seed=0):
-    '''
+    """
     .. versionadded:: 1.28
 
     Generate simulated results in form returned by :func:`test_channels`.
@@ -614,7 +608,7 @@ def _generate_test_channels_results(channels=20, n_reps=3, c_min=3e-12,
         Must be convertible to 32 bit unsigned integers.
 
         Default: 0.
-    '''
+    """
     if isinstance(channels, int):
         test_channels_ = np.arange(20, dtype=int)
     else:
@@ -625,15 +619,14 @@ def _generate_test_channels_results(channels=20, n_reps=3, c_min=3e-12,
     c = np.array([random.rand(n_reps) * (c_max - c_min) + c_min
                   for i in range(len(test_channels_))])
     # Simulate shorts by randomly selecting test channels.
-    shorts = random.choice(test_channels_, size=min(short_count,
-                                                    len(test_channels_)),
+    shorts = random.choice(test_channels_, size=min(short_count, len(test_channels_)),
                            replace=False).tolist()
 
     return {'c': c.tolist(), 'test_channels': test_channels_, 'shorts': shorts}
 
 
 def generate_report(results, output_path=None, force=False):
-    '''
+    """
     .. versionadded:: 1.28
 
     .. versionchanged:: 1.29.1
@@ -685,14 +678,13 @@ def generate_report(results, output_path=None, force=False):
     ------
     IOError
         If :data:`output_path` exists and :data:`force` is not ``True``.
-    '''
+    """
     if output_path is not None:
         output_path = ph.path(output_path).realpath()
         if output_path.exists() and not force:
             if output_path.isdir() and output_path.listdir():
                 # Output path is a directory with existing contents.
-                raise IOError('Output directory already exists and is '
-                              'non-empty.  Use `force` to overwrite.')
+                raise IOError('Output directory already exists and is non-empty.  Use `force` to overwrite.')
             elif output_path.ext.lower() == '.docx':
                 raise IOError('Output path exists.  Use `force` to overwrite.')
             elif output_path.ext.lower() == '.html':
@@ -702,38 +694,33 @@ def generate_report(results, output_path=None, force=False):
                               'must either be a directory or a filepath with '
                               'the `.docx` extension.')
 
-    tests_with_figure = set(['test_channels', 'test_voltage',
-                             'test_on_board_feedback_calibration'])
+    tests_with_figure = {'test_channels', 'test_voltage', 'test_on_board_feedback_calibration'}
 
     # Find starting time of earliest test (or current date and time if no
     # timestamp is available).
-    min_timestamp = min([result_i['utc_timestamp']
-                         for result_i in six.itervalues(results)
-                         if 'utc_timestamp' in result_i] +
-                        [dt.datetime.utcnow().isoformat()])
-    header = ['# DropBot self test (*{}*)'.format(min_timestamp.split('.')[0])]
+    min_timestamp = min([result_i['utc_timestamp'] for result_i in results.values()
+                         if 'utc_timestamp' in result_i] + [dt.datetime.utcnow().isoformat()])
+    header = [f"# DropBot self test (*{min_timestamp.split('.')[0]}*)"]
 
     if output_path is None:
         # Execute `format_<test name>_results` for each test to generate each
         # respective Markdown report.
         md_results_cmds = ['format_{test_name}_results(results["{test_name}"])'
-                           .format(test_name=name_i) for name_i in ALL_TESTS
-                           if name_i in results]
+                           .format(test_name=name_i) for name_i in ALL_TESTS if name_i in results]
         md_results = list(map(eval, md_results_cmds))
 
         # Join Markdown reports, separated by horizontal bars.
-        md_report = (2 * '\n' + (72 * '-') + 2 * '\n').join(header +
-                                                            md_results)
+        md_report = (2 * '\n' + (72 * '-') + 2 * '\n').join(header + md_results)
 
         # No output path was specified.  Return text-only Markdown report.
         return md_report
 
     if output_path.ext.lower() in ('.docx', '.html'):
-        output_path.parent.makedirs_p()
+        output_path.parent.makedirs(exist_ok=True)
         parent_dir = ph.path(tempfile.mkdtemp(prefix='dropbot-self-test'))
     else:
         parent_dir = output_path
-        output_path.makedirs_p()
+        output_path.makedirs(exist_ok=True)
 
     markdown_path = parent_dir.joinpath('results-summary.markdown')
 
@@ -748,27 +735,23 @@ def generate_report(results, output_path=None, force=False):
                       for name_i in ALL_TESTS if name_i in results]
 
         # Join Markdown reports, separated by horizontal bars.
-        md_report = (2 * '\n' + (72 * '-') + 2 * '\n').join(header +
-                                                            md_results)
+        md_report = (2 * '\n' + (72 * '-') + 2 * '\n').join(header + md_results)
 
-        with markdown_path.open('w') as output:
-            output.write(md_report)
+        markdown_path.write_text(md_report)
 
         if output_path.ext.lower() == '.docx':
-            sp.check_call(['pandoc', markdown_path, '-o', output_path],
-                          shell=True)
+            sp.check_call(['pandoc', markdown_path, '-o', output_path], shell=True)
         elif output_path.ext.lower() == '.html':
             # Write template to file for use with `pandoc`.
-            template = pkgutil.get_data('dropbot', 'static/templates/'
-                                        'SelfTestTemplate.html5')
+            template = pkgutil.get_data('dropbot', 'static/templates/SelfTestTemplate.html5')
             template_path = parent_dir.joinpath('SelfTestTemplate.html5')
             template_path.write_text(template)
             # Use `pandoc` to create self-contained `.html` report.
             sp.check_call(['pandoc', markdown_path, '-o', output_path,
                            '--standalone', '--self-contained', '--template',
                            template_path], shell=True, stderr=sp.PIPE)
-            with output_path.open('r') as input_:
-                data = input_.read()
+
+            data = output_path.read_text()
 
             # Inject JSON result data into HTML report.
             soup = bs4.BeautifulSoup(data, 'lxml')
@@ -779,8 +762,8 @@ def generate_report(results, output_path=None, force=False):
             # [i51]: https://github.com/mverleg/pyjson_tricks/issues/51
             json_data = json_tricks.dumps(results, indent=4)
             results_script.string = bs4.NavigableString(json_data)
-            with output_path.open('w') as output:
-                output.write(unicode(soup).encode('utf8'))
+            output_path.write_text(str(soup), encoding='utf-8')
+
     finally:
         if output_path.ext.lower() in ('.docx', '.html'):
             parent_dir.rmtree()

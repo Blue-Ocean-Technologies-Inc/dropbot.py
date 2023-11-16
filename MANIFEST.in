@@ -1,7 +1,7 @@
 include COPYING
 include README.md
-include pavement.py
-include paver-minilib.zip
+include build_flags.py
+include file_handler.py
 include setup.py
 recursive-include dropbot *
 recursive-exclude dropbot *.pyc
@@ -11,3 +11,5 @@ recursive-exclude dropbot .ipynb_checkpoints/*
 recursive-exclude dropbot .proto
 include versioneer.py
 include dropbot/_version.py
+exclude .DS_Store
+recursive-exclude teensy_minimal_rpc .DS_Store

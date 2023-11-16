@@ -8,15 +8,15 @@ namespace voltage_source {
 SlowSoftWire i2c(SSDA_PIN, SSCL_PIN);
 
 // Configuration.
-float pot_max = dropbot_Config_pot_max_default;
-float R7 = dropbot_Config_R7_default;
-float max_voltage = dropbot_Config_max_voltage_default;
-float min_frequency = dropbot_Config_min_frequency_default;
-float max_frequency = dropbot_Config_max_frequency_default;
+float pot_max = dropbot_Config_pot_max_tag;
+float R7 = dropbot_Config_R7_tag;
+float max_voltage = dropbot_Config_max_voltage_tag;
+float min_frequency = dropbot_Config_min_frequency_tag;
+float max_frequency = dropbot_Config_max_frequency_tag;
 
 // State.
-float target_voltage = dropbot_State_voltage_default;
-float frequency = dropbot_State_frequency_default;
+float target_voltage = dropbot_State_voltage_tag;
+float frequency = dropbot_State_frequency_tag;
 
 void begin() {
   // Configure pins as outputs.

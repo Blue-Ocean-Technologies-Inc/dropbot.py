@@ -24,7 +24,7 @@
 #include <BaseNodeRpc/BaseNodeSerialHandler.h>
 #include <BaseNodeRpc/SerialHandler.h>
 #include <ADC.h>
-#include <RingBufferDMA.h>
+//#include <RingBufferDMA.h>
 #include <DMAChannel.h>
 #include <InputDebounce.h>
 #include <TeensyMinimalRpc/ADC.h>  // Analog to digital converter
@@ -326,7 +326,7 @@ public:
            adc_count_(0), dma_adc_active_(false), dma_channel_done_(-1),
            last_dma_channel_done_(-1), adc_read_active_(false),
            dma_stream_id_(0), watchdog_disable_request_(false),
-           channels_(0, dropbot_Config_switching_board_i2c_address_default),
+           channels_(0, dropbot_Config_switching_board_i2c_address_tag),
            output_enable_input(*this, voltage_source::OE_PIN, 1000,
                                InputDebounce::PinInMode::PIM_EXT_PULL_UP_RES,
                                0),
@@ -2006,63 +2006,6 @@ public:
     return result;
   }
 
-  template <typename T>
-  std::vector<std::vector<uint8_t> > get_channels_drops(T channels, float c_threshold) {
-    /*
-    * Parameters
-    * ----------
-    * channels : STL container
-    *     Channels to measure for drop detection - **MUST** be sorted.
-    * c_threshold : float
-    *     Minimum capacitance (in farads) to consider as liquid present on a
-    *     channel electrode.
-    *
-    *     If set to 0, a default of 3 pF is used.
-    *
-    * Returns
-    * -------
-    * std::vector<std::vector<uint8_t> >
-    *     List of channels where threshold capacitance was met, grouped by
-    *     contiguous electrode regions (i.e., sets of electrodes that are
-    *     connected by neighbours where capacitance threshold was also met).
-    */
-    c_threshold = c_threshold ? c_threshold : drops::C_THRESHOLD;
-    const unsigned long start = microseconds();
-
-    // Only measure capacitance of specified channels.
-    std::vector<float> capacitances =
-        channels_.scatter_channels_capacitances(channels, config_._
-                                                .capacitance_n_samples);
-    auto drops = drops::get_drops(channel_neighbours_, capacitances, channels,
-                                  c_threshold);
-    const unsigned long end = microseconds();
-
-    if (event_enabled(EVENT_DROPS_DETECTED)) {
-      /*
-      * Stream `drops-detected` event in the form:
-      *
-      *     {"event": "drops-detected",
-      *      "drops": {"channels": [[<drop 0 ch 0>, <drop 0 ch 1>, ...],
-      *                             [<drop 1 ch 0>, <drop 1 ch 1>, ...], ...],
-      *                "capacitances": [[<drop 0 cap 0>, <drop 0 cap 1>, ...],
-      *                                 [<drop 1 cap 0>, <drop 1 cap 1>, ...],
-      *                                 ...]},
-      *      "start": <start microseconds>, "end": <end microseconds>}
-      */
-      UInt8Array buffer = UInt8Array_init(0, get_buffer().data);
-      sprintf_drops_detected(capacitances, drops, start, end, buffer);
-
-      {
-        PacketStream output;
-        output.start(Serial, buffer.length);
-        output.write(Serial, reinterpret_cast<char *>(buffer.data),
-                     buffer.length);
-        output.end(Serial);
-      }
-    }
-    return drops;
-  }
-
   UInt8Array get_all_drops(float c_threshold) {
     /*
     * Parameters
@@ -2487,6 +2430,64 @@ public:
     std::copy(begin, end, result.data);
     return result;
   }
+
+  template <typename T>
+  std::vector<std::vector<uint8_t> > get_channels_drops(T channels, float c_threshold) {
+    /*
+    * Parameters
+    * ----------
+    * channels : STL container
+    *     Channels to measure for drop detection - **MUST** be sorted.
+    * c_threshold : float
+    *     Minimum capacitance (in farads) to consider as liquid present on a
+    *     channel electrode.
+    *
+    *     If set to 0, a default of 3 pF is used.
+    *
+    * Returns
+    * -------
+    * std::vector<std::vector<uint8_t> >
+    *     List of channels where threshold capacitance was met, grouped by
+    *     contiguous electrode regions (i.e., sets of electrodes that are
+    *     connected by neighbours where capacitance threshold was also met).
+    */
+    c_threshold = c_threshold ? c_threshold : drops::C_THRESHOLD;
+    const unsigned long start = microseconds();
+
+    // Only measure capacitance of specified channels.
+    std::vector<float> capacitances =
+        channels_.scatter_channels_capacitances(channels, config_._
+                                                .capacitance_n_samples);
+    auto drops = drops::get_drops(channel_neighbours_, capacitances, channels,
+                                  c_threshold);
+    const unsigned long end = microseconds();
+
+    if (event_enabled(EVENT_DROPS_DETECTED)) {
+      /*
+      * Stream `drops-detected` event in the form:
+      *
+      *     {"event": "drops-detected",
+      *      "drops": {"channels": [[<drop 0 ch 0>, <drop 0 ch 1>, ...],
+      *                             [<drop 1 ch 0>, <drop 1 ch 1>, ...], ...],
+      *                "capacitances": [[<drop 0 cap 0>, <drop 0 cap 1>, ...],
+      *                                 [<drop 1 cap 0>, <drop 1 cap 1>, ...],
+      *                                 ...]},
+      *      "start": <start microseconds>, "end": <end microseconds>}
+      */
+      UInt8Array buffer = UInt8Array_init(0, get_buffer().data);
+      sprintf_drops_detected(capacitances, drops, start, end, buffer);
+
+      {
+        PacketStream output;
+        output.start(Serial, buffer.length);
+        output.write(Serial, reinterpret_cast<char *>(buffer.data),
+                     buffer.length);
+        output.end(Serial);
+      }
+    }
+    return drops;
+  }
+
 };
 }  // namespace dropbot
 

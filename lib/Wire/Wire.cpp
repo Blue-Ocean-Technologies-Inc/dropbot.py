@@ -15,9 +15,11 @@
   You should have received a copy of the GNU Lesser General Public
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-
+ 
   Modified 2012 by Todd Krein (todd@krein.org) to implement repeated starts
 */
+
+#include <Arduino.h>
 
 #if defined(__AVR__)
 
@@ -33,12 +35,12 @@ extern "C" {
 
 // Initialize Class Variables //////////////////////////////////////////////////
 
-uint8_t TwoWire::rxBuffer[TWI_BUFFER_LENGTH];
+uint8_t TwoWire::rxBuffer[BUFFER_LENGTH];
 uint8_t TwoWire::rxBufferIndex = 0;
 uint8_t TwoWire::rxBufferLength = 0;
 
 uint8_t TwoWire::txAddress = 0;
-uint8_t TwoWire::txBuffer[TWI_BUFFER_LENGTH];
+uint8_t TwoWire::txBuffer[BUFFER_LENGTH];
 uint8_t TwoWire::txBufferIndex = 0;
 uint8_t TwoWire::txBufferLength = 0;
 
@@ -73,11 +75,6 @@ void TwoWire::begin(uint8_t address)
   begin();
 }
 
-void TwoWire::begin(int address)
-{
-  begin((uint8_t)address);
-}
-
 void TwoWire::end()
 {
   TWCR &= ~(_BV(TWEN) | _BV(TWIE) | _BV(TWEA));
@@ -101,8 +98,8 @@ void TwoWire::setSCL(uint8_t pin)
 uint8_t TwoWire::requestFrom(uint8_t address, uint8_t quantity, uint8_t sendStop)
 {
   // clamp to buffer length
-  if(quantity > TWI_BUFFER_LENGTH){
-    quantity = TWI_BUFFER_LENGTH;
+  if(quantity > BUFFER_LENGTH){
+    quantity = BUFFER_LENGTH;
   }
   // perform blocking read into buffer
   uint8_t read = twi_readFrom(address, rxBuffer, quantity, sendStop);
@@ -113,19 +110,21 @@ uint8_t TwoWire::requestFrom(uint8_t address, uint8_t quantity, uint8_t sendStop
   return read;
 }
 
-uint8_t TwoWire::requestFrom(uint8_t address, uint8_t quantity)
+uint8_t TwoWire::requestFrom(uint8_t addr, uint8_t qty, uint32_t iaddr, uint8_t n, uint8_t stop)
 {
-  return requestFrom((uint8_t)address, (uint8_t)quantity, (uint8_t)true);
-}
-
-uint8_t TwoWire::requestFrom(int address, int quantity)
-{
-  return requestFrom((uint8_t)address, (uint8_t)quantity, (uint8_t)true);
-}
-
-uint8_t TwoWire::requestFrom(int address, int quantity, int sendStop)
-{
-  return requestFrom((uint8_t)address, (uint8_t)quantity, (uint8_t)sendStop);
+	if (n > 0) {
+		union { uint32_t ul; uint8_t b[4]; } iaddress;
+		iaddress.ul = iaddr;
+		beginTransmission(addr);
+		if (n > 3) n = 3;
+		do {
+			n = n - 1;
+			write(iaddress.b[n]);
+		} while (n > 0);
+		endTransmission(false);
+	}
+	if (qty > BUFFER_LENGTH) qty = BUFFER_LENGTH;
+	return requestFrom(addr, qty, stop);
 }
 
 void TwoWire::beginTransmission(uint8_t address)
@@ -139,17 +138,12 @@ void TwoWire::beginTransmission(uint8_t address)
   txBufferLength = 0;
 }
 
-void TwoWire::beginTransmission(int address)
-{
-  beginTransmission((uint8_t)address);
-}
-
 //
 //	Originally, 'endTransmission' was an f(void) function.
 //	It has been modified to take one parameter indicating
 //	whether or not a STOP should be performed on the bus.
-//	Calling endTransmission(false) allows a sketch to
-//	perform a repeated start.
+//	Calling endTransmission(false) allows a sketch to 
+//	perform a repeated start. 
 //
 //	WARNING: Nothing in the library keeps track of whether
 //	the bus tenure has been properly ended with a STOP. It
@@ -169,14 +163,6 @@ uint8_t TwoWire::endTransmission(uint8_t sendStop)
   return ret;
 }
 
-//	This provides backwards compatibility with the original
-//	definition, and expected behaviour, of endTransmission
-//
-uint8_t TwoWire::endTransmission(void)
-{
-  return endTransmission(true);
-}
-
 // must be called in:
 // slave tx event callback
 // or after beginTransmission(address)
@@ -185,14 +171,14 @@ size_t TwoWire::write(uint8_t data)
   if(transmitting){
   // in master transmitter mode
     // don't bother if buffer is full
-    if(txBufferLength >= TWI_BUFFER_LENGTH){
+    if(txBufferLength >= BUFFER_LENGTH){
       setWriteError();
       return 0;
     }
     // put byte in tx buffer
     txBuffer[txBufferIndex] = data;
     ++txBufferIndex;
-    // update amount in buffer
+    // update amount in buffer   
     txBufferLength = txBufferIndex;
   }else{
   // in slave send mode
@@ -234,7 +220,7 @@ int TwoWire::available(void)
 int TwoWire::read(void)
 {
   int value = -1;
-
+  
   // get each successive byte on each call
   if(rxBufferIndex < rxBufferLength){
     value = rxBuffer[rxBufferIndex];
@@ -250,7 +236,7 @@ int TwoWire::read(void)
 int TwoWire::peek(void)
 {
   int value = -1;
-
+  
   if(rxBufferIndex < rxBufferLength){
     value = rxBuffer[rxBufferIndex];
   }
@@ -279,7 +265,7 @@ void TwoWire::onReceiveService(uint8_t* inBytes, int numBytes)
   // copy twi rx buffer into local read buffer
   // this enables new reads to happen in parallel
   for(uint8_t i = 0; i < numBytes; ++i){
-    rxBuffer[i] = inBytes[i];
+    rxBuffer[i] = inBytes[i];    
   }
   // set rx iterator vars
   rxBufferIndex = 0;
