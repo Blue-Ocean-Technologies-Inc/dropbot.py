@@ -27,7 +27,7 @@ build:
 
 requirements:
   build:
-        - python >=3.8
+        - python >=3.6
         - pint
         - numpy
         - pandas
@@ -78,7 +78,7 @@ outputs:
       - {{ SP_DIR }}/{{ MODULE_NAME }}
     requirements:
       run:
-        - python >=3.8
+        - python >=3.6
         - {{ pin_subpackage(PKG_NAME + '-dev', max_pin='x.x') }}
         - pint
         - numpy
