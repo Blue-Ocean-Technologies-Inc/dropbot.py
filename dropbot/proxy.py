@@ -924,6 +924,7 @@ class SerialProxy(ProxyMixin, Proxy):
             :class:`base_node_rpc.proxy.SerialProxyMixin`.
         """
         self.default_timeout = kwargs.pop('timeout', 5)
+        self.monitor = None
         port = kwargs.pop('port', None)
         if port is None:
             # Find DropBots
@@ -936,7 +937,6 @@ class SerialProxy(ProxyMixin, Proxy):
             port = df_dropbots.index[0]
 
         self.port = port
-        self.monitor = None
         self.connect()
         super().__init__(**kwargs)
 
