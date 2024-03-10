@@ -27,7 +27,7 @@ build:
 
 requirements:
   build:
-        - python >=3.6
+        - python {{ python }}
         - pint
         - numpy
         - pandas
@@ -113,13 +113,13 @@ outputs:
       imports:
         # .. versionchanged:: 1.37.2
         - {{ MODULE_NAME }}
-        - {{ MODULE_NAME }}._version
-        - {{ MODULE_NAME }}.bin
-        - {{ MODULE_NAME }}.config
-        - {{ MODULE_NAME }}.hardware_test
-        - {{ MODULE_NAME }}.metadata
-        - {{ MODULE_NAME }}.proxy
-        - {{ MODULE_NAME }}.state
+        - {{ MODULE_NAME + '._version' }}
+        - {{ MODULE_NAME + '.bin' }}
+        - {{ MODULE_NAME + '.config' }}
+        - {{ MODULE_NAME + '.hardware_test' }}
+        - {{ MODULE_NAME + '.metadata' }}
+        - {{ MODULE_NAME + '.proxy' }}
+        - {{ MODULE_NAME + '.state' }}
 
 about:
   home: https://github.com/sci-bots/{{ PKG_NAME }}
