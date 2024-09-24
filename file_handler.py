@@ -130,7 +130,8 @@ def cli_parser():
     args = parser.parse_args()
     execute(**vars(args))
 
-
+import os
+os.getcwd()
 def execute(**kwargs):
     properties = get_properties(**kwargs)
 
@@ -149,6 +150,7 @@ def execute(**kwargs):
 
     print('<' * len(top))
 
-
+import os
+os.getcwd()
 if __name__ == '__main__':
     cli_parser()

@@ -3,6 +3,7 @@ import time
 import math
 import uuid
 import pint
+import serial
 import logging
 import threading
 
@@ -20,19 +21,19 @@ from .state import State
 
 from path_helpers import path
 from nadamq.NadaMq import cPacket
+from logging_helpers import _L
 from teensy_minimal_rpc.adc_sampler import AdcDmaMixin
 from base_node_rpc.proxy import ConfigMixinBase, StateMixinBase
 
+from .core import dropbot_state, NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS
 from .node import Proxy
 from .bin.upload import upload
-from .core import dropbot_state, NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS
 
 from ._version import get_versions
 
 __version__ = get_versions()['version']
 del get_versions
 
-logger = logging.getLogger(__name__)
 
 # Unit conversion
 ureg = pint.UnitRegistry()
@@ -154,12 +155,12 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
 
             self.signals.signal('connected').send({'event': 'connected'})
         except Exception:
-            logger.debug('Error connecting to device.', exc_info=True)
+            _L().debug('Error connecting to device.', exc_info=True)
             self.terminate()
             raise
 
     def _initialize_switching_boards(self) -> int:
-        return super().initialize_switching_boards()
+        return super(ProxyMixin, self).initialize_switching_boards()
 
     def initialize_switching_boards(self) -> int:
         """
@@ -184,7 +185,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
             but subsequent restored connection events after connecting to
             the ``connected`` signal will be received.
         """
-        super()._connect(*args, **kwargs)
+        super(ProxyMixin, self)._connect(*args, **kwargs)
         self.signals.signal('connected').send({'event': 'connected'})
 
     def sync_time(self) -> None:
@@ -195,8 +196,8 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         -----------
         .. versionadded:: 1.55
         """
-        utc_timestamp = dt.datetime.utcnow().timestamp()
-        super().sync_time(utc_timestamp)
+        utc_timestamp = dt.datetime.now(dt.timezone.utc).timestamp()
+        super(ProxyMixin, self).sync_time(utc_timestamp)
 
     @property
     def wall_time(self) -> dt.datetime:
@@ -207,8 +208,8 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         -----------
         .. versionadded:: 1.55
         """
-        wall_time = super().wall_time()
-        return dt.datetime.utcfromtimestamp(wall_time)
+        wall_time = super(ProxyMixin, self).wall_time()
+        return dt.datetime.fromtimestamp(wall_time, dt.timezone.utc)
 
     @property
     def signals(self):
@@ -284,7 +285,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
             super().__del__()
         except Exception:
             # ignore any exceptions (e.g., if we can't communicate with the board)
-            logger.debug('Communication error', exc_info=True)
+            _L().debug('Communication error', exc_info=True)
             pass
 
     def i2c_send_command(self, address: int, cmd: bytes, data: bytes) -> bytes:
@@ -446,7 +447,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
                 v_abs = np.abs(df_volts - v_gnd)
                 v_abs_mean = np.mean(v_abs)
                 filter_th = v_abs_mean * 1.5
-                amplitude_i = np.mean(v_abs[v_abs < filter_th])['volts']
+                amplitude_i = np.mean(v_abs[v_abs < filter_th])#['volts']
             elif method_i == 'percentile_difference':
                 volts_description = df_volts['volts'].describe()
                 amplitude_i = .5 * (volts_description['75%'] -
@@ -601,7 +602,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
 
         Prepend underscore to the auto-generated disabled_channels_mask accessor
         """
-        return super().disabled_channels_mask()
+        return super(ProxyMixin, self).disabled_channels_mask()
 
     def _set_disabled_channels_mask(self, mask: np.array) -> np.array:
         """
@@ -611,7 +612,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
 
         Prepend underscore to the auto-generated disabled_channels_mask setter
         """
-        return super().set_disabled_channels_mask(mask)
+        return super(ProxyMixin, self).set_disabled_channels_mask(mask)
 
     @property
     def disabled_channels_mask(self) -> np.array:
@@ -629,7 +630,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         mask states are stored in bytes, where each byte corresponds to
         the mask state for eight channels.
         """
-        return np.unpackbits(self._disabled_channels_mask()[::-1])[::-1]
+        return np.unpackbits(super(ProxyMixin, self).disabled_channels_mask()[::-1])[::-1]
 
     @disabled_channels_mask.setter
     def disabled_channels_mask(self, mask: np.array) -> None:
@@ -649,19 +650,19 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         if len(mask) != self.number_of_channels:
             raise ValueError('Error setting disabled channels mask.  Check '
                              'size of mask matches channel count.')
-        super().set_disabled_channels_mask(np.packbits(mask.astype(int)[::-1])[::-1])
+        super(ProxyMixin, self).set_disabled_channels_mask(np.packbits(mask.astype(int)[::-1])[::-1])
 
     def _state_of_channels(self) -> np.array:
         """
         Prepend underscore to the auto-generated state_of_channels accessor
         """
-        return super().state_of_channels()
+        return super(ProxyMixin, self).state_of_channels()
 
     def _set_state_of_channels(self, states: np.array) -> None:
         """
         Prepend underscore to the auto-generated state_of_channels setter
         """
-        return super().set_state_of_channels(states)
+        return super(ProxyMixin, self).set_state_of_channels(states)
 
     @property
     def state_of_channels(self) -> pd.Series:
@@ -686,7 +687,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         .. versionchanged:: 1.56
             Return channels as `pandas.Series` instance.
         """
-        return pd.Series(np.unpackbits(self._state_of_channels()[::-1])[::-1])
+        return pd.Series(np.unpackbits(super(ProxyMixin, self).state_of_channels()[::-1])[::-1])
 
     @state_of_channels.setter
     def state_of_channels(self, states: np.array) -> None:
@@ -742,7 +743,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
             states = np.asarray(states, dtype=int)
 
         state_bits = np.packbits(states.astype(int)[::-1])[::-1]
-        if not super().set_state_of_channels(state_bits):
+        if not super(ProxyMixin, self).set_state_of_channels(state_bits):
             raise ValueError('Error setting state of channels.  Check number of states matches channel count.')
 
     def reset_switching_boards(self) -> DeprecationWarning:
@@ -784,7 +785,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         return uuid.UUID(bytes=np.array(self._uuid(), dtype='uint8').tostring().decode('utf-8'))
 
     def _number_of_channels(self) -> np.array:
-        return super().number_of_channels()
+        return super(ProxyMixin, self).number_of_channels()
 
     @property
     def number_of_channels(self) -> int:
@@ -798,10 +799,10 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         return self.__number_of_channels
 
     def detect_shorts(self, delay_ms: Optional[int] = 5) -> List:
-        return super().detect_shorts(delay_ms).tolist()
+        return super(ProxyMixin, self).detect_shorts(delay_ms).tolist()
 
     def _hardware_version(self) -> np.array:
-        return super().hardware_version()
+        return super(ProxyMixin, self).hardware_version()
 
     @property
     def hardware_version(self) -> str:
@@ -821,11 +822,11 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
 
     @property
     def min_waveform_voltage(self) -> float:
-        return float(super().min_waveform_voltage())
+        return float(super(ProxyMixin, self).min_waveform_voltage())
 
     @property
     def neighbours(self) -> pd.Series:
-        channel_neighbours = super().neighbours()
+        channel_neighbours = super(ProxyMixin, self).neighbours()
         N = channel_neighbours.shape[0] / 4
         index = pd.MultiIndex.from_arrays([np.repeat(range(N), 4),
                                            ['up', 'down', 'left', 'right']
@@ -840,7 +841,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
 
     @property
     def drops(self) -> List[np.array]:
-        return _unpack_drops(super().drops())
+        return _unpack_drops(super(ProxyMixin, self).drops())
 
     def get_drops(self, channels: Optional[np.array] = None,
                   capacitance_threshold: Optional[float] = 0) -> List[np.array]:
@@ -866,9 +867,9 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
             also met).
         """
         if channels is None:
-            drops_raw = (super().get_all_drops(capacitance_threshold))
+            drops_raw = super(ProxyMixin, self).get_all_drops(capacitance_threshold)
         else:
-            drops_raw = (super().get_channels_drops(channels, capacitance_threshold))
+            drops_raw = super(ProxyMixin, self).get_channels_drops(channels, capacitance_threshold)
         return _unpack_drops(drops_raw)
 
 
@@ -938,7 +939,7 @@ class SerialProxy(ProxyMixin, Proxy):
 
         self.port = port
         self.connect()
-        super().__init__(**kwargs)
+        super(SerialProxy, self).__init__(**kwargs)
 
     @property
     def signals(self):
@@ -955,7 +956,7 @@ class SerialProxy(ProxyMixin, Proxy):
     def _send_command(self, packet: cPacket, timeout: Optional[float] = None):
         if timeout is None:
             timeout = self.default_timeout
-        logger.debug(f'Using timeout {timeout}')
+        _L().debug(f'Using timeout {timeout}')
         return self.monitor.request(packet.tostring(), timeout=timeout)
 
     def terminate(self) -> None:
@@ -978,6 +979,47 @@ class SerialProxy(ProxyMixin, Proxy):
         try:
             upload()
         except Exception:
-            logger.debug('Error updating firmware', exc_info=True)
+            _L().debug('Error updating firmware', exc_info=True)
         time.sleep(0.5)
         self.connect()
+
+    def _reboot(self):
+        """
+        Version log
+        -----------
+        .. versionadded:: 1.67
+
+        Reboot DropBot control board.
+
+        .. note:: **Connection is lost.**
+        """
+        # Reboot to put the device in known state.
+        try:
+            # XXX Temporarily disable timeout to avoid waiting for a
+            # response after reboot command has been sent.
+            original_timeout_s = self._timeout_s
+            self._timeout_s = 0
+            super(SerialProxy, self).reboot()
+        except (serial.SerialException, IOError):
+            pass
+        finally:
+            # Restore original timeout duration.
+            self._timeout_s = original_timeout_s
+            self.terminate()
+
+    def reboot(self):
+        """
+        Version log
+        -----------
+        .. versionchanged:: 1.27.1
+            Temporarily disable timeout to avoid waiting for a response
+            after reboot command has been sent.
+        """
+        # Reboot to put the device in a known state.
+        self._reboot()
+
+        # Wait for serial port to settle after reboot.
+        time.sleep(.5)
+
+        # Reestablish serial connection to the device.
+        self._connect()
