@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-from __future__ import print_function
 import logging
 import time
 
@@ -11,7 +9,7 @@ from six.moves import range
 WDOG_STCTRLH_WDOGEN = 0x01
 
 
-@pytest.yield_fixture(autouse=True)
+@pytest.fixture(autouse=True)
 def restore_watchdog_time_out(proxy):
     WDOG_STCTRLH = proxy.R_WDOG_STCTRLH()
     watchdog_enabled = (WDOG_STCTRLH & WDOG_STCTRLH_WDOGEN)
@@ -26,7 +24,7 @@ def restore_watchdog_time_out(proxy):
     if watchdog_enabled:
         # Restore initial watchdog time out.
         proxy.watchdog_enable(0, initial_time_out)
-        time.sleep(.1)
+        time.sleep(0.1)
 
 
 @pytest.fixture(scope='module')
@@ -63,10 +61,10 @@ def test_disable(proxy, retry_count):
         proxy.watchdog_disable()
         timer_output = proxy.watchdog_timer_output()
         if timer_output == 0:
-            print('Disabled on attempt', i + 1)
+            print(f'Disabled on attempt {i + 1}')
             break
         else:
-            # Disabling watchdog was not successful.  Reboot and try again.
+            # Disabling watchdog was not successful. Reboot and try again.
             proxy.reboot()
     else:
         assert timer_output == 0
@@ -83,9 +81,9 @@ def test_enable(proxy, time_out):
     # Disable watchdog refresh to trigger time out.
     proxy.watchdog_auto_refresh(False)
 
-    output_count = (time_out - 100) / 10
-    print('Testing %s times' % output_count)
-    for i in range(output_count):
+    output_count = (time_out - 100) // 10
+    print(f'Testing {output_count} times')
+    for _ in range(output_count):
         timer_output_i = proxy.watchdog_timer_output()
         assert timer_output_i <= time_out
         assert timer_output_i >= 0
@@ -97,7 +95,7 @@ def test_enable(proxy, time_out):
 def test_time_out(proxy):
     start_reset_count = proxy.watchdog_reset_count()
 
-    # Set watchdog time out to 2 second.
+    # Set watchdog time out to 2 seconds.
     proxy.watchdog_enable(0, 2000)
 
     # Disable watchdog refresh to trigger time out.
@@ -110,14 +108,13 @@ def test_time_out(proxy):
     with pytest.raises(serial.SerialException):
         proxy.ram_free()
 
-    # Explicitly tear-down proxy stream state.
+    # Explicitly tear down proxy stream state.
     proxy.terminate()
 
-    # Wait for serial port to settle after device reset due to watchdog time
-    # out.
+    # Wait for serial port to settle after device reset due to watchdog time out.
     time.sleep(1)
 
-    # Reestablish serial connection to device.
+    # Re-establish serial connection to the device.
     proxy._connect()
 
     # Verify that watchdog reset actually occurred.

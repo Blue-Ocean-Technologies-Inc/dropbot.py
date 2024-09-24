@@ -1,13 +1,9 @@
-'''
-.. versionadded:: 1.64.1
-'''
 from contextlib import contextmanager
 import threading
 import time
-
 import dropbot as db
 import pandas as pd
-
+import pytest
 
 @contextmanager
 def proxy_context(*args, **kwargs):
@@ -18,8 +14,8 @@ def proxy_context(*args, **kwargs):
         try:
             proxy = db.SerialProxy(*args, **kwargs)
         except ValueError:
-            time.sleep(.5)
-            print 'error connecting. retry...'
+            time.sleep(0.5)
+            print('Error connecting. Retrying...')
             continue
         try:
             yield proxy
@@ -28,7 +24,6 @@ def proxy_context(*args, **kwargs):
             proxy.terminate()
     else:
         raise IOError('Error connecting to DropBot.')
-
 
 def test_threadsafe():
     '''
@@ -50,33 +45,31 @@ def test_threadsafe():
         stop_event = threading.Event()
 
         def _test_thread(thread_id):
-            while not stop_event.wait(.001):
+            while not stop_event.wait(0.001):
                 try:
                     if thread_id % 2 == 0:
                         proxy.ram_free()
                     else:
-                        thread_id, proxy.detect_shorts(10)
+                        proxy.detect_shorts(10)
                 except Exception as exception:
                     exceptions.append((thread_id, exception))
                     exception_occurred.set()
                     break
 
-        threads = [threading.Thread(target=_test_thread, args=(i, ))
-                   for i in range(5)]
+        threads = [threading.Thread(target=_test_thread, args=(i,)) for i in range(5)]
 
         for t in threads:
             t.daemon = True
             t.start()
 
-        for i in range(10):
-            if exception_occurred.wait(1.):
+        for _ in range(10):
+            if exception_occurred.wait(1.0):
                 break
         else:
             return
         stop_event.set()
 
     if exceptions:
-        df_exceptions = pd.DataFrame(exceptions, columns=['thread_id',
-                                                          'exception'])
-        raise RuntimeError('The following exceptions occurred:\n%s' %
-                           df_exceptions)
+        df_exceptions = pd.DataFrame(exceptions, columns=['thread_id', 'exception'])
+        raise RuntimeError(f'The following exceptions occurred:\n{df_exceptions}')
+
