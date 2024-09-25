@@ -3,7 +3,7 @@ import threading
 import time
 import dropbot as db
 import pandas as pd
-import pytest
+
 
 @contextmanager
 def proxy_context(*args, **kwargs):
@@ -24,6 +24,7 @@ def proxy_context(*args, **kwargs):
             proxy.terminate()
     else:
         raise IOError('Error connecting to DropBot.')
+
 
 def test_threadsafe():
     '''
@@ -72,4 +73,3 @@ def test_threadsafe():
     if exceptions:
         df_exceptions = pd.DataFrame(exceptions, columns=['thread_id', 'exception'])
         raise RuntimeError(f'The following exceptions occurred:\n{df_exceptions}')
-

@@ -1,7 +1,9 @@
 from dropbot.chip import get_all_intersections, draw, get_channel_neighbours
 import svg_model
+from common import DATA_DIR
+from os import sep
 
-SVG_PATH = 'C:\\Users\\vr372\OneDrive - Yale University\Documents\py_projects\dropbot.py\dropbot\static\SCI-BOTS 90-pin array\device.svg'
+SVG_PATH = f"{DATA_DIR}{sep}SCI-BOTS 90-pin array{sep}device.svg"
 
 
 def test_intersections_from_svg():
