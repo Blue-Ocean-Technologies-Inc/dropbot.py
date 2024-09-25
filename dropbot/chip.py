@@ -1,4 +1,3 @@
-v
 import warnings
 
 import pint
@@ -44,8 +43,12 @@ def get_segments(svg_source: Union[str, StringIO, pd.DataFrame],
     else:
         df_shapes = svg_source
 
+    # Drop the duplicate occurrence of 'id' column
+    df_shapes = df_shapes.loc[:, ~df_shapes.columns.duplicated()]
+
     # Calculate distance in pixels.
     distance_threshold_px = (distance_threshold * file_ppi * ureg.pixels_per_inch).to('pixels')
+
 
     df_segments = (df_shapes.groupby('id').apply(lambda x: x.iloc[:-1]).reset_index(drop=True)
                    .join(df_shapes.groupby('id').apply(lambda x: x.iloc[1:]).reset_index(drop=True), rsuffix='2')
@@ -163,9 +166,14 @@ def draw(svg_source: Union[str, StringIO, pd.DataFrame], ax: Optional[plt.subplo
         df_shapes = svg_model.svg_shapes_to_df(svg_source)
     else:
         df_shapes = svg_source
+
+    # Drop the duplicate occurrence of 'id' column
+    df_shapes = df_shapes.loc[:, ~df_shapes.columns.duplicated()]
+
     electrode_channels = (df_shapes.drop_duplicates(['id', 'data-channels'])
                           .set_index('id')['data-channels'].map(int))
     electrode_channels.name = 'channel'
+
 
     # Compute center `(x, y)` for each electrode.
     electrode_centers = df_shapes.groupby('id')[['x', 'y']].mean()
@@ -275,6 +283,10 @@ def get_channel_neighbours(svg_source: Union[str, StringIO, pd.DataFrame],
         df_shapes = svg_model.svg_shapes_to_df(svg_source)
     else:
         df_shapes = svg_source
+
+    # Drop the duplicate occurrence of 'id' column
+    df_shapes = df_shapes.loc[:, ~df_shapes.columns.duplicated()]
+
     df_segments = get_segments(df_shapes, distance_threshold=distance_threshold)
     df_intersections = get_all_intersections(df_shapes, distance_threshold=distance_threshold)
 
@@ -304,8 +316,12 @@ def get_channel_neighbours(svg_source: Union[str, StringIO, pd.DataFrame],
     df_neighbours.sort_index(inplace=True)
 
     directions = ['up', 'down', 'left', 'right']
-    channel_neighbours = (df_neighbours['channel_neighbour'].loc[[i for c in range(120)
-                                                                  for i in zip(it.cycle([c]), directions)]])
+
+    all_channels = df_neighbours.index.get_level_values('channel').unique()
+    all_indices = pd.MultiIndex.from_product([all_channels, directions], names=['channel', 'direction'])
+
+    channel_neighbours = df_neighbours['channel_neighbour'].reindex(all_indices)
+
     return channel_neighbours
 
 
@@ -338,6 +354,9 @@ def chip_info(svg_source: Union[str, StringIO, pd.DataFrame]) -> dict:
         df_shapes = svg_model.svg_shapes_to_df(svg_source)
     else:
         df_shapes = svg_source
+
+    # Drop the duplicate occurrence of 'id' column
+    df_shapes = df_shapes.loc[:, ~df_shapes.columns.duplicated()]
 
     electrode_shapes = svg_model.data_frame.get_shape_infos(df_shapes, 'id')
     electrode_channels = df_shapes.drop_duplicates(['id', 'data-channels']).set_index('id')['data-channels'].map(int)
