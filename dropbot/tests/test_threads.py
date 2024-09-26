@@ -34,6 +34,8 @@ def test_threadsafe_success():
     duration concurrently, for 10 seconds.  If an exception occurs in any
     thread, stop the test and raise a `RuntimeError` exception.
 
+    Threadlock used, so expect no errors.
+
     Raises
     ------
     RuntimeError
@@ -83,10 +85,7 @@ def test_threadsafe_fail():
     duration concurrently, for 10 seconds.  If an exception occurs in any
     thread, stop the test and raise a `RuntimeError` exception.
 
-    Raises
-    ------
-    RuntimeError
-        If an exception occurs in *any* thread.
+    No threadlock, so expects some errors to happen.
     '''
     exceptions = []
     exception_occurred = threading.Event()
