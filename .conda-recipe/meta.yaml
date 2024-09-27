@@ -79,7 +79,7 @@ outputs:
     requirements:
       run:
         - python >=3.6
-        - {{ pin_subpackage(PKG_NAME + '-dev', max_pin='x.x') }}
+        - {{ pin_subpackage(PKG_NAME + '-dev', max_pin='x') }}
         - pint
         - numpy
         - pandas
@@ -129,5 +129,4 @@ about:
 # source will be downloaded prior to filling in jinja templates
 # Example assumes that this folder has setup.py in it
 source:
-  git_url: ../
-#  path: ..
+  git_url: https://github.com/Vigne-hub/dropbot.py.git
