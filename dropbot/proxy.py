@@ -983,6 +983,8 @@ class SerialProxy(ProxyMixin, Proxy):
         time.sleep(0.5)
         self.connect()
 
+    # TODO: Implement reboot
+    # TODO: Currently reboot is not working because of async serial connection
     # def _reboot(self):
     #     """
     #     Version log
@@ -1007,6 +1009,7 @@ class SerialProxy(ProxyMixin, Proxy):
     #         self._timeout_s = original_timeout_s
     #         self.terminate()
 
+    
     # def reboot(self):
     #     """
     #     Version log
