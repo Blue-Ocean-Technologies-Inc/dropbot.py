@@ -983,43 +983,43 @@ class SerialProxy(ProxyMixin, Proxy):
         time.sleep(0.5)
         self.connect()
 
-    def _reboot(self):
-        """
-        Version log
-        -----------
-        .. versionadded:: 1.67
+    # def _reboot(self):
+    #     """
+    #     Version log
+    #     -----------
+    #     .. versionadded:: 1.67
+    #
+    #     Reboot DropBot control board.
+    #
+    #     .. note:: **Connection is lost.**
+    #     """
+    #     # Reboot to put the device in known state.
+    #     try:
+    #         # XXX Temporarily disable timeout to avoid waiting for a
+    #         # response after reboot command has been sent.
+    #         original_timeout_s = self._timeout_s
+    #         self._timeout_s = 0
+    #         super(SerialProxy, self).reboot()
+    #     except (serial.SerialException, IOError):
+    #         pass
+    #     finally:
+    #         # Restore original timeout duration.
+    #         self._timeout_s = original_timeout_s
+    #         self.terminate()
 
-        Reboot DropBot control board.
-
-        .. note:: **Connection is lost.**
-        """
-        # Reboot to put the device in known state.
-        try:
-            # XXX Temporarily disable timeout to avoid waiting for a
-            # response after reboot command has been sent.
-            original_timeout_s = self._timeout_s
-            self._timeout_s = 0
-            super(SerialProxy, self).reboot()
-        except (serial.SerialException, IOError):
-            pass
-        finally:
-            # Restore original timeout duration.
-            self._timeout_s = original_timeout_s
-            self.terminate()
-
-    def reboot(self):
-        """
-        Version log
-        -----------
-        .. versionchanged:: 1.27.1
-            Temporarily disable timeout to avoid waiting for a response
-            after reboot command has been sent.
-        """
-        # Reboot to put the device in a known state.
-        self._reboot()
-
-        # Wait for serial port to settle after reboot.
-        time.sleep(.5)
-
-        # Reestablish serial connection to the device.
-        self._connect()
+    # def reboot(self):
+    #     """
+    #     Version log
+    #     -----------
+    #     .. versionchanged:: 1.27.1
+    #         Temporarily disable timeout to avoid waiting for a response
+    #         after reboot command has been sent.
+    #     """
+    #     # Reboot to put the device in a known state.
+    #     self._reboot()
+    #
+    #     # Wait for serial port to settle after reboot.
+    #     time.sleep(.5)
+    #
+    #     # Reestablish serial connection to the device.
+    #     self._connect()
