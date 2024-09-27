@@ -104,12 +104,12 @@ async def monitor(signals_: dict):
     register_signal('flash-firmware',
                     lambda *args: loop.call_soon_threadsafe(flash_firmware, dropbot))
 
-    def reboot(dropbot_):
-        if dropbot_ is not None:
-            dropbot_._reboot()
+    # def reboot(dropbot_):
+    #     if dropbot_ is not None:
+    #         dropbot_._reboot()
 
-    register_signal('reboot',
-                    lambda *args: loop.call_soon_threadsafe(reboot, dropbot))
+    # register_signal('reboot',
+    #                 lambda *args: loop.call_soon_threadsafe(reboot, dropbot))
 
     def reconnect(dropbot_):
         if dropbot_ is not None:

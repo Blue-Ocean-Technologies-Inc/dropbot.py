@@ -1008,7 +1008,8 @@ class SerialProxy(ProxyMixin, Proxy):
     #         # Restore original timeout duration.
     #         self._timeout_s = original_timeout_s
     #         self.terminate()
-    #
+
+    
     # def reboot(self):
     #     """
     #     Version log
