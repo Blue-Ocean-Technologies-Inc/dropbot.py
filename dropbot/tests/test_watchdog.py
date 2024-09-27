@@ -4,6 +4,7 @@ import time
 import pytest
 import serial
 from six.moves import range
+from dropbot.proxy import SerialProxy, NoPower, I2cAddressNotSet
 
 # Watchdog enable bit mask
 WDOG_STCTRLH_WDOGEN = 0x01
@@ -35,12 +36,11 @@ def proxy():
         run on standalone control board hardware (i.e., not connected to power
         or I2C bus).
     '''
-    import dropbot as db
-    import dropbot.proxy
+
 
     # XXX Ignore non-critical exceptions during initialization.
-    proxy_ = db.SerialProxy(ignore=[db.proxy.NoPower,
-                                    db.proxy.I2cAddressNotSet])
+    proxy_ = SerialProxy(ignore=[NoPower,
+                                    I2cAddressNotSet])
     yield proxy_
     proxy_.terminate()
 

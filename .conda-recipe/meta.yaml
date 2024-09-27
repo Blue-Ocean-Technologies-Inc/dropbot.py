@@ -27,14 +27,14 @@ build:
 
 requirements:
   build:
-        - python {{ python }}
+        - python
         - pint
         - numpy
         - pandas
         - pandoc
         - jinja2
         - pytables
-        - protobuf
+        - protobuf 3.20.*
         - tabulate
         - aiosignal
         - matplotlib
@@ -62,7 +62,6 @@ requirements:
 #     package.
 outputs:
   - name: {{ PKG_NAME }}-dev
-    noarch: generic
     files:
       - share
     requirements:
@@ -73,20 +72,19 @@ outputs:
         - base-node-rpc-dev
         - teensy-minimal-rpc-dev
   - name: {{ PKG_NAME }}
-    noarch: python
     files:
       - {{ SP_DIR }}/{{ MODULE_NAME }}
     requirements:
       run:
-        - python >=3.6
-        - {{ pin_subpackage(PKG_NAME + '-dev', max_pin='x.x') }}
+        - python
+        - {{ pin_subpackage(PKG_NAME + '-dev', max_pin='x') }}
         - pint
         - numpy
         - pandas
         - pandoc
         - jinja2
         - pytables
-        - protobuf
+        - protobuf 3.20.* 
         - tabulate
         - aiosignal
         - matplotlib
@@ -129,5 +127,4 @@ about:
 # source will be downloaded prior to filling in jinja templates
 # Example assumes that this folder has setup.py in it
 source:
-  git_url: ../
-#  path: ..
+  git_url: https://github.com/Vigne-hub/dropbot.py.git
