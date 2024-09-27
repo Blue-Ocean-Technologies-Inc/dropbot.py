@@ -1,5 +1,5 @@
 python:
-  - 3.9  # Specify the Python version to use for the build
+  - 3.10
 
 numpy:
-  - 1.25  # Pin numpy version for compatibility, if necessary
+  - 1.26.4  # Pin numpy version for compatibility, if necessary
