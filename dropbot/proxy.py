@@ -782,7 +782,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
 
             .. _Unique Identification Register: https://www.pjrc.com/teensy/K20P64M72SF1RM.pdf
         """
-        return uuid.UUID(bytes=np.array(self._uuid(), dtype='uint8').tostring().decode('utf-8'))
+        return uuid.UUID(bytes=self._uuid().tobytes())
 
     def _number_of_channels(self) -> np.array:
         return super(ProxyMixin, self).number_of_channels()
