@@ -27,7 +27,7 @@ build:
 
 requirements:
   build:
-        - python
+        - python {{ python }}
         - pint
         - numpy
         - pandas
@@ -62,6 +62,7 @@ requirements:
 #     package.
 outputs:
   - name: {{ PKG_NAME }}-dev
+    noarch: generic
     files:
       - share
     requirements:
@@ -76,8 +77,8 @@ outputs:
       - {{ SP_DIR }}/{{ MODULE_NAME }}
     requirements:
       run:
-        - python
-        - {{ pin_subpackage(PKG_NAME + '-dev', max_pin='x') }}
+        - python >=3.6
+        - {{ pin_subpackage(PKG_NAME + '-dev', max_pin='x.x') }}
         - pint
         - numpy
         - pandas
@@ -127,4 +128,5 @@ about:
 # source will be downloaded prior to filling in jinja templates
 # Example assumes that this folder has setup.py in it
 source:
-  git_url: https://github.com/Vigne-hub/dropbot.py.git
+  git_url: ../
+#  path: ..
