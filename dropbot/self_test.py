@@ -17,6 +17,8 @@ import matplotlib as mpl
 
 import path_helpers as ph
 
+from tqdm import tqdm
+
 from . import NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS
 # Import test functions used by `self_test`.
 from .hardware_test import (ALL_TESTS, system_info, test_system_metrics,
@@ -561,7 +563,8 @@ def self_test(proxy, tests=None):
         tests = ALL_TESTS
     results = {}
 
-    for test_name_i in tests:
+    for test_name_i in (pbar:= tqdm(tests)):
+        pbar.set_description(test_name_i)
         test_func_i = eval(test_name_i)
         results[test_name_i] = test_func_i(proxy)
         duration_i = results[test_name_i]['duration']
