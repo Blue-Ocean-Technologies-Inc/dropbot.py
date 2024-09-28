@@ -61,7 +61,7 @@ def time_it(f):
         start_time = time.time()
         result = f(*args, **kwargs)
         result['duration'] = time.time() - start_time
-        result['utc_timestamp'] = dt.datetime.utcnow().isoformat()
+        result['utc_timestamp'] = dt.datetime.now(dt.timezone.utc).isoformat()
         return result
 
     return _decorator
@@ -87,7 +87,7 @@ def log_results(results, output_dir):
     output_dir.makedirs(exist_ok=True)
 
     # Construct filename based on current UTC date and time.
-    current_time = dt.datetime.utcnow().isoformat().replace(':', '.')
+    current_time = dt.datetime.now(dt.timezone.utc).isoformat().replace(':', '.')
     filepath = output_dir.joinpath(f'results-{current_time}.json')
 
     # write the results to a file

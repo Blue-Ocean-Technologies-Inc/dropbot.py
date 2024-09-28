@@ -82,7 +82,7 @@ def main(argv=None):
         min_timestamp = min([result_i['utc_timestamp']
                              for result_i in results.values()
                              if 'utc_timestamp' in result_i] +
-                            [dt.datetime.utcnow().isoformat()])
+                            [dt.datetime.now(dt.timezone.utc).isoformat()])
         # Get control board UUID from system info.
         uuid = (results.get('system_info', {}).get('control board', {})
                 .get('uuid'))

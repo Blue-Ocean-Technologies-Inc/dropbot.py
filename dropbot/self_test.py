@@ -702,7 +702,7 @@ def generate_report(results, output_path=None, force=False):
     # Find starting time of earliest test (or current date and time if no
     # timestamp is available).
     min_timestamp = min([result_i['utc_timestamp'] for result_i in results.values()
-                         if 'utc_timestamp' in result_i] + [dt.datetime.utcnow().isoformat()])
+                         if 'utc_timestamp' in result_i] + [dt.datetime.now(dt.timezone.utc).isoformat()])
     header = [f"# DropBot self test (*{min_timestamp.split('.')[0]}*)"]
 
     if output_path is None:
