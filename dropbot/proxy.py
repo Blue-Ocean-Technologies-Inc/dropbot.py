@@ -953,11 +953,11 @@ class SerialProxy(ProxyMixin, Proxy):
         self.monitor = monitor
         return self.monitor
 
-    def _send_command(self, packet: cPacket, timeout: Optional[float] = None):
-        if timeout is None:
-            timeout = self.default_timeout
-        _L().debug(f'Using timeout {timeout}')
-        return self.monitor.request(packet.tostring(), timeout=timeout)
+    def _send_command(self, packet: cPacket, timeout_s: Optional[float] = None, **kwargs):
+        if timeout_s is None:
+            timeout_s = self.default_timeout
+        _L().debug(f'Using timeout {timeout_s}')
+        return self.monitor.request(packet.tostring(), timeout=timeout_s)
 
     def terminate(self) -> None:
         if self.monitor is not None:
