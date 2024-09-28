@@ -32,6 +32,7 @@ requirements:
         - numpy
         - pandas
         - pandoc
+        - pypandoc
         - jinja2
         - pytables
         - protobuf 3.20.*
@@ -83,6 +84,7 @@ outputs:
         - numpy
         - pandas
         - pandoc
+        - pypandoc
         - jinja2
         - pytables
         - protobuf 3.20.* 
