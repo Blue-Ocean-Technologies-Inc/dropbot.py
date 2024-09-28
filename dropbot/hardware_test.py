@@ -152,9 +152,9 @@ def test_i2c(proxy):
     for address in proxy.i2c_scan():
         if address in [32, 33, 34]:
             node = BaseNode(proxy, int(address))
-            info = {'name': node.name().split(b'\0', 1)[0],
-                    'hardware_version': node.hardware_version().split(b'\0', 1)[0],
-                    'software_version': node.software_version().split(b'\0', 1)[0],
+            info = {'name': node.name().split(b'\0', 1)[0].decode("utf-8"),
+                    'hardware_version': node.hardware_version().split(b'\0', 1)[0].decode("utf-8"),
+                    'software_version': node.software_version().split(b'\0', 1)[0].decode("utf-8"),
                     'uuid': str(node.uuid)}
             results['i2c_scan'].update({int(address): info})
         elif address in [80, 81]:

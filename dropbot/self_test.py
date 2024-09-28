@@ -1,6 +1,7 @@
 # coding: utf-8
 import bs4
 import pint
+import copy
 import jinja2
 import logging
 import pkgutil
@@ -14,6 +15,7 @@ import pandas as pd
 import datetime as dt
 import subprocess as sp
 import matplotlib as mpl
+from cv2.kinfu import Volume
 
 import path_helpers as ph
 
@@ -36,8 +38,8 @@ __all__ = ['format_system_info_results', 'format_test_channels_results',
            'format_test_shorts_results', 'format_test_system_metrics_results',
            'format_test_voltage_results']
 
-CAPACITANCE_FORMATTER = mpl.ticker.FuncFormatter(lambda x, *args: f"{ureg.Quantity(x, ureg.F).to('pF'):.1f}")
-
+CAPACITANCE_FORMATTER = mpl.ticker.FuncFormatter(lambda x, *args: f"{ureg.Quantity(x, ureg.F).to('pF'):.0f~#P}")
+VOLTAGE_FORMATTER = mpl.ticker.FuncFormatter(lambda x, *args: f"{ureg.Quantity(x, ureg.V):.0f~#P}")
 
 def format_system_info_results(info):
     """
@@ -55,9 +57,10 @@ def format_system_info_results(info):
         Markdown format.
     """
     template = jinja2.Template(r'''
-# Control board (UUID: `{{ info['control board']['uuid'] }}`) #
+# Control board information: #
 
 ## Properties ##
+ - **UUID**: `{{ info['control board']['uuid'] }}`
 {% for name_i, property_i in info['control board']['properties'].items() %}
  - **{{ name_i }}**: `{{ property_i }}`
 {%- endfor %}
@@ -71,7 +74,18 @@ def format_system_info_results(info):
 **{{ key_i.replace('_', ' ') }}**: `{{ info[key_i] }}`{{ '  ' }}
 {% endfor -%}'''.strip())
 
-    return template.render(info=info).strip()
+    # make a copy of the dictionary to avoid modifying the input dictionary
+    info_ = copy.deepcopy(info)
+    # replace the value of C16 in the dictionary with the formatted value
+    config = info_['control board']['config']
+    config['C16'] = f"{ureg.Quantity(config['C16'], ureg.F).to('nF'):.2f~#P}"
+    config['R7'] = f"{ureg.Quantity(config['R7'], ureg.ohm).to('kohm'):.2f~#P}"
+    config['pot_max'] = f"{ureg.Quantity(config['pot_max'], ureg.ohm).to('kohm'):.2f~#P}"
+    config['max_voltage'] = f"{ureg.Quantity(config['max_voltage'], ureg.V):.1f~#P}"
+    config['min_frequency'] = f"{ureg.Quantity(config['min_frequency'], ureg.Hz):.1f~#P}"
+    config['max_frequency'] = f"{ureg.Quantity(config['max_frequency'], ureg.Hz).to('kHz'):.1f~#P}"
+
+    return template.render(info=info_).strip()
 
 
 def format_test_system_metrics_results(results):
@@ -106,7 +120,7 @@ def format_test_system_metrics_results(results):
              'temperature': ureg.degC,
              'voltage_limit': ureg.V}
     for property_i, unit_i in units.items():
-        results[property_i] = f"{ureg.Quantity(results[property_i], ureg.V ):.2f}"
+        results[property_i] = f"{ureg.Quantity(results[property_i], unit_i ):.1f~#P}"
 
     return template.render(results=results).strip()
 
@@ -147,7 +161,6 @@ def format_test_i2c_results(results):
 {% else %}
 No devices found on I2C bus.
 {%- endif -%}'''.strip())
-
     return template.render(results=results).strip()
 
 
@@ -199,14 +212,18 @@ def format_test_voltage_results(results, figure_path=None):
  - **Output voltages**:
 
 {{ voltages.T|string|indent(8, True) }}
- - **Root-mean-squared (RMS) error**: {{ '{:.1f}'.format(rms_error) }}%
+
+- **Root-mean-squared (RMS) error**: {{ '{:.1f}'.format(rms_error) }}%
+
 {%- if figure_path %}
-   ![Measured vs target voltage]({{ figure_path }})
+<div style="margin-top: 20px;">
+   <img src="{{ figure_path }}" alt="" style="max-width: 100%; height: auto;">
+</div>
 {%- endif %}
     '''.strip())
 
     return template.render(results=results, voltages=voltages
-                           .map(lambda x: f"{ureg.Quantity(x, ureg.V):.1f}"),
+                           .map(lambda x: f"{ureg.Quantity(x, ureg.V):.1f~#P}"),
                            rms_error=rms_error,
                            figure_path=figure_path).strip()
 
@@ -241,7 +258,9 @@ def plot_test_voltage_results(results, axis=None):
     axis.plot(results['target_voltage'], results['target_voltage'], 'k--')
     axis.set_xlabel('Target voltage')
     axis.set_ylabel('Measured voltage')
-
+    axis.xaxis.set_major_formatter(VOLTAGE_FORMATTER)
+    axis.yaxis.set_major_formatter(VOLTAGE_FORMATTER)
+    axis.set_title('Measured vs Target Voltage')
     return axis
 
 
@@ -287,13 +306,14 @@ def format_test_on_board_feedback_calibration_results(results, figure_path=None)
 
     capacitances = (pd.DataFrame(np.column_stack([C_nominal.values, np.mean(c_measured, 1)]),
                                  columns=['nominal', 'measured']).T
-                    .map(lambda x: f"{ureg.Quantity(x, ureg.F).to('pF'):.1f}"))
+                    .map(lambda x: f"{ureg.Quantity(x, ureg.F).to('pF'):.1f~#P}"))
 
     if figure_path:
         figure_path = ph.path(figure_path).realpath()
         # Make parent directories if they don't exist.
         figure_path.parent.makedirs(exist_ok=True)
         axis = plot_test_on_board_feedback_calibration_results(results)
+        axis.set_title('Measured vs Nominal Capacitance')
         fig = axis.get_figure()
         fig.tight_layout()
         fig.savefig(figure_path, bbox_inches='tight')
@@ -305,7 +325,9 @@ def format_test_on_board_feedback_calibration_results(results, figure_path=None)
 
 {{ capacitances|string|indent(8, True) }}
 {%- if figure_path %}
-   ![On-board feedback calibration capacitors]({{ figure_path }})
+<div style="margin-top: 20px;">
+   <img src="{{ figure_path }}" alt="" style="max-width: 100%; height: auto;">
+</div>
 {%- endif %}'''.strip())
     return template.render(results=results, capacitances=capacitances,
                            figure_path=figure_path)
@@ -447,6 +469,7 @@ def format_test_channels_results(results, figure_path=None):
         # Make parent directories if they don't exist.
         figure_path.parent.makedirs(exist_ok=True)
         axes = plot_test_channels_results(results)
+        axes[0].set_title('Channel Capacitance Summary')
         fig = axes[0].get_figure()
         fig.tight_layout()
         fig.savefig(figure_path, bbox_inches='tight')
@@ -463,12 +486,12 @@ No channels tested.
 {% else %}{% if shorts|length or no_connection|length %}
 {%- set bad_channels = shorts + no_connection %}
 {%- set bad_channels_count = (bad_channels|length) %}
-The following channels failed ({{ bad_channels_count }} of {{ n_channels }} / **{{ '{:.1f}'.format((bad_channels_count | float) / n_channels * 100) }}%**):
+ - The following channels failed ({{ bad_channels_count }} of {{ n_channels }} / **{{ '{:.1f}'.format((bad_channels_count | float) / n_channels * 100) }}%**):
 {% if shorts|length %}
- - **Shorts** ({{ shorts | length }} of {{ n_channels }} / {{ '{:.1f}'.format((shorts|length|float) / n_channels * 100) }}%): **{{ shorts | join(', ') }}**
+    * **Shorts** ({{ shorts | length }} of {{ n_channels }} / {{ '{:.1f}'.format((shorts|length|float) / n_channels * 100) }}%): **{{ shorts | join(', ') }}**
 {%- endif %}
 {%- if no_connection|length %}
- - **No connection** ({{ no_connection | length }} of {{ n_channels }} / {{ '{:.1f}'.format((no_connection|length|float) / n_channels * 100) }}%): **{{ no_connection | join(', ') }}**
+    * **No connection** ({{ no_connection | length }} of {{ n_channels }} / {{ '{:.1f}'.format((no_connection|length|float) / n_channels * 100) }}%): **{{ no_connection | join(', ') }}**
 {%- if n_reps > 1 -%}
 {% for x in no_connection -%}
 {%- set n_fails = (c[x] < c_threshold).sum() %}
@@ -477,11 +500,12 @@ The following channels failed ({{ bad_channels_count }} of {{ n_channels }} / **
 {%- endif %}
 {%- endif %}
 {%- else %}
-**All {{ n_channels }} channels passed.**
+- **All {{ n_channels }} channels passed.**
 {%- endif %}
 {%- if figure_path %}
-
-![Channel capacitance summary]({{ figure_path }})
+<div style="margin-top: 20px;">
+   <img src="{{ figure_path }}" alt="" style="max-width: 100%; height: auto;">
+</div>
 {%- endif %}
 {%- endif %}
 '''.strip())
@@ -522,13 +546,24 @@ def plot_test_channels_results(results, axes=None):
 
     axis_i = axes[0]
     axis_i.bar(list(range(c.shape[0])), np.mean(c, 1), yerr=np.std(c, 1))
+    # change the color of the bars to red for any readings below the threshold
+    for i in range(c.shape[0]):
+        if np.mean(c[i]) < 5e-12:
+            axis_i.patches[i].set_facecolor('tab:red')
     axis_i.set_xlabel("Channel")
     axis_i.set_ylabel("Capacitance")
     # Use SI unit prefixes for y-axis capacitance tick labels.
     axis_i.yaxis.set_major_formatter(CAPACITANCE_FORMATTER)
 
     axis_i = axes[1]
-    axis_i.hist(c.flatten(), 20)
+    hist = np.histogram(c, bins=20)
+    # plot the readings above the threshold as blue and below as red
+    # find the indices of the readings below the threshold
+    hist_below = np.histogram(c[c < 5e-12], hist[1])
+    axis_i.stairs(hist_below[0], hist_below[1], color='tab:red', fill=True)
+    hist_above = np.histogram(c[c >= 5e-12], hist[1])
+    axis_i.stairs(hist_above[0], hist_above[1], color='tab:blue', fill=True)
+
     axis_i.set_ylabel("# of channels")
     axis_i.set_xlabel("Capacitance")
     # Use SI unit prefixes for x-axis capacitance tick labels.
@@ -703,7 +738,7 @@ def generate_report(results, output_path=None, force=False):
     # timestamp is available).
     min_timestamp = min([result_i['utc_timestamp'] for result_i in results.values()
                          if 'utc_timestamp' in result_i] + [dt.datetime.now(dt.timezone.utc).isoformat()])
-    header = [f"# DropBot self test (*{min_timestamp.split('.')[0]}*)"]
+    header = f"---\ntitle: 'DropBot Self Test Report (*{min_timestamp.split('.')[0]}*)'\n---\n\n"
 
     if output_path is None:
         # Execute `format_<test name>_results` for each test to generate each
@@ -713,7 +748,7 @@ def generate_report(results, output_path=None, force=False):
         md_results = list(map(eval, md_results_cmds))
 
         # Join Markdown reports, separated by horizontal bars.
-        md_report = (2 * '\n' + (72 * '-') + 2 * '\n').join(header + md_results)
+        md_report = header + (2 * '\n' + (72 * '-') + 2 * '\n').join(md_results)
 
         # No output path was specified.  Return text-only Markdown report.
         return md_report
@@ -727,6 +762,11 @@ def generate_report(results, output_path=None, force=False):
 
     markdown_path = parent_dir.joinpath('results-summary.markdown')
 
+    if output_path.ext.lower() in ('.docx', '.html'):
+        print(f"Writing report to {output_path}")
+    else:
+        print(f"Writing report to {markdown_path}")
+
     try:
         # Execute `format_<test name>_results` for each test to generate each
         # respective Markdown report.
@@ -738,7 +778,7 @@ def generate_report(results, output_path=None, force=False):
                       for name_i in ALL_TESTS if name_i in results]
 
         # Join Markdown reports, separated by horizontal bars.
-        md_report = (2 * '\n' + (72 * '-') + 2 * '\n').join(header + md_results)
+        md_report = header + (2 * '\n' + (72 * '-') + 2 * '\n').join(md_results)
 
         markdown_path.write_text(md_report)
 
@@ -750,11 +790,16 @@ def generate_report(results, output_path=None, force=False):
             template_path = parent_dir.joinpath('SelfTestTemplate.html5')
             template_path.write_text(template)
             # Use `pandoc` to create self-contained `.html` report.
-            sp.check_call(['pandoc', markdown_path, '-o', output_path,
-                           '--standalone', '--self-contained', '--template',
-                           template_path], shell=True, stderr=sp.PIPE)
+            # sp.check_call(['pandoc', markdown_path, '-o', output_path,
+            #                '--standalone', '--self-contained', '--template',
+            #                template_path], shell=True, stderr=sp.PIPE)
+            #
+            # data = output_path.read_text()
+            import pypandoc
+            data = pypandoc.convert_file(markdown_path, 'html', format='markdown',
+                                         extra_args=['--standalone', '--embed-resources', '--template', template_path])
 
-            data = output_path.read_text()
+            output_path.write_text(data, encoding='utf-8')
 
             # Inject JSON result data into HTML report.
             soup = bs4.BeautifulSoup(data, 'lxml')
