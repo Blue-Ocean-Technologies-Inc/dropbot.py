@@ -204,7 +204,7 @@ def format_test_voltage_results(results, figure_path=None):
     '''.strip())
 
     return template.render(results=results, voltages=voltages
-                           .applymap(lambda x: f"{ureg.Quantity(x, ureg.V):.1f}"),
+                           .map(lambda x: f"{ureg.Quantity(x, ureg.V):.1f}"),
                            rms_error=rms_error,
                            figure_path=figure_path).strip()
 
@@ -285,7 +285,7 @@ def format_test_on_board_feedback_calibration_results(results, figure_path=None)
 
     capacitances = (pd.DataFrame(np.column_stack([C_nominal.values, np.mean(c_measured, 1)]),
                                  columns=['nominal', 'measured']).T
-                    .applymap(lambda x: f"{ureg.Quantity(x, ureg.F).to('pF'):.1f}"))
+                    .map(lambda x: f"{ureg.Quantity(x, ureg.F).to('pF'):.1f}"))
 
     if figure_path:
         figure_path = ph.path(figure_path).realpath()
