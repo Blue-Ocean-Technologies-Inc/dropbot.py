@@ -76,7 +76,7 @@ def get_intersections(df_segments: pd.DataFrame, p: float, r: float) -> pd.DataF
     s = df_segments[['x2', 'y2']].values - q
 
     r_x_s = np.cross(r, s)
-    r_x_s[r_x_s == 0] = np.NaN
+    r_x_s[r_x_s == 0] = np.nan
     t = np.cross((q - p), s) / r_x_s
     u = np.cross((q - p), r) / r_x_s
 
