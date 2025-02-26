@@ -74,6 +74,8 @@ def transfer(**kwargs) -> None:
     # source_dir = path(source_dir).joinpath(module_name, 'Arduino', 'library', lib_name) # Use this for Arduino libs
     source_dir = path(source_dir).joinpath('lib', lib_name)
     install_dir = pioh.conda_arduino_include_path().joinpath(lib_name)
+    if install_dir.exists():
+        install_dir.rmtree()
     source_dir.copytree(install_dir)
     print(f"Copied tree from '{source_dir}' to '{install_dir}'")
 
