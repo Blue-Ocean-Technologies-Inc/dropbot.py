@@ -35,7 +35,7 @@ requirements:
         - pypandoc
         - jinja2
         - pytables
-        - protobuf 3.20.*
+        - protobuf 5.29.*
         - tabulate
         - aiosignal
         - matplotlib
@@ -87,7 +87,7 @@ outputs:
         - pypandoc
         - jinja2
         - pytables
-        - protobuf 3.20.* 
+        - protobuf 5.29.*
         - tabulate
         - aiosignal
         - matplotlib
@@ -130,5 +130,5 @@ about:
 # source will be downloaded prior to filling in jinja templates
 # Example assumes that this folder has setup.py in it
 source:
-  git_url: ../
-#  path: ..
+#  git_url: ../
+  path: ..
