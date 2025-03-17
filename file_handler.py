@@ -126,11 +126,12 @@ def cli_parser():
     parser.add_argument('source_dir')
     parser.add_argument('prefix')
     parser.add_argument('package_name')
-    parser.add_argument('module_name')
-    parser.add_argument('lib_name')
 
     args = parser.parse_args()
-    execute(**vars(args))
+    args_dict = vars(args)
+    args_dict['module_name'] = args_dict['package_name'].replace('-', '_')
+    args_dict['lib_name'] = ''.join(word.capitalize() for word in args_dict['package_name'].split('-'))
+    execute(**args_dict)
 
 import os
 os.getcwd()

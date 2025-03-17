@@ -21,7 +21,7 @@ build:
     - dropbot-upload = dropbot.bin.upload:upload
   script:
     # Copy Arduino library to Conda include directory and generate Arduino `library.properties` file
-    - python file_handler.py {{ SRC_DIR }} {{ PREFIX }} {{ PKG_NAME }} {{ MODULE_NAME }} {{ LIB_NAME }}
+    - python file_handler.py {{ SRC_DIR }} {{ PREFIX }} {{ PKG_NAME }}
     # Install source directory as Python package.
     - python setup.py install --single-version-externally-managed --record record.txt
 
