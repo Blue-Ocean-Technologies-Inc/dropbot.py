@@ -151,7 +151,7 @@ def execute(**kwargs):
         print(f"Setting PLATFORMIO_LIB_EXTRA_DIRS={env['PLATFORMIO_LIB_EXTRA_DIRS']}")
 
         # Run platformio with the modified environment
-        subprocess.run(['pio', 'run'])
+        subprocess.run(['pio', 'run'], env=env)
         copy_compiled_firmware(**kwargs)
     except FileNotFoundError:
         print('Failed to generate firmware')
