@@ -2117,40 +2117,28 @@ public:
     *     connected by neighbours where capacitance threshold was also met).
     */
     c_threshold = c_threshold ? c_threshold : drops::C_THRESHOLD;
-    const unsigned long start = microseconds();
-
-    // Only measure capacitance of specified channels.
-    std::vector<float> capacitances =
-        channels_.scatter_channels_capacitances(channels, config_._
-                                                .capacitance_n_samples);
-    auto drops = drops::get_drops(channel_neighbours_, capacitances, channels,
-                                  c_threshold);
-    const unsigned long end = microseconds();
-
-    if (event_enabled(EVENT_DROPS_DETECTED)) {
-      /*
-      * Stream `drops-detected` event in the form:
-      *
-      *     {"event": "drops-detected",
-      *      "drops": {"channels": [[<drop 0 ch 0>, <drop 0 ch 1>, ...],
-      *                             [<drop 1 ch 0>, <drop 1 ch 1>, ...], ...],
-      *               "capacitances": [[<drop 0 cap 0>, <drop 0 cap 1>, ...],
-      *                                [<drop 1 cap 0>, <drop 1 cap 1>, ...],
-      *                                ...]},
-      *      "start": <start microseconds>, "end": <end microseconds>}
-      */
-      UInt8Array buffer = UInt8Array_init(0, get_buffer().data);
-      sprintf_drops_detected(capacitances, drops, start, end, buffer);
-
-      {
-        PacketStream output;
-        output.start(Serial, buffer.length);
-        output.write(Serial, reinterpret_cast<char *>(buffer.data),
-                     buffer.length);
-        output.end(Serial);
-      }
+    
+    // Convert the container to a UInt8Array to measure capacitance
+    std::vector<uint8_t> channelsVec;
+    for (auto ch : channels) {
+        channelsVec.push_back(static_cast<uint8_t>(ch));
     }
-    return drops;
+    
+    UInt8Array channelsArray;
+    channelsArray.data = channelsVec.data();
+    channelsArray.length = channelsVec.size();
+    
+    // Get capacitances for the specified channels
+    auto capacitancesArray = channel_capacitances(channelsArray);
+    
+    // Convert FloatArray to std::vector<float> for drops::get_drops
+    std::vector<float> capacitancesVec(capacitancesArray.data, 
+                                      capacitancesArray.data + capacitancesArray.length);
+    
+    // Get drops (contiguous electrode regions where capacitance threshold is met)
+    auto drops_result = drops::get_drops(channel_neighbours_, capacitancesVec, channels, c_threshold);
+    
+    return drops_result;
   }
 
   UInt8Array get_channels_drops(UInt8Array channels, float c_threshold) {
@@ -2607,62 +2595,6 @@ public:
     result.length = end - begin;
     std::copy(begin, end, result.data);
     return result;
-  }
-
-private:
-  /**
-   * @brief Helper method to format drop detection event as JSON.
-   */
-  void sprintf_drops_detected(std::vector<float> const &capacitances,
-                             std::vector<std::vector<uint8_t> > const &drops,
-                             unsigned long start_us, unsigned long end_us,
-                             UInt8Array &buffer) {
-    const unsigned int capacity = BUFFER_SIZE;
-    char * const data = reinterpret_cast<char *>(buffer.data);
-    unsigned int length = 0;
-
-    length += snprintf(data + length, capacity - length,
-                      "{\"event\": \"drops-detected\", \"drops\": {\"channels\": [");
-
-    // Append channels for each drop.
-    for (unsigned int i = 0; i < drops.size(); i++) {
-      if (i > 0) {
-        length += snprintf(data + length, capacity - length, ", ");
-      }
-      length += snprintf(data + length, capacity - length, "[");
-      const auto &channels_i = drops[i];
-      for (unsigned int j = 0; j < channels_i.size(); j++) {
-        if (j > 0) {
-          length += snprintf(data + length, capacity - length, ", ");
-        }
-        length += snprintf(data + length, capacity - length, "%d", channels_i[j]);
-      }
-      length += snprintf(data + length, capacity - length, "]");
-    }
-
-    length += snprintf(data + length, capacity - length, "], \"capacitances\": [");
-
-    // Append capacitances for each drop.
-    for (unsigned int i = 0; i < drops.size(); i++) {
-      if (i > 0) {
-        length += snprintf(data + length, capacity - length, ", ");
-      }
-      length += snprintf(data + length, capacity - length, "[");
-      // Get channels, capacitances for drop i.
-      const auto &channels_i = drops[i];
-      for (unsigned int j = 0; j < channels_i.size(); j++) {
-        if (j > 0) {
-          length += snprintf(data + length, capacity - length, ", ");
-        }
-        length += snprintf(data + length, capacity - length, "%g", 
-                          capacitances[channels_i[j]]);
-      }
-      length += snprintf(data + length, capacity - length, "]");
-    }
-
-    length += snprintf(data + length, capacity - length, 
-                      "]}, \"start\": %lu, \"end\": %lu}", start_us, end_us);
-    buffer.length = length;
   }
 };
 }  // namespace dropbot
