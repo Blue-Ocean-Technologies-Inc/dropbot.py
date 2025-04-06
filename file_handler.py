@@ -1,4 +1,5 @@
 # coding: utf-8
+import os
 import argparse
 import subprocess
 
@@ -133,8 +134,7 @@ def cli_parser():
     args_dict['lib_name'] = ''.join(word.capitalize() for word in args_dict['package_name'].split('-'))
     execute(**args_dict)
 
-import os
-os.getcwd()
+
 def execute(**kwargs):
     properties = get_properties(**kwargs)
 
@@ -145,6 +145,12 @@ def execute(**kwargs):
     compile_protobufs(**kwargs)
     transfer(**kwargs)
     try:
+        # Set up environment with PLATFORMIO_LIB_EXTRA_DIRS
+        env = os.environ.copy()
+        env['PLATFORMIO_LIB_EXTRA_DIRS'] = str(pioh.conda_arduino_include_path())
+        print(f"Setting PLATFORMIO_LIB_EXTRA_DIRS={env['PLATFORMIO_LIB_EXTRA_DIRS']}")
+
+        # Run platformio with the modified environment
         subprocess.run(['pio', 'run'])
         copy_compiled_firmware(**kwargs)
     except FileNotFoundError:

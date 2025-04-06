@@ -2,8 +2,6 @@
 import sys
 import argparse
 
-import platformio_helpers as pioh
-
 from dropbot import __version__ as DROPBOT_VERSION
 
 
@@ -24,8 +22,5 @@ if __name__ == '__main__':
 
     extra_args += [r'-DDEVICE_ID_RESPONSE=\"dropbot::{}\"'.format(args.version), r'-DTWI_BUFFER_LENGTH=160',
                    r'-DPACKET_SIZE=1024']
-
-    ignore = ['HVSwitchingBoard']
-    extra_args += [f'-I{lib}' for lib in pioh.conda_arduino_include_path().walkdirs(ignore=ignore)]
 
     print(' '.join(extra_args))
