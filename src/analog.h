@@ -182,7 +182,7 @@ float benchmark_s16_percentile_diff(uint8_t pinP, uint8_t pinN,
 
 template <typename Config>
 ADC_REFERENCE _analog_reference(Config const &adc_config) {
-  if (adc_config.savedSC2 & (1 << ADC_SC2_REFSEL0_BIT)) {
+  if (adc_config.savedSC2 & (1 << 0)) { // REFSEL0 is bit 0
     return ADC_REFERENCE::REF_1V2;
   } else {
     return ADC_REFERENCE::REF_3V3;
@@ -191,23 +191,15 @@ ADC_REFERENCE _analog_reference(Config const &adc_config) {
 
 template <typename Config>
 ADC_SAMPLING_SPEED _sampling_speed(Config const &adc_config) {
-  if (!(adc_config.savedCFG1 & (1 << ADC_CFG1_ADLSMP_BIT))) {
+  if (!(adc_config.savedCFG1 & (1 << 7))) { // ADLSMP is bit 7
     return ADC_SAMPLING_SPEED::VERY_HIGH_SPEED;
-  } else if (adc_config.savedCFG2 & ((1 << ADC_CFG2_ADLSTS1_BIT) |
-                                     (1 << ADC_CFG2_ADLSTS0_BIT)) ==
-              ((1 << ADC_CFG2_ADLSTS1_BIT) | (1 << ADC_CFG2_ADLSTS0_BIT))) {
+  } else if ((adc_config.savedCFG2 & 0x3) == 0x3) { // ADLSTS bits 1:0 = 11
     return ADC_SAMPLING_SPEED::HIGH_SPEED;
-  } else if (adc_config.savedCFG2 & ((1 << ADC_CFG2_ADLSTS1_BIT) |
-                                     (1 << ADC_CFG2_ADLSTS0_BIT)) ==
-              ((1 << ADC_CFG2_ADLSTS1_BIT) | (0 << ADC_CFG2_ADLSTS0_BIT))) {
+  } else if ((adc_config.savedCFG2 & 0x3) == 0x2) { // ADLSTS bits 1:0 = 10
     return ADC_SAMPLING_SPEED::MED_SPEED;
-  } else if (adc_config.savedCFG2 & ((1 << ADC_CFG2_ADLSTS1_BIT) |
-                                     (1 << ADC_CFG2_ADLSTS0_BIT)) ==
-              ((0 << ADC_CFG2_ADLSTS1_BIT) | (1 << ADC_CFG2_ADLSTS0_BIT))) {
+  } else if ((adc_config.savedCFG2 & 0x3) == 0x1) { // ADLSTS bits 1:0 = 01
     return ADC_SAMPLING_SPEED::LOW_SPEED;
-  } else if (adc_config.savedCFG2 & ((1 << ADC_CFG2_ADLSTS1_BIT) |
-                                     (1 << ADC_CFG2_ADLSTS0_BIT)) ==
-              ((0 << ADC_CFG2_ADLSTS1_BIT) | (0 << ADC_CFG2_ADLSTS0_BIT))) {
+  } else if ((adc_config.savedCFG2 & 0x3) == 0x0) { // ADLSTS bits 1:0 = 00
     return ADC_SAMPLING_SPEED::VERY_LOW_SPEED;
   }
   return ADC_SAMPLING_SPEED::VERY_LOW_SPEED;
@@ -218,34 +210,34 @@ template <typename Config>
 ADC_CONVERSION_SPEED _conversion_speed(Config const &adc_config) {
   auto speed = adc_config.savedCFG1 & 0b1100011;
 
-  if (adc_config.savedCFG2 & ADC_CFG2_ADHSC) {
+  if (adc_config.savedCFG2 & (1 << 7)) { // ADC_CFG2_ADHSC is bit 7
     // Either HI_SPEED_16_BITS, HI_SPEED, or VERY_HIGH_SPEED
-    if (speed == ADC_CFG1_VERY_HIGH_SPEED) {
+    if (speed == 0b1100001) { // VERY_HIGH_SPEED
       return ADC_CONVERSION_SPEED::VERY_HIGH_SPEED;
-    } else if (speed == ADC_CFG1_HI_SPEED) {
+    } else if (speed == 0b1000001) { // HI_SPEED
       return ADC_CONVERSION_SPEED::HIGH_SPEED;
-    } else {  // if speed == ADC_CFG1_HI_SPEED_16_BITS:
+    } else { // HI_SPEED_16_BITS
       return ADC_CONVERSION_SPEED::HIGH_SPEED_16BITS;
     }
   } else {
     // Either MED_SPEED, LOW_SPEED, or VERY_LOW_SPEED
-    if (speed == ADC_CFG1_MED_SPEED) {
+    if (speed == 0b0100001) { // MED_SPEED
       return ADC_CONVERSION_SPEED::MED_SPEED;
-    } else if (speed == ADC_CFG1_LOW_SPEED) {
+    } else if (speed == 0b0000001) { // LOW_SPEED
       return ADC_CONVERSION_SPEED::LOW_SPEED;
-    } else {  // if speed == ADC_CFG1_VERY_LOW_SPEED:
-            return ADC_CONVERSION_SPEED::VERY_LOW_SPEED;
+    } else { // VERY_LOW_SPEED
+      return ADC_CONVERSION_SPEED::VERY_LOW_SPEED;
     }
   }
 }
 
 template <typename Config>
 uint8_t _averaging(Config const &adc_config) {
-  if (!(adc_config.savedSC3 & (1 << ADC_SC3_AVGE_BIT))) {
+  if (!(adc_config.savedSC3 & (1 << 2))) { // ADC_SC3_AVGE is bit 2
     return 0;
   } else {
-      auto avgs = adc_config.savedSC3 & ((1 << ADC_SC3_AVGS1_BIT) +
-                                         (1 << ADC_SC3_AVGS0_BIT));
+      // AVGS is bits 1:0 in SC3 register, use a mask to extract those bits
+      auto avgs = adc_config.savedSC3 & 0x3; // Extract bits 1:0 (AVGS1:AVGS0)
       return 1 << (avgs + 2);
   }
 }

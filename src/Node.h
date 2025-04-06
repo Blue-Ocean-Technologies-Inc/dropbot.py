@@ -24,7 +24,7 @@
 #include <BaseNodeRpc/BaseNodeSerialHandler.h>
 #include <BaseNodeRpc/SerialHandler.h>
 #include <ADC.h>
-//#include <RingBufferDMA.h>
+#include <AnalogBufferDMA.h> // used to be <RingBufferDMA.h>
 #include <DMAChannel.h>
 #include <InputDebounce.h>
 #include <TeensyMinimalRpc/ADC.h>  // Analog to digital converter
@@ -239,6 +239,9 @@ public:
   // Time of most recent drops detection.
   uint32_t drops_timestamp_ms_;
 
+  // Flag to track watchdog auto-refresh state
+  bool watchdog_refresh_;
+
   /**
   * @brief Chip status changed event.
   *
@@ -331,7 +334,7 @@ public:
                                InputDebounce::PinInMode::PIM_EXT_PULL_UP_RES,
                                0),
            capacitance_timestamp_ms_(0), target_count_(0),
-           drops_timestamp_ms_(0) {
+           drops_timestamp_ms_(0), watchdog_refresh_(false) {
     pinMode(LED_BUILTIN, OUTPUT);
     dma_data_ = UInt8Array_init_default();
     clear_neighbours();
@@ -888,7 +891,7 @@ public:
                                "{\"event\": \"shorts-detected\", "
                                "\"values\": [");
 
-      for (int i = 0 ; i < shorts.length; i++) {
+      for (unsigned int i = 0 ; i < shorts.length; i++) {
         if (i > 0) {
           buffer.length += sprintf((char *)&buffer.data[buffer.length], ", ");
         }
@@ -1290,7 +1293,7 @@ public:
 
     float sum = 0;
 
-    for (int16_t i = 0; i < size; i++) {
+    for (uint32_t i = 0; i < size; i++) {
       sum += data[i];
     }
     return sum / size;
@@ -1300,7 +1303,7 @@ public:
     const int16_t *data = reinterpret_cast<int16_t *>(address);
     float sum_squared = 0;
 
-    for (int16_t i = 0; i < size; i++) {
+    for (uint32_t i = 0; i < size; i++) {
       const float data_i = data[i] - mean;
       sum_squared += data_i * data_i;
     }
@@ -1407,7 +1410,7 @@ public:
     return address;
   }
   void mem_aligned_free(uint32_t address) {
-    for (int i = 0; i < aligned_allocations_.size(); i++) {
+    for (unsigned int i = 0; i < static_cast<unsigned int>(aligned_allocations_.size()); i++) {
       if (aligned_allocations_.get(i) == address) {
         aligned_allocations_.remove(i);
       }
@@ -1430,7 +1433,7 @@ public:
     mem_fill((float *)address, value, size);
   }
   void mem_free(uint32_t address) {
-    for (int i = 0; i < allocations_.size(); i++) {
+    for (unsigned int i = 0; i < static_cast<unsigned int>(allocations_.size()); i++) {
       if (allocations_.get(i) == address) { allocations_.remove(i); }
     }
     free((void *)address);
@@ -1636,7 +1639,11 @@ public:
     /*!
      * \param num can be 0, 4, 8, 16 or 32.
      */
-    analog::adc_.setAveraging(num, adc_num);
+    if (adc_num == 0) {
+      analog::adc_.adc0->setAveraging(num);
+    } else if (adc_num == 1) {
+      analog::adc_.adc1->setAveraging(num);
+    }
   }
   void setConversionSpeed(uint8_t speed, int8_t adc_num) {
     //! Sets the conversion speed (changes the ADC clock, ADCK)
@@ -1657,58 +1664,88 @@ public:
      * but if F_BUS<F_ADCK, you can't use ADC_VERY_HIGH_SPEED for sampling speed.
      *
      */
-    analog::adc_.setConversionSpeed((ADC_CONVERSION_SPEED)speed, adc_num);
+    if (adc_num == 0) {
+      analog::adc_.adc0->setConversionSpeed((ADC_CONVERSION_SPEED)speed);
+    } else if (adc_num == 1) {
+      analog::adc_.adc1->setConversionSpeed((ADC_CONVERSION_SPEED)speed);
+    }
   }
   void setReference(uint8_t type, int8_t adc_num) {
-    //! Set the voltage reference you prefer, default is 3.3 V (VCC)
-    /*!
-     * \param type can be ADC_REF_3V3, ADC_REF_1V2 (not for Teensy LC) or ADC_REF_EXT.
-     *
-     *  It recalibrates at the end.
-     */
-    analog::adc_.setReference((ADC_REFERENCE)type, adc_num);
+  //! Set the voltage reference you prefer, default is vcc
+  /*!
+  * \param ref_type can be ADC_REFERENCE::REF_3V3, ADC_REFERENCE::REF_1V2 (not for Teensy LC) or ADC_REFERENCE::REF_EXT
+  * \param adc_num ADC number to change.
+  */
+    if (adc_num == 0) {
+      analog::adc_.adc0->setReference((ADC_REFERENCE)type);
+    } else if (adc_num == 1) {
+      analog::adc_.adc1->setReference((ADC_REFERENCE)type);
+    }
   }
   void setResolution(uint8_t bits, int8_t adc_num) {
-    //! Change the resolution of the measurement.
-    /*
-     *  \param bits is the number of bits of resolution.
-     *  For single-ended measurements: 8, 10, 12 or 16 bits.
-     *  For differential measurements: 9, 11, 13 or 16 bits.
-     *  If you want something in between (11 bits single-ended for example) select the inmediate higher
-     *  and shift the result one to the right.
-     *
-     *  Whenever you change the resolution, change also the comparison values (if you use them).
-     */
-    analog::adc_.setResolution(bits, adc_num);
+  //! Change the resolution of the measurement.
+  /*!
+  *  \param bits is the number of bits of resolution.
+  *  For single-ended measurements: 8, 10, 12 or 16 bits.
+  *  For differential measurements: 9, 11, 13 or 16 bits.
+  *  \param adc_num ADC number to change.
+  */
+    if (adc_num == 0) {
+      analog::adc_.adc0->setResolution(bits);
+    } else if (adc_num == 1) {
+      analog::adc_.adc1->setResolution(bits);
+    }
   }
   void setSamplingSpeed(uint8_t speed, int8_t adc_num) {
-    //! Sets the sampling speed
-    /** Increase the sampling speed for low impedance sources, decrease it for higher impedance ones.
-     * \param speed can be ADC_VERY_LOW_SPEED, ADC_LOW_SPEED, ADC_MED_SPEED, ADC_HIGH_SPEED or ADC_VERY_HIGH_SPEED.
-     *
-     * ADC_VERY_LOW_SPEED is the lowest possible sampling speed (+24 ADCK).
-     * ADC_LOW_SPEED adds +16 ADCK.
-     * ADC_MED_SPEED adds +10 ADCK.
-     * ADC_HIGH_SPEED (or ADC_HIGH_SPEED_16BITS) adds +6 ADCK.
-     * ADC_VERY_HIGH_SPEED is the highest possible sampling speed (0 ADCK added).
-     */
-    analog::adc_.setSamplingSpeed((ADC_SAMPLING_SPEED)speed, adc_num);
+  //! Sets the sampling speed
+  /** Increase the sampling speed for low impedance sources, decrease it for higher impedance ones.
+  * \param speed can be any of the ADC_SAMPLING_SPEED enum: VERY_LOW_SPEED, LOW_SPEED, MED_SPEED, HIGH_SPEED or VERY_HIGH_SPEED.
+  */
+    if (adc_num == 0) {
+      analog::adc_.adc0->setSamplingSpeed((ADC_SAMPLING_SPEED)speed);
+    } else if (adc_num == 1) {
+      analog::adc_.adc1->setSamplingSpeed((ADC_SAMPLING_SPEED)speed);
+    }
   }
   void disableCompare(int8_t adc_num) {
   //! Disable the compare function
-    analog::adc_.disableCompare(adc_num);
+  /**
+  */
+    if (adc_num == 0) {
+      analog::adc_.adc0->disableCompare();
+    } else if (adc_num == 1) {
+      analog::adc_.adc1->disableCompare();
+    }
   }
   void disableDMA(int8_t adc_num) {
   //! Disable ADC DMA request
-    analog::adc_.disableDMA(adc_num);
+  /**
+  */
+    if (adc_num == 0) {
+      analog::adc_.adc0->disableDMA();
+    } else if (adc_num == 1) {
+      analog::adc_.adc1->disableDMA();
+    }
   }
   void disableInterrupts(int8_t adc_num) {
   //! Disable interrupts
-    analog::adc_.disableInterrupts(adc_num);
+  /**
+  */
+    if (adc_num == 0) {
+      analog::adc_.adc0->disableInterrupts();
+    } else if (adc_num == 1) {
+      analog::adc_.adc1->disableInterrupts();
+    }
   }
   void disablePGA(int8_t adc_num) {
   //! Disable PGA
-    analog::adc_.disablePGA(adc_num);
+  /**
+  */
+    if (adc_num == 0) {
+      analog::adc_.adc0->disablePGA();
+    } else if (adc_num == 1) {
+      analog::adc_.adc1->disablePGA();
+    }
   }
   void enableCompare(int16_t compValue, bool greaterThan, int8_t adc_num) {
   //! Enable the compare function to a single value
@@ -1717,7 +1754,11 @@ public:
   *  Call it after changing the resolution
   *  Use with interrupts or poll conversion completion with isComplete()
   */
-    analog::adc_.enableCompare(compValue, greaterThan, adc_num);
+    if (adc_num == 0) {
+      analog::adc_.adc0->enableCompare(compValue, greaterThan);
+    } else if (adc_num == 1) {
+      analog::adc_.adc1->enableCompare(compValue, greaterThan);
+    }
   }
   void enableCompareRange(int16_t lowerLimit, int16_t upperLimit, bool insideRange, bool inclusive, int8_t adc_num) {
   //! Enable the compare function to a range
@@ -1727,21 +1768,33 @@ public:
   *  Call it after changing the resolution
   *  Use with interrupts or poll conversion completion with isComplete()
   */
-    analog::adc_.enableCompareRange(lowerLimit, upperLimit, insideRange, inclusive, adc_num);
+    if (adc_num == 0) {
+      analog::adc_.adc0->enableCompareRange(lowerLimit, upperLimit, insideRange, inclusive);
+    } else if (adc_num == 1) {
+      analog::adc_.adc1->enableCompareRange(lowerLimit, upperLimit, insideRange, inclusive);
+    }
   }
   void enableDMA(int8_t adc_num) {
   //! Enable DMA request
   /** An ADC DMA request will be raised when the conversion is completed
   *  (including hardware averages and if the comparison (if any) is true).
   */
-    analog::adc_.enableDMA(adc_num);
+    if (adc_num == 0) {
+      analog::adc_.adc0->enableDMA();
+    } else if (adc_num == 1) {
+      analog::adc_.adc1->enableDMA();
+    }
   }
   void enableInterrupts(int8_t adc_num) {
   //! Enable interrupts
   /** An IRQ_ADC0 Interrupt will be raised when the conversion is completed
   *  (including hardware averages and if the comparison (if any) is true).
   */
-    analog::adc_.enableInterrupts(adc_num);
+    if (adc_num == 0) {
+      analog::adc_.adc0->enableInterrupts(nullptr);
+    } else if (adc_num == 1) {
+      analog::adc_.adc1->enableInterrupts(nullptr);
+    }
   }
   void enablePGA(uint8_t gain, int8_t adc_num) {
   //! Enable and set PGA
@@ -1750,20 +1803,34 @@ public:
   *   \param gain can be 1, 2, 4, 8, 16, 32 or 64
   *
   */
-    analog::adc_.enablePGA(gain, adc_num);
+    if (adc_num == 0) {
+      analog::adc_.adc0->enablePGA(gain);
+    } else if (adc_num == 1) {
+      analog::adc_.adc1->enablePGA(gain);
+    }
   }
   int readSingle(int8_t adc_num) {
   //! Reads the analog value of a single conversion.
   /** Set the conversion with with startSingleRead(pin) or startSingleDifferential(pinP, pinN).
   *   \return the converted value.
   */
-    return analog::adc_.readSingle(adc_num);
+    if (adc_num == 0) {
+      return analog::adc_.adc0->readSingle();
+    } else if (adc_num == 1) {
+      return analog::adc_.adc1->readSingle();
+    }
+    return 0;
   }
   bool startContinuous(uint8_t pin, int8_t adc_num) {
   //! Starts continuous conversion on the pin.
   /** It returns as soon as the ADC is set, use analogReadContinuous() to read the value.
   */
-    return analog::adc_.startContinuous(pin, adc_num);
+    if (adc_num == 0) {
+      return analog::adc_.adc0->startContinuous(pin);
+    } else if (adc_num == 1) {
+      return analog::adc_.adc1->startContinuous(pin);
+    }
+    return false;
   }
   bool startContinuousDifferential(uint8_t pinP, uint8_t pinN, int8_t adc_num) {
   //! Starts continuous conversion between the pins (pinP-pinN).
@@ -1772,7 +1839,12 @@ public:
   * \param pinN must be A11 (if pinP=A10) or A13 (if pinP=A12).
   * Other pins will return ADC_ERROR_DIFF_VALUE.
   */
-    return analog::adc_.startContinuousDifferential(pinP, pinN, adc_num);
+    if (adc_num == 0) {
+      return analog::adc_.adc0->startContinuousDifferential(pinP, pinN);
+    } else if (adc_num == 1) {
+      return analog::adc_.adc1->startContinuousDifferential(pinP, pinN);
+    }
+    return false;
   }
   bool startSingleDifferential(uint8_t pinP, uint8_t pinN, int8_t adc_num) {
   //! Start a differential conversion between two pins (pinP - pinN) and enables interrupts.
@@ -1783,7 +1855,12 @@ public:
   *   Other pins will return ADC_ERROR_DIFF_VALUE.
   *   If this function interrupts a measurement, it stores the settings in adc_config
   */
-    return analog::adc_.startSingleDifferential(pinP, pinN, adc_num);
+    if (adc_num == 0) {
+      return analog::adc_.adc0->startSingleDifferential(pinP, pinN);
+    } else if (adc_num == 1) {
+      return analog::adc_.adc1->startSingleDifferential(pinP, pinN);
+    }
+    return false;
   }
   bool startSingleRead(uint8_t pin, int8_t adc_num) {
   //! Starts an analog measurement on the pin and enables interrupts.
@@ -1791,28 +1868,52 @@ public:
   *   If the pin is incorrect it returns ADC_ERROR_VALUE
   *   If this function interrupts a measurement, it stores the settings in adc_config
   */
-    return analog::adc_.startSingleRead(pin, adc_num);
+    if (adc_num == 0) {
+      return analog::adc_.adc0->startSingleRead(pin);
+    } else if (adc_num == 1) {
+      return analog::adc_.adc1->startSingleRead(pin);
+    }
+    return false;
   }
   void stopContinuous(int8_t adc_num) {
   //! Stops continuous conversion
-    analog::adc_.stopContinuous(adc_num);
+    if (adc_num == 0) {
+      analog::adc_.adc0->stopContinuous();
+    } else if (adc_num == 1) {
+      analog::adc_.adc1->stopContinuous();
+    }
   }
 
   // ##########################################################################
   // # Teensy library accessor methods
   uint32_t getMaxValue(int8_t adc_num) {
   //! Returns the maximum value for a measurement: 2^res-1.
-    return analog::adc_.getMaxValue(adc_num);
+    if (adc_num == 0) {
+      return analog::adc_.adc0->getMaxValue();
+    } else if (adc_num == 1) {
+      return analog::adc_.adc1->getMaxValue();
+    }
+    return 0;
   }
   uint8_t getPGA(int8_t adc_num) {
   //! Returns the PGA level
   /** PGA level = from 1 to 64
   */
-    return analog::adc_.getPGA(adc_num);
+    if (adc_num == 0) {
+      return analog::adc_.adc0->getPGA();
+    } else if (adc_num == 1) {
+      return analog::adc_.adc1->getPGA();
+    }
+    return 0;
   }
   uint8_t getResolution(int8_t adc_num) {
   //! Returns the resolution of the ADC_Module.
-    return analog::adc_.getResolution(adc_num);
+    if (adc_num == 0) {
+      return analog::adc_.adc0->getResolution();
+    } else if (adc_num == 1) {
+      return analog::adc_.adc1->getResolution();
+    }
+    return 0;
   }
   bool isComplete(int8_t adc_num) {
   //! Is an ADC conversion ready?
@@ -1821,19 +1922,39 @@ public:
   *  When a value is read this function returns 0 until a new value exists
   *  So it only makes sense to call it with continuous or non-blocking methods
   */
-    return analog::adc_.isComplete(adc_num);
+    if (adc_num == 0) {
+      return analog::adc_.adc0->isComplete();
+    } else if (adc_num == 1) {
+      return analog::adc_.adc1->isComplete();
+    }
+    return false;
   }
   bool isContinuous(int8_t adc_num) {
   //! Is the ADC in continuous mode?
-    return analog::adc_.isContinuous(adc_num);
+    if (adc_num == 0) {
+      return analog::adc_.adc0->isContinuous();
+    } else if (adc_num == 1) {
+      return analog::adc_.adc1->isContinuous();
+    }
+    return false;
   }
   bool isConverting(int8_t adc_num) {
   //! Is the ADC converting at the moment?
-    return analog::adc_.isConverting(adc_num);
+    if (adc_num == 0) {
+      return analog::adc_.adc0->isConverting();
+    } else if (adc_num == 1) {
+      return analog::adc_.adc1->isConverting();
+    }
+    return false;
   }
   bool isDifferential(int8_t adc_num) {
   //! Is the ADC in differential mode?
-    return analog::adc_.isDifferential(adc_num);
+    if (adc_num == 0) {
+      return analog::adc_.adc0->isDifferential();
+    } else if (adc_num == 1) {
+      return analog::adc_.adc1->isDifferential();
+    }
+    return false;
   }
 
   float select_on_board_test_capacitor(int8_t index) {
@@ -1853,7 +1974,7 @@ public:
     // XXX De-activate all on-board calibration capacitors first to avoid
     // accidentally activating multiple capacitors at the same time while
     // switching.
-    for (uint i = 0; i < 3; i++) {
+    for (unsigned int i = 0; i < 3; i++) {
       digitalWriteFast(i, HIGH);
     }
     if (index >= 0 && index < 3) {
@@ -1975,6 +2096,63 @@ public:
     return result;
   }
 
+  template <typename T>
+  std::vector<std::vector<uint8_t> > get_channels_drops(T channels, float c_threshold) {
+    /*
+    * Parameters
+    * ----------
+    * channels : STL container
+    *     Channels to measure for drop detection - **MUST** be sorted.
+    * c_threshold : float
+    *     Minimum capacitance (in farads) to consider as liquid present on a
+    *     channel electrode.
+    *
+    *     If set to 0, a default of 3 pF is used.
+    *
+    * Returns
+    * -------
+    * std::vector<std::vector<uint8_t> >
+    *     List of channels where threshold capacitance was met, grouped by
+    *     contiguous electrode regions (i.e., sets of electrodes that are
+    *     connected by neighbours where capacitance threshold was also met).
+    */
+    c_threshold = c_threshold ? c_threshold : drops::C_THRESHOLD;
+    const unsigned long start = microseconds();
+
+    // Only measure capacitance of specified channels.
+    std::vector<float> capacitances =
+        channels_.scatter_channels_capacitances(channels, config_._
+                                                .capacitance_n_samples);
+    auto drops = drops::get_drops(channel_neighbours_, capacitances, channels,
+                                  c_threshold);
+    const unsigned long end = microseconds();
+
+    if (event_enabled(EVENT_DROPS_DETECTED)) {
+      /*
+      * Stream `drops-detected` event in the form:
+      *
+      *     {"event": "drops-detected",
+      *      "drops": {"channels": [[<drop 0 ch 0>, <drop 0 ch 1>, ...],
+      *                             [<drop 1 ch 0>, <drop 1 ch 1>, ...], ...],
+      *               "capacitances": [[<drop 0 cap 0>, <drop 0 cap 1>, ...],
+      *                                [<drop 1 cap 0>, <drop 1 cap 1>, ...],
+      *                                ...]},
+      *      "start": <start microseconds>, "end": <end microseconds>}
+      */
+      UInt8Array buffer = UInt8Array_init(0, get_buffer().data);
+      sprintf_drops_detected(capacitances, drops, start, end, buffer);
+
+      {
+        PacketStream output;
+        output.start(Serial, buffer.length);
+        output.write(Serial, reinterpret_cast<char *>(buffer.data),
+                     buffer.length);
+        output.end(Serial);
+      }
+    }
+    return drops;
+  }
+
   UInt8Array get_channels_drops(UInt8Array channels, float c_threshold) {
     /*
     * Parameters
@@ -1999,7 +2177,7 @@ public:
     *         [drop 0 channel count][drop 0: channel 0, channel 1, ...][drop 1 channel count][drop 1: channel 0, channel 1, ...]
     */
     std::set<uint8_t> channels_v(channels.data, channels.data +
-                                 channels.length);
+                                channels.length);
     auto drops = get_channels_drops(channels_v, c_threshold);
     UInt8Array result = UInt8Array_init(0, get_buffer().data);
     drops::pack_drops(drops, result);
@@ -2260,7 +2438,7 @@ public:
       auto actuated_channels = channels_.actuated_channels();
 
       // XXX LSB of chip 0 and port 0 is channel 0.
-      for (auto i = 0; i < actuated_channels.size(); i++) {
+      for (std::size_t i = 0; i < actuated_channels.size(); i++) {
         if (i > 0) {
           result.length += sprintf(&data[result.length], ", ");
         }
@@ -2431,63 +2609,61 @@ public:
     return result;
   }
 
-  template <typename T>
-  std::vector<std::vector<uint8_t> > get_channels_drops(T channels, float c_threshold) {
-    /*
-    * Parameters
-    * ----------
-    * channels : STL container
-    *     Channels to measure for drop detection - **MUST** be sorted.
-    * c_threshold : float
-    *     Minimum capacitance (in farads) to consider as liquid present on a
-    *     channel electrode.
-    *
-    *     If set to 0, a default of 3 pF is used.
-    *
-    * Returns
-    * -------
-    * std::vector<std::vector<uint8_t> >
-    *     List of channels where threshold capacitance was met, grouped by
-    *     contiguous electrode regions (i.e., sets of electrodes that are
-    *     connected by neighbours where capacitance threshold was also met).
-    */
-    c_threshold = c_threshold ? c_threshold : drops::C_THRESHOLD;
-    const unsigned long start = microseconds();
+private:
+  /**
+   * @brief Helper method to format drop detection event as JSON.
+   */
+  void sprintf_drops_detected(std::vector<float> const &capacitances,
+                             std::vector<std::vector<uint8_t> > const &drops,
+                             unsigned long start_us, unsigned long end_us,
+                             UInt8Array &buffer) {
+    const unsigned int capacity = BUFFER_SIZE;
+    char * const data = reinterpret_cast<char *>(buffer.data);
+    unsigned int length = 0;
 
-    // Only measure capacitance of specified channels.
-    std::vector<float> capacitances =
-        channels_.scatter_channels_capacitances(channels, config_._
-                                                .capacitance_n_samples);
-    auto drops = drops::get_drops(channel_neighbours_, capacitances, channels,
-                                  c_threshold);
-    const unsigned long end = microseconds();
+    length += snprintf(data + length, capacity - length,
+                      "{\"event\": \"drops-detected\", \"drops\": {\"channels\": [");
 
-    if (event_enabled(EVENT_DROPS_DETECTED)) {
-      /*
-      * Stream `drops-detected` event in the form:
-      *
-      *     {"event": "drops-detected",
-      *      "drops": {"channels": [[<drop 0 ch 0>, <drop 0 ch 1>, ...],
-      *                             [<drop 1 ch 0>, <drop 1 ch 1>, ...], ...],
-      *                "capacitances": [[<drop 0 cap 0>, <drop 0 cap 1>, ...],
-      *                                 [<drop 1 cap 0>, <drop 1 cap 1>, ...],
-      *                                 ...]},
-      *      "start": <start microseconds>, "end": <end microseconds>}
-      */
-      UInt8Array buffer = UInt8Array_init(0, get_buffer().data);
-      sprintf_drops_detected(capacitances, drops, start, end, buffer);
-
-      {
-        PacketStream output;
-        output.start(Serial, buffer.length);
-        output.write(Serial, reinterpret_cast<char *>(buffer.data),
-                     buffer.length);
-        output.end(Serial);
+    // Append channels for each drop.
+    for (unsigned int i = 0; i < drops.size(); i++) {
+      if (i > 0) {
+        length += snprintf(data + length, capacity - length, ", ");
       }
+      length += snprintf(data + length, capacity - length, "[");
+      const auto &channels_i = drops[i];
+      for (unsigned int j = 0; j < channels_i.size(); j++) {
+        if (j > 0) {
+          length += snprintf(data + length, capacity - length, ", ");
+        }
+        length += snprintf(data + length, capacity - length, "%d", channels_i[j]);
+      }
+      length += snprintf(data + length, capacity - length, "]");
     }
-    return drops;
-  }
 
+    length += snprintf(data + length, capacity - length, "], \"capacitances\": [");
+
+    // Append capacitances for each drop.
+    for (unsigned int i = 0; i < drops.size(); i++) {
+      if (i > 0) {
+        length += snprintf(data + length, capacity - length, ", ");
+      }
+      length += snprintf(data + length, capacity - length, "[");
+      // Get channels, capacitances for drop i.
+      const auto &channels_i = drops[i];
+      for (unsigned int j = 0; j < channels_i.size(); j++) {
+        if (j > 0) {
+          length += snprintf(data + length, capacity - length, ", ");
+        }
+        length += snprintf(data + length, capacity - length, "%g", 
+                          capacitances[channels_i[j]]);
+      }
+      length += snprintf(data + length, capacity - length, "]");
+    }
+
+    length += snprintf(data + length, capacity - length, 
+                      "]}, \"start\": %lu, \"end\": %lu}", start_us, end_us);
+    buffer.length = length;
+  }
 };
 }  // namespace dropbot
 

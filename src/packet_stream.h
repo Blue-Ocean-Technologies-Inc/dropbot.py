@@ -26,8 +26,9 @@ uint16_t update_crc_any(uint16_t crc, T const &value) {
    * [1]: https://diigo.com/01r4yj
    * [2]: http://en.wikipedia.org/wiki/Endianness#Endianness_in_networking */
   for (int i = sizeof(T) - 1; i >= 0; i--) {
-    update_crc(crc, proxy[i]);
+    crc = update_crc(crc, proxy[i]);
   }
+  return crc;
 }
 
 

@@ -255,10 +255,17 @@ ADC_Module::ADC_Config save_config(uint8_t adc_num) {
 
 
 void load_config(ADC_Module::ADC_Config const &config, int8_t adc_num) {
-  adc_.setAveraging(_averaging(config), adc_num);
-  adc_.setConversionSpeed(_conversion_speed(config), adc_num);
-  adc_.setSamplingSpeed(_sampling_speed(config), adc_num);
-  adc_.setReference(_analog_reference(config), adc_num);
+  if (adc_num == 0) {
+    adc_.adc0->setAveraging(_averaging(config));
+    adc_.adc0->setConversionSpeed(_conversion_speed(config));
+    adc_.adc0->setSamplingSpeed(_sampling_speed(config));
+    adc_.adc0->setReference(_analog_reference(config));
+  } else if (adc_num == 1) {
+    adc_.adc1->setAveraging(_averaging(config));
+    adc_.adc1->setConversionSpeed(_conversion_speed(config));
+    adc_.adc1->setSamplingSpeed(_sampling_speed(config));
+    adc_.adc1->setReference(_analog_reference(config));
+  }
 }
 
 }  // namespace analog {

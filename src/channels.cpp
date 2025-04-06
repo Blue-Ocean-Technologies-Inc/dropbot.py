@@ -54,12 +54,12 @@ void pack_channels(UInt8Array const &channels, UInt8Array &packed_channels) {
   const auto ports_per_board = 5;
   packed_channels.length = 0;
 
-  for (auto i = 0; i < channels.length; i++) {
+  for (uint32_t i = 0; i < channels.length; i++) {
     const Switch _switch = channel_to_switch(channels.data[i]);
     const uint8_t byte_i = _switch.board * ports_per_board + _switch.port;
 
-    if (byte_i + 1 >= packed_channels.length) {
-        for (auto board_i = packed_channels.length;
+    if (static_cast<uint32_t>(byte_i + 1) >= packed_channels.length) {
+        for (uint8_t board_i = packed_channels.length;
              board_i < _switch.board + 1; board_i++) {
             for (auto port_j = 0; port_j < ports_per_board + 1; port_j++) {
                 packed_channels.data[_switch.board * ports_per_board
@@ -175,7 +175,7 @@ std::vector<uint8_t> Channels::detect_shorts(uint8_t delay_ms) {
   // Add shorted channels to the disabled channels mask.
   std::vector<uint8_t> shorts(short_count);
   short_count = 0;
-  for (auto i = 0; i < short_voltages.size(); i++) {
+  for (size_t i = 0; i < short_voltages.size(); i++) {
     if (short_voltages[i] < short_threshold) {
       // Voltage was less than half Vcc. Append this channel to the list of
       // shorts and disable the channel.

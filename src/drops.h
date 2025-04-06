@@ -79,7 +79,7 @@ std::vector<std::vector<uint8_t> > get_drops(Neighbours &neighbours,
         // Channel is already assigned to a **drop group**.
         // Remap to current **drop group**.
         const auto original_drop_i = drop_member[x_i];
-        for (auto j = 0; j < drop_member.size(); j++) {
+        for (std::size_t j = 0; j < drop_member.size(); j++) {
           if (original_drop_i == drop_member[j]) {
             drop_member[j] = *it_channel;
           }

@@ -49,9 +49,9 @@ void pack_channels(UInt8Array const &channels, UInt8Array &packed_channels);
 template <typename Iterator>
 std::vector<uint8_t> unpack_channels(Iterator begin, const Iterator end) {
   const auto ports_per_board = 5;
-  const auto channels_per_port = 8;
-  const auto channels_per_board = ports_per_board * channels_per_port;
-
+  // Variable not used in this function but kept for documentation
+  (void)ports_per_board;
+  
   std::vector<uint8_t> channels;
   channels.reserve(MAX_NUMBER_OF_CHANNELS);
 
@@ -88,9 +88,9 @@ template <typename Iterator>
 std::vector<Switch> unpack_switches(Iterator begin,
                                            const Iterator end) {
   const auto ports_per_board = 5;
-  const auto channels_per_port = 8;
-  const auto channels_per_board = ports_per_board * channels_per_port;
-
+  // Variable not used in this function but kept for documentation
+  (void)ports_per_board;
+  
   std::vector<Switch> switches;
   switches.reserve(MAX_NUMBER_OF_CHANNELS);
 
