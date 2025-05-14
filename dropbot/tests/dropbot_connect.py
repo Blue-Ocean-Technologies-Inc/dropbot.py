@@ -28,10 +28,10 @@ if port:
 
             import dropbot as db
             try:
-                proxy = db.SerialProxy()
+                proxy = db.SerialProxy(ignore=True)
             except Exception as e:
                 print(f'[Error] {e}')
-                proxy = db.SerialProxy(port=port.device)
+                proxy = db.SerialProxy(port=port.device, ignore=True)
             title = '='*30 + ' Properties ' + '='*30
             print(title)
             print(proxy.properties)
