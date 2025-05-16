@@ -806,7 +806,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
 
     @property
     def hardware_version(self) -> str:
-        return self._hardware_version().tostring().decode('utf-8')
+        return self._hardware_version().tobytes().decode('utf-8')
 
     @property
     def min_waveform_frequency(self) -> float:
@@ -957,7 +957,7 @@ class SerialProxy(ProxyMixin, Proxy):
         if timeout_s is None:
             timeout_s = self.default_timeout
         _L().debug(f'Using timeout {timeout_s}')
-        return self.monitor.request(packet.tostring(), timeout=timeout_s)
+        return self.monitor.request(packet.tobytes(), timeout=timeout_s)
 
     def terminate(self) -> None:
         if self.monitor is not None:
