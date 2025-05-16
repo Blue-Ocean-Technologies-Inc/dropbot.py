@@ -40,8 +40,11 @@ if port:
             print(title)
             print(proxy.state)
             print('='*len(title))
-
+            proxy.terminate()
         else:
             print('No bytes to read')
+        if ser.is_open:
+            ser.close()
+            print('Serial port closed')
     else:
         print('Serial port is not open')
