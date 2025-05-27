@@ -43,8 +43,9 @@ def restore_state(f):
             result = f(*args, **kwargs)
         finally:
             # Restore state of attributes that we were modified.
-            for attr_i, value_i in state.items():
-                setattr(proxy, attr_i, value_i)
+            proxy.state_of_channels = state['state_of_channels']
+            state.pop('state_of_channels')
+            proxy.update_state(**state)
         return result
 
     return _decorator
