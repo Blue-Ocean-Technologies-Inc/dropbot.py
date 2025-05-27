@@ -8,14 +8,17 @@ import pkgutil
 import tempfile
 import pypandoc
 import json_tricks
-import matplotlib.pyplot
-import matplotlib.ticker
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+# Set non-interactive backend to avoid GUI warnings
+mpl.use('Agg')
 
 import numpy as np
 import pandas as pd
 import datetime as dt
 # import subprocess as sp
-import matplotlib as mpl
 
 import path_helpers as ph
 
@@ -38,8 +41,8 @@ __all__ = ['format_system_info_results', 'format_test_channels_results',
            'format_test_shorts_results', 'format_test_system_metrics_results',
            'format_test_voltage_results']
 
-CAPACITANCE_FORMATTER = mpl.ticker.FuncFormatter(lambda x, *args: f"{ureg.Quantity(x, ureg.F).to('pF'):.0f~#P}")
-VOLTAGE_FORMATTER = mpl.ticker.FuncFormatter(lambda x, *args: f"{ureg.Quantity(x, ureg.V):.0f~#P}")
+CAPACITANCE_FORMATTER = ticker.FuncFormatter(lambda x, *args: f"{ureg.Quantity(x, ureg.F).to('pF'):.0f~#P}")
+VOLTAGE_FORMATTER = ticker.FuncFormatter(lambda x, *args: f"{ureg.Quantity(x, ureg.V):.0f~#P}")
 
 def format_system_info_results(info):
     """
@@ -250,7 +253,7 @@ def plot_test_voltage_results(results, axis=None):
         voltage.
     """
     if axis is None:
-        fig, axis = mpl.pyplot.subplots(figsize=(3.5, 3.5))
+        fig, axis = plt.subplots(figsize=(3.5, 3.5))
         axis.set_aspect(True)
 
     # Plot the measured vs target voltage
@@ -366,7 +369,7 @@ def plot_test_on_board_feedback_calibration_results(results, axis=None):
         the nominal values of the on-board feedback calibration capacitors.
     """
     if axis is None:
-        fig, axis = mpl.pyplot.subplots(figsize=(3, 3))
+        fig, axis = plt.subplots(figsize=(3, 3))
         axis.set_aspect(True)
 
     C_nominal = NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS.values
@@ -542,7 +545,7 @@ def plot_test_channels_results(results, axes=None):
     c = np.array(results['c'])
 
     if axes is None:
-        fig, axes = mpl.pyplot.subplots(2, figsize=(4, 4))
+        fig, axes = plt.subplots(2, figsize=(4, 4))
 
     axis_i = axes[0]
     axis_i.bar(list(range(c.shape[0])), np.mean(c, 1), yerr=np.std(c, 1))
