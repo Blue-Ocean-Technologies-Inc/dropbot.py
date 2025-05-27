@@ -231,7 +231,7 @@ def format_test_voltage_results(results, figure_path=None):
                            figure_path=figure_path).strip()
 
 
-def plot_test_voltage_results(results, axis=None):
+def plot_test_voltage_results(results, axis=None, return_fig=False):
     """
     .. versionadded:: 1.28
 
@@ -264,7 +264,10 @@ def plot_test_voltage_results(results, axis=None):
     axis.xaxis.set_major_formatter(VOLTAGE_FORMATTER)
     axis.yaxis.set_major_formatter(VOLTAGE_FORMATTER)
     axis.set_title('Measured vs Target Voltage')
-    return axis
+    if return_fig:
+        return axis, fig
+    else:
+        return axis
 
 
 def format_test_on_board_feedback_calibration_results(results, figure_path=None):
@@ -336,7 +339,7 @@ def format_test_on_board_feedback_calibration_results(results, figure_path=None)
                            figure_path=figure_path)
 
 
-def plot_test_on_board_feedback_calibration_results(results, axis=None):
+def plot_test_on_board_feedback_calibration_results(results, axis=None, return_fig=False):
     """
     .. versionadded:: 1.28
 
@@ -388,7 +391,10 @@ def plot_test_on_board_feedback_calibration_results(results, axis=None):
     axis.xaxis.set_major_formatter(CAPACITANCE_FORMATTER)
     axis.yaxis.set_major_formatter(CAPACITANCE_FORMATTER)
 
-    return axis
+    if return_fig:
+        return axis, fig
+    else:
+        return axis
 
 
 def format_test_shorts_results(results):
@@ -516,7 +522,7 @@ No channels tested.
     return template.render(results=results, **context)
 
 
-def plot_test_channels_results(results, axes=None):
+def plot_test_channels_results(results, axes=None, return_fig=False):
     """
     .. versionadded:: 1.28
 
@@ -572,7 +578,10 @@ def plot_test_channels_results(results, axes=None):
     # Use SI unit prefixes for x-axis capacitance tick labels.
     axis_i.xaxis.set_major_formatter(CAPACITANCE_FORMATTER)
 
-    return axes
+    if return_fig:
+        return axes, fig
+    else:
+        return axes
 
 
 def self_test(proxy, tests=None):
