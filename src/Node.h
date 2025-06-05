@@ -1671,11 +1671,12 @@ public:
     }
   }
   void setReference(uint8_t type, int8_t adc_num) {
-  //! Set the voltage reference you prefer, default is vcc
-  /*!
-  * \param ref_type can be ADC_REFERENCE::REF_3V3, ADC_REFERENCE::REF_1V2 (not for Teensy LC) or ADC_REFERENCE::REF_EXT
-  * \param adc_num ADC number to change.
-  */
+    //! Set the voltage reference you prefer, default is 3.3 V (VCC)
+    /*!
+     * \param type can be ADC_REF_3V3, ADC_REF_1V2 (not for Teensy LC) or ADC_REF_EXT.
+     *
+     *  It recalibrates at the end.
+     */
     if (adc_num == 0) {
       analog::adc_.adc0->setReference((ADC_REFERENCE)type);
     } else if (adc_num == 1) {
@@ -1683,13 +1684,16 @@ public:
     }
   }
   void setResolution(uint8_t bits, int8_t adc_num) {
-  //! Change the resolution of the measurement.
-  /*!
-  *  \param bits is the number of bits of resolution.
-  *  For single-ended measurements: 8, 10, 12 or 16 bits.
-  *  For differential measurements: 9, 11, 13 or 16 bits.
-  *  \param adc_num ADC number to change.
-  */
+    //! Change the resolution of the measurement.
+    /*
+     *  \param bits is the number of bits of resolution.
+     *  For single-ended measurements: 8, 10, 12 or 16 bits.
+     *  For differential measurements: 9, 11, 13 or 16 bits.
+     *  If you want something in between (11 bits single-ended for example) select the inmediate higher
+     *  and shift the result one to the right.
+     *
+     *  Whenever you change the resolution, change also the comparison values (if you use them).
+     */
     if (adc_num == 0) {
       analog::adc_.adc0->setResolution(bits);
     } else if (adc_num == 1) {
@@ -1697,10 +1701,16 @@ public:
     }
   }
   void setSamplingSpeed(uint8_t speed, int8_t adc_num) {
-  //! Sets the sampling speed
-  /** Increase the sampling speed for low impedance sources, decrease it for higher impedance ones.
-  * \param speed can be any of the ADC_SAMPLING_SPEED enum: VERY_LOW_SPEED, LOW_SPEED, MED_SPEED, HIGH_SPEED or VERY_HIGH_SPEED.
-  */
+    //! Sets the sampling speed
+    /** Increase the sampling speed for low impedance sources, decrease it for higher impedance ones.
+     * \param speed can be ADC_VERY_LOW_SPEED, ADC_LOW_SPEED, ADC_MED_SPEED, ADC_HIGH_SPEED or ADC_VERY_HIGH_SPEED.
+     *
+     * ADC_VERY_LOW_SPEED is the lowest possible sampling speed (+24 ADCK).
+     * ADC_LOW_SPEED adds +16 ADCK.
+     * ADC_MED_SPEED adds +10 ADCK.
+     * ADC_HIGH_SPEED (or ADC_HIGH_SPEED_16BITS) adds +6 ADCK.
+     * ADC_VERY_HIGH_SPEED is the highest possible sampling speed (0 ADCK added).
+     */
     if (adc_num == 0) {
       analog::adc_.adc0->setSamplingSpeed((ADC_SAMPLING_SPEED)speed);
     } else if (adc_num == 1) {
@@ -2096,51 +2106,6 @@ public:
     return result;
   }
 
-  template <typename T>
-  std::vector<std::vector<uint8_t> > get_channels_drops(T channels, float c_threshold) {
-    /*
-    * Parameters
-    * ----------
-    * channels : STL container
-    *     Channels to measure for drop detection - **MUST** be sorted.
-    * c_threshold : float
-    *     Minimum capacitance (in farads) to consider as liquid present on a
-    *     channel electrode.
-    *
-    *     If set to 0, a default of 3 pF is used.
-    *
-    * Returns
-    * -------
-    * std::vector<std::vector<uint8_t> >
-    *     List of channels where threshold capacitance was met, grouped by
-    *     contiguous electrode regions (i.e., sets of electrodes that are
-    *     connected by neighbours where capacitance threshold was also met).
-    */
-    c_threshold = c_threshold ? c_threshold : drops::C_THRESHOLD;
-    
-    // Convert the container to a UInt8Array to measure capacitance
-    std::vector<uint8_t> channelsVec;
-    for (auto ch : channels) {
-        channelsVec.push_back(static_cast<uint8_t>(ch));
-    }
-    
-    UInt8Array channelsArray;
-    channelsArray.data = channelsVec.data();
-    channelsArray.length = channelsVec.size();
-    
-    // Get capacitances for the specified channels
-    auto capacitancesArray = channel_capacitances(channelsArray);
-    
-    // Convert FloatArray to std::vector<float> for drops::get_drops
-    std::vector<float> capacitancesVec(capacitancesArray.data, 
-                                      capacitancesArray.data + capacitancesArray.length);
-    
-    // Get drops (contiguous electrode regions where capacitance threshold is met)
-    auto drops_result = drops::get_drops(channel_neighbours_, capacitancesVec, channels, c_threshold);
-    
-    return drops_result;
-  }
-
   UInt8Array get_channels_drops(UInt8Array channels, float c_threshold) {
     /*
     * Parameters
@@ -2165,11 +2130,68 @@ public:
     *         [drop 0 channel count][drop 0: channel 0, channel 1, ...][drop 1 channel count][drop 1: channel 0, channel 1, ...]
     */
     std::set<uint8_t> channels_v(channels.data, channels.data +
-                                channels.length);
+                                 channels.length);
     auto drops = get_channels_drops(channels_v, c_threshold);
     UInt8Array result = UInt8Array_init(0, get_buffer().data);
     drops::pack_drops(drops, result);
     return result;
+  }
+
+  template <typename T>
+  std::vector<std::vector<uint8_t> > get_channels_drops(T channels, float c_threshold) {
+    /*
+    * Parameters
+    * ----------
+    * channels : STL container
+    *     Channels to measure for drop detection - **MUST** be sorted.
+    * c_threshold : float
+    *     Minimum capacitance (in farads) to consider as liquid present on a
+    *     channel electrode.
+    *
+    *     If set to 0, a default of 3 pF is used.
+    *
+    * Returns
+    * -------
+    * std::vector<std::vector<uint8_t> >
+    *     List of channels where threshold capacitance was met, grouped by
+    *     contiguous electrode regions (i.e., sets of electrodes that are
+    *     connected by neighbours where capacitance threshold was also met).
+    */
+    c_threshold = c_threshold ? c_threshold : drops::C_THRESHOLD;
+    const unsigned long start = microseconds();
+
+    // Only measure capacitance of specified channels.
+    std::vector<float> capacitances =
+        channels_.scatter_channels_capacitances(channels, config_._
+                                                .capacitance_n_samples);
+    auto drops = drops::get_drops(channel_neighbours_, capacitances, channels,
+                                  c_threshold);
+    const unsigned long end = microseconds();
+
+    if (event_enabled(EVENT_DROPS_DETECTED)) {
+      /*
+      * Stream `drops-detected` event in the form:
+      *
+      *     {"event": "drops-detected",
+      *      "drops": {"channels": [[<drop 0 ch 0>, <drop 0 ch 1>, ...],
+      *                             [<drop 1 ch 0>, <drop 1 ch 1>, ...], ...],
+      *                "capacitances": [[<drop 0 cap 0>, <drop 0 cap 1>, ...],
+      *                                 [<drop 1 cap 0>, <drop 1 cap 1>, ...],
+      *                                 ...]},
+      *      "start": <start microseconds>, "end": <end microseconds>}
+      */
+      UInt8Array buffer = UInt8Array_init(0, get_buffer().data);
+      sprintf_drops_detected(capacitances, drops, start, end, buffer);
+
+      {
+        PacketStream output;
+        output.start(Serial, buffer.length);
+        output.write(Serial, reinterpret_cast<char *>(buffer.data),
+                     buffer.length);
+        output.end(Serial);
+      }
+    }
+    return drops;
   }
 
   UInt8Array get_all_drops(float c_threshold) {

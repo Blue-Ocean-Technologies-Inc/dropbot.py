@@ -182,10 +182,9 @@ float benchmark_s16_percentile_diff(uint8_t pinP, uint8_t pinN,
 
 template <typename Config>
 ADC_REFERENCE _analog_reference(Config const &adc_config) {
-  if (adc_config.savedSC2 & (1 << 0)) { // REFSEL0 is bit 0
-    return ADC_REFERENCE::REF_1V2;
-  } else {
-    return ADC_REFERENCE::REF_3V3;
+  switch (adc_config.savedSC2 & 0x03) {
+    case 1: return ADC_REFERENCE::REF_1V2;
+    default: return ADC_REFERENCE::REF_3V3;
   }
 }
 
@@ -233,12 +232,11 @@ ADC_CONVERSION_SPEED _conversion_speed(Config const &adc_config) {
 
 template <typename Config>
 uint8_t _averaging(Config const &adc_config) {
-  if (!(adc_config.savedSC3 & (1 << 2))) { // ADC_SC3_AVGE is bit 2
+  if (!(adc_config.savedSC3 & ADC_SC3_AVGE)) {
     return 0;
   } else {
-      // AVGS is bits 1:0 in SC3 register, use a mask to extract those bits
-      auto avgs = adc_config.savedSC3 & 0x3; // Extract bits 1:0 (AVGS1:AVGS0)
-      return 1 << (avgs + 2);
+    uint8_t avgs = adc_config.savedSC3 & 0x03; // bits 1:0
+    return 1 << (avgs + 2); // 2^2 = 4, 2^3 = 8, etc.
   }
 }
 
