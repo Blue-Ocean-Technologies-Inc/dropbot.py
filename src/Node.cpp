@@ -43,6 +43,7 @@ void Node::begin() {
 
   Serial.begin(115200);
 
+  Wire.begin();
   // If we have a valid i2c address (i.e., if Wire.begin() was called)
   if (config_._.i2c_address > 0) {
     // set the i2c clock
