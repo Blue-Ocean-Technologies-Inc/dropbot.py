@@ -1410,7 +1410,7 @@ public:
     return address;
   }
   void mem_aligned_free(uint32_t address) {
-    for (unsigned int i = 0; i < static_cast<unsigned int>(aligned_allocations_.size()); i++) {
+    for (int i = 0; i < aligned_allocations_.size(); i++) {
       if (aligned_allocations_.get(i) == address) {
         aligned_allocations_.remove(i);
       }
@@ -1433,7 +1433,7 @@ public:
     mem_fill((float *)address, value, size);
   }
   void mem_free(uint32_t address) {
-    for (unsigned int i = 0; i < static_cast<unsigned int>(allocations_.size()); i++) {
+    for (int i = 0; i < allocations_.size(); i++) {
       if (allocations_.get(i) == address) { allocations_.remove(i); }
     }
     free((void *)address);
@@ -2448,7 +2448,7 @@ public:
       auto actuated_channels = channels_.actuated_channels();
 
       // XXX LSB of chip 0 and port 0 is channel 0.
-      for (std::size_t i = 0; i < actuated_channels.size(); i++) {
+      for (unsigned int i = 0; i < actuated_channels.size(); i++) {
         if (i > 0) {
           result.length += sprintf(&data[result.length], ", ");
         }
