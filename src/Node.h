@@ -239,9 +239,6 @@ public:
   // Time of most recent drops detection.
   uint32_t drops_timestamp_ms_;
 
-  // Flag to track watchdog auto-refresh state
-  bool watchdog_refresh_;
-
   /**
   * @brief Chip status changed event.
   *
@@ -334,7 +331,7 @@ public:
                                InputDebounce::PinInMode::PIM_EXT_PULL_UP_RES,
                                0),
            capacitance_timestamp_ms_(0), target_count_(0),
-           drops_timestamp_ms_(0), watchdog_refresh_(false) {
+           drops_timestamp_ms_(0) {
     pinMode(LED_BUILTIN, OUTPUT);
     dma_data_ = UInt8Array_init_default();
     clear_neighbours();
