@@ -27,18 +27,10 @@
 #ifndef TwoWireKinetis_h
 #define TwoWireKinetis_h
 
-#if defined(__arm__) && defined(TEENSYDUINO) && (defined(__MKL26Z64__) || defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__))
+#if defined(__arm__) && defined(TEENSYDUINO)
 
-#include <Arduino.h>
-#include <stdint.h>
-
-#if defined(__MKL26Z64__) || defined(__MK20DX128__)
-#define BUFFER_LENGTH 40
-#elif defined(__MK20DX256__)
-#define BUFFER_LENGTH 72
-#else
-#define BUFFER_LENGTH 136
-#endif
+#include <inttypes.h>
+#include "Arduino.h"
 
 #define WIRE_HAS_END 1
 
@@ -199,11 +191,11 @@ private:
 	bool wait_idle(void);
 	uintptr_t port_addr;
 	const I2C_Hardware_t &hardware;
-	uint8_t rxBuffer[BUFFER_LENGTH] = {};
+	uint8_t rxBuffer[TWI_BUFFER_LENGTH] = {};
 	uint8_t rxBufferIndex = 0;
 	uint8_t rxBufferLength = 0;
 	uint8_t txAddress = 0;
-	uint8_t txBuffer[BUFFER_LENGTH+1] = {};
+	uint8_t txBuffer[TWI_BUFFER_LENGTH+1] = {};
 	uint8_t txBufferIndex = 0;
 	uint8_t txBufferLength = 0;
 	uint8_t transmitting = 0;
