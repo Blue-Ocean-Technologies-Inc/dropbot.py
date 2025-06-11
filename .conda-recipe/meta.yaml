@@ -58,6 +58,7 @@ requirements:
         - logging-helpers
         - platformio-helpers
         - hv-switching-board
+        - pytest
 
 #     Split into `noarch` C++ header package and platform-specific Python
 #     package.
@@ -109,6 +110,7 @@ outputs:
         - logging-helpers
         - platformio-helpers
         - hv-switching-board
+        - pytest
 
     test:
       imports:

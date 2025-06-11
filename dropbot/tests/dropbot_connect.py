@@ -1,7 +1,13 @@
 import time
 import serial
 import serial.tools.list_ports as lsp
+from datetime import datetime
+from tqdm import tqdm
 from nadamq.NadaMq import cPacket, cPacketParser, PACKET_TYPES
+
+
+def dump(signal):
+    tqdm.write(f'{datetime.now()}: Capacitance: {signal["new_value"]:.2e} - Voltage: {signal["V_a"]:.2f}')
 
 port = None
 for port in lsp.comports():
@@ -32,15 +38,54 @@ if port:
             except Exception as e:
                 print(f'[Error] {e}')
                 proxy = db.SerialProxy(port=port.device, ignore=True)
-            title = '='*30 + ' Properties ' + '='*30
-            print(title)
-            print(proxy.properties)
-            print('='*len(title))
-            title = '='*32 + ' State ' + '='*33
-            print(title)
-            print(proxy.state)
-            print('='*len(title))
-            proxy.terminate()
+
+            try:
+                title = '='*30 + ' Properties ' + '='*30
+                print(title)
+                print(proxy.properties)
+                print('='*len(title))
+                time.sleep(0.1)
+
+                title = '='*32 + ' State ' + '='*33
+                print(title)
+                print(proxy.state)
+                print('='*len(title))
+                print("Updating state...")
+                proxy.update_state(
+                    capacitance_update_interval_ms=500,
+                    hv_output_selected=True,
+                    hv_output_enabled=True,
+                    voltage=80,
+                    frequency=1000
+                )
+
+                title = '='*28 + ' Updated State ' + '='*29
+                print(title)
+                print(proxy.state)
+                print('='*len(title))
+
+                print("Testing capacitance measurement...")
+                proxy.signals.signal('capacitance-updated').connect(dump)
+                for _ in tqdm(range(5), desc='Measuring capacitance'):
+                    time.sleep(0.6)
+
+                proxy.update_state(
+                    hv_output_selected=False,
+                    hv_output_enabled=False)
+
+                print('='*len(title))
+                print("Turning off HV output...")
+
+            except Exception as e:
+                print(f'[Error] {e}')
+            finally:
+                time.sleep(0.1)
+                print("Closing connection...")
+                try:
+                    proxy.terminate()
+                except Exception as e:
+                    print(f'[Error] {e}')
+                time.sleep(0.1)
         else:
             print('No bytes to read')
         if ser.is_open:
