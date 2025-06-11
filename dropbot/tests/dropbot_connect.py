@@ -6,8 +6,11 @@ from tqdm import tqdm
 from nadamq.NadaMq import cPacket, cPacketParser, PACKET_TYPES
 
 
-def dump(signal):
+def dump_capacitance(signal):
     tqdm.write(f'{datetime.now()}: Capacitance: {signal["new_value"]:.2e} - Voltage: {signal["V_a"]:.2f}')
+
+def dump(signal):
+    tqdm.write(f'{signal}')
 
 port = None
 for port in lsp.comports():
@@ -38,8 +41,12 @@ if port:
             except Exception as e:
                 print(f'[Error] {e}')
                 proxy = db.SerialProxy(port=port.device, ignore=True)
-
             try:
+                proxy.signals.signal('output_disabled').connect(dump)
+                print('=' * len('='*72))
+                for _ in tqdm(range(5), desc='Test Signals'):
+                    time.sleep(2)
+
                 title = '='*30 + ' Properties ' + '='*30
                 print(title)
                 print(proxy.properties)
@@ -65,7 +72,7 @@ if port:
                 print('='*len(title))
 
                 print("Testing capacitance measurement...")
-                proxy.signals.signal('capacitance-updated').connect(dump)
+                proxy.signals.signal('capacitance-updated').connect(dump_capacitance)
                 for _ in tqdm(range(5), desc='Measuring capacitance'):
                     time.sleep(0.6)
 
