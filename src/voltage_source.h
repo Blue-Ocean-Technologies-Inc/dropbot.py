@@ -23,6 +23,8 @@ extern float target_voltage;
 extern float frequency;
 
 constexpr float R6 = 2e6;
+
+#if defined(__MK20DX256__) // Teensy 3.1/3.2
 constexpr uint8_t OUTPUT_3V3 = 0;
 constexpr uint8_t OUTPUT_HIGH_VOLTAGE = 1;
 
@@ -36,6 +38,12 @@ constexpr uint8_t SSCL_PIN = 5;
 constexpr uint8_t DRIVER_HIGH_PIN = 6;
 constexpr uint8_t DRIVER_LOW_PIN = 7;
 constexpr uint8_t HV_OUTPUT_SELECT_PIN = 8;
+
+#elif defined(__IMXRT1062__) // Teensy 4.0
+// TODO: Define pins for Teensy 4.0
+#else
+#error "Unknown board"
+#endif
 
 void begin();
 void timer_callback();

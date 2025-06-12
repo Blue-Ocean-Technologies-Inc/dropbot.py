@@ -14,7 +14,17 @@ namespace analog {
 
 extern ADC adc_;
 
+#if defined(__MK20DX256__) // Teensy 3.1/3.2
 constexpr uint8_t PIN_CHIP_LOAD_VOLTAGE = 11;
+constexpr uint8_t AREF_PIN = 39; // AREF pin on Teensy 3.2/3.5/3.6
+constexpr uint8_t OUTPUT_CURRENT_PIN = 2;  // Pin connected to the output current sense resistor.
+constexpr uint8_t INPUT_CURRENT_PIN = 3;  // Pin connected to the input current sense resistor.
+
+#elif defined(__IMXRT1062__) // Teensy 4.0
+// TODO: Define pins for Teensy 4.0
+#else
+#error "Unknown board"
+#endif
 
 extern float high_voltage_;
 
