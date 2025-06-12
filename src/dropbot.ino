@@ -1,21 +1,24 @@
 #define TWI_BUFFER_LENGTH 160
-#include "Arduino.h"
-#include "EEPROM.h"
-#include "Wire.h"
-#include "LinkedList.h"
-#include "Memory.h"  // Required replacing memory functions with stubs returning 0.
-#include "ArduinoRpc.h"
-#include "nanopb.h"
-#include "SlowSoftWire.h"
-#include "NadaMQ.h"  // Required replacing `#ifndef AVR` with `#if !defined(AVR) && !defined(__arm__)`
-#include "CArrayDefs.h"
+#include <Arduino.h>
+#include <EEPROM.h>
+#include <Wire.h>
+#include <ADC.h>
+#include <TimerOne.h>
+
+#include <NadaMQ.h>  // Required replacing `#ifndef AVR` with `#if !defined(AVR) && !defined(__arm__)`
+#include <nanopb.h>
+#include <CArrayDefs.h>
+#include <LinkedList.h>
+#include <Memory.h>  // Required replacing memory functions with stubs returning 0.
+#include <SlowSoftWire.h>
+#include <ArduinoRpc.h>
+
 #include "RPCBuffer.h"
-#include "BaseNodeRpc.h"  // Check for changes (may have removed some include statements...
-#include "TeensyMinimalRpc.h"
-#include "TimerOne.h"
+#include <BaseNodeRpc.h>  // Check for changes (may have removed some include statements...
+#include <TeensyMinimalRpc.h>
+
 #include "Dropbot.h"
 #include "NodeCommandProcessor.h"
-#include "ADC.h"
 #include "Node.h"
 
 bool watchdog_refresh_ = false;

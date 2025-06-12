@@ -11,10 +11,27 @@
 #include <vector>
 #include <Arduino.h>
 
+// Teensy libraries
+#include <ADC.h>
+#include <ADC_Module.h>
+#include <AnalogBufferDMA.h> // used to be <RingBufferDMA.h>
+#include <DMAChannel.h>
+#include <TimerOne.h>
+#include <InputDebounce.h>
+
+// Dropbot libraries
 #include <NadaMQ.h>
 #include <CArrayDefs.h>
+#include <LinkedList.h>
+#include <pb_cpp_api.h>
+#include <pb_validate.h>
+#include <pb_eeprom.h>
+
+// Properties libraries
 #include "RPCBuffer.h"  // Define packet sizes
 #include "Dropbot/Properties.h"  // Define package name, URL, etc.
+
+// BaseNodeRpc libraries
 #include <BaseNodeRpc/BaseNode.h>
 #include <BaseNodeRpc/BaseNodeEeprom.h>
 #include <BaseNodeRpc/BaseNodeI2c.h>
@@ -23,20 +40,15 @@
 #include <BaseNodeRpc/BaseNodeI2cHandler.h>
 #include <BaseNodeRpc/BaseNodeSerialHandler.h>
 #include <BaseNodeRpc/SerialHandler.h>
-#include <ADC.h>
-#include <AnalogBufferDMA.h> // used to be <RingBufferDMA.h>
-#include <DMAChannel.h>
-#include <InputDebounce.h>
+
+// TeensyMinimalRpc libraries
 #include <TeensyMinimalRpc/ADC.h>  // Analog to digital converter
 #include <TeensyMinimalRpc/DMA.h>  // Direct Memory Access
 #include <TeensyMinimalRpc/SIM.h>  // System integration module (clock gating)
 #include <TeensyMinimalRpc/PIT.h>  // Programmable interrupt timer
 #include <TeensyMinimalRpc/aligned_alloc.h>
-#include <pb_cpp_api.h>
-#include <pb_validate.h>
-#include <pb_eeprom.h>
-#include <LinkedList.h>
-#include <TimerOne.h>
+
+// Local libraries
 #include "FastAnalogWrite.h"
 #include "dropbot_config_validate.h"
 #include "dropbot_state_validate.h"
@@ -52,7 +64,6 @@
 #include "Time.h"
 #include "Signal.h"
 #include "SignalTimer.h"
-#include <ADC_Module.h>
 
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
 #define CPU_RESTART_VAL 0x5FA0004
@@ -100,7 +111,7 @@ const uint32_t EVENT_ENABLE                        = (1 << 0);
 // Define the array that holds the conversions here.
 // The buffer is stored with the correct alignment in the DMAMEM section
 // the +0 in the aligned attribute is necessary b/c of a bug in gcc.
-DMAMEM static volatile int16_t __attribute__((aligned(ADC_BUFFER_SIZE+0))) adc_buffer[ADC_BUFFER_SIZE];
+DMAMEM static volatile uint16_t __attribute__((aligned(ADC_BUFFER_SIZE+0))) adc_buffer[ADC_BUFFER_SIZE];
 
 
 const size_t FRAME_SIZE = (3 * sizeof(uint8_t)  // Frame boundary
@@ -568,8 +579,8 @@ public:
    *
    * See [`arduino_rpc`][1] and [`base_node_rpc`][2] for more details.
    *
-   * [1]: https://github.com/wheeler-microfluidics/arduino_rpc
-   * [2]: https://github.com/wheeler-microfluidics/base_node_rpc
+   * [1]: https://github.com/sci-bots/arduino-rpc
+   * [2]: https://github.com/sci-bots/base-node-rpc
    */
 
   /**
