@@ -3,6 +3,7 @@
 namespace dropbot {
 
 void Node::begin() {
+  Serial.begin(115200);
   pinMode(SCK_PIN, OUTPUT);
   pinMode(MOSI_PIN, OUTPUT);
 
@@ -41,9 +42,9 @@ void Node::begin() {
   // state protocol buffer definition).
   state_.validate();
 
-  Serial.begin(115200);
+ // Call Wire.begin() with the i2c address specified in the config.
+  on_config_i2c_address_changed(config_._.i2c_address);
 
-  Wire.begin();
   // If we have a valid i2c address (i.e., if Wire.begin() was called)
   if (config_._.i2c_address > 0) {
     // set the i2c clock
