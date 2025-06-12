@@ -342,7 +342,7 @@ public:
 
     analog::adc_context([&] (auto adc_config) {
       // Configure ADC for measurement.
-      auto &adc = *analog::adc_.adc[0];  // Use ADC 0.
+      auto &adc = *analog::adc_.adc0;  // Use ADC 0.
       auto const resolution = adc.getResolution();
       const int16_t max_analog =
         ((resolution == 16) ? (1L << 15) : (1L << resolution)) - 1;

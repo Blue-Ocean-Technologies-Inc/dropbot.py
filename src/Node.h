@@ -505,7 +505,7 @@ public:
           (state_._.chip_load_range_margin >= 0)) {
         analog::adc_context([&] (auto adc_config) {
           // High-voltage output is enabled and selected.
-          const uint8_t resolution = analog::adc_.adc[0]->getResolution();
+          const uint8_t resolution = analog::adc_.adc0->getResolution();
           // Maximum analog value is (2^15 - 1) for differential 16-bit
           // resolution, since the 16th bit of the analog return type
           // represents the sign. For resolutions less than 16-bit, a 16-bit
@@ -513,11 +513,11 @@ public:
           // analog value.
           const int16_t max_analog =
             ((resolution == 16) ? (1L << 15) : (1L << resolution)) - 1;
-          analog::adc_.adc[0]->setReference(ADC_REFERENCE::REF_1V2);
-          analog::adc_.adc[0]->disablePGA();
+          analog::adc_.adc0->setReference(ADC_REFERENCE::REF_1V2);
+          analog::adc_.adc0->disablePGA();
 
           const int16_t chip_load =
-            analog::adc_.adc[0]->analogReadDifferential(A10, A11);
+            analog::adc_.adc0->analogReadDifferential(A10, A11);
           const int16_t margin = (state_._.chip_load_range_margin *
                                   static_cast<float>(max_analog));
           if ((chip_load > (max_analog - margin))
@@ -689,7 +689,7 @@ public:
      */
     uint16_t result = 0;
     analog::adc_context([&] (auto adc_config) {
-      auto &adc = *analog::adc_.adc[0];  // Use ADC 0.
+      auto &adc = *analog::adc_.adc0;  // Use ADC 0.
       adc.setResolution(16);
       adc.setReference(ADC_REFERENCE::REF_1V2);
       adc.wait_for_cal();
@@ -1523,7 +1523,11 @@ public:
       auto &config = *reinterpret_cast<ADC_Module::ADC_Config *>(result.data);
       config = {0};
       result.length = sizeof(config) / sizeof(uint32_t);
-      analog::adc_.adc[adc_num]->saveConfig(&config);
+      if (adc_num == 0) {
+        analog::adc_.adc0->saveConfig(&config);
+      } else if (adc_num == 1) {
+        analog::adc_.adc1->saveConfig(&config);
+      }
     }
     return result;
   }
@@ -1560,7 +1564,11 @@ public:
   */
   bool isPGAEnabled(uint8_t adc_num) {
     if (adc_num < ADC_NUM_ADCS) {
-      return analog::adc_.adc[adc_num]->isPGAEnabled();
+      if (adc_num == 0) {
+        return analog::adc_.adc0->isPGAEnabled();
+      } else if (adc_num == 1) {
+        return analog::adc_.adc1->isPGAEnabled();
+      }
     }
     return false;
   }
@@ -1572,7 +1580,12 @@ public:
   */
   void analog_wait_for_calibration(uint8_t adc_num) {
     if (adc_num < ADC_NUM_ADCS) {
-      analog::adc_.adc[adc_num]->wait_for_cal();
+      if (adc_num == 0) {
+        analog::adc_.adc0->wait_for_cal();
+      }
+      else if (adc_num == 1) {
+        analog::adc_.adc1->wait_for_cal();
+      }
     }
   }
 

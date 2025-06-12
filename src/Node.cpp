@@ -56,7 +56,7 @@ void Node::begin() {
 
   voltage_source::begin();
 
-  analog::adc_.adc[0]->setResolution(16);
+  analog::adc_.adc0->setResolution(16);
 }
 
 uint16_t Node::initialize_switching_boards() {

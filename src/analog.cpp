@@ -22,7 +22,7 @@ std::vector<int16_t> differential_reads_simple(uint8_t pinP, uint8_t pinN,
                                                uint16_t n_samples) {
   std::vector<int16_t> analog_values(n_samples);
   std::generate(analog_values.begin(), analog_values.end(), [&] () {
-    return adc_.adc[0]->analogReadDifferential(pinP, pinN);
+    return adc_.adc0->analogReadDifferential(pinP, pinN);
   });
 
   return analog_values;
@@ -70,7 +70,7 @@ float high_voltage() {
   // Save/restore ADC configuration.
   adc_context([&] (auto adc_config) {
     // Configure ADC for measurement.
-    auto &adc = *adc_.adc[0];  // Use ADC 0.
+    auto &adc = *adc_.adc0;  // Use ADC 0.
     auto const resolution = adc.getResolution();
     adc.setReference(ADC_REFERENCE::REF_3V3);
     adc.wait_for_cal();
@@ -96,7 +96,7 @@ float measure_temperature() {
     static_cast<uint8_t>(ADC_INTERNAL_SOURCE::TEMP_SENSOR);
 
   adc_context([&] (auto adc_config) {
-    auto &adc = *adc_.adc[0];  // Use ADC 0.
+    auto &adc = *adc_.adc0;  // Use ADC 0.
 
     auto const resolution = adc.getResolution();
     adc.setReference(ADC_REFERENCE::REF_1V2);
@@ -151,7 +151,7 @@ float measure_output_current(uint32_t n) {
   float voltage;
   adc_context([&] (auto adc_config) {
     // Configure ADC for measurement.
-    auto &adc = *adc_.adc[0];  // Use ADC 0.
+    auto &adc = *adc_.adc0;  // Use ADC 0.
     auto const resolution = adc.getResolution();
     adc.setReference(ADC_REFERENCE::REF_3V3);
     adc.wait_for_cal();
@@ -167,7 +167,7 @@ float measure_output_current_rms(uint32_t n) {
   float voltage;
   adc_context([&] (auto adc_config) {
     // Configure ADC for measurement.
-    auto &adc = *adc_.adc[0];  // Use ADC 0.
+    auto &adc = *adc_.adc0;  // Use ADC 0.
     auto const resolution = adc.getResolution();
     adc.setReference(ADC_REFERENCE::REF_3V3);
     adc.wait_for_cal();
@@ -183,7 +183,7 @@ float measure_input_current(uint32_t n) {
   float voltage;
   adc_context([&] (auto adc_config) {
     // Configure ADC for measurement.
-    auto &adc = *adc_.adc[0];  // Use ADC 0.
+    auto &adc = *adc_.adc0;  // Use ADC 0.
     auto const resolution = adc.getResolution();
     adc.setReference(ADC_REFERENCE::REF_3V3);
     adc.wait_for_cal();
@@ -199,7 +199,7 @@ float measure_input_current_rms(uint32_t n) {
   float voltage;
   adc_context([&] (auto adc_config) {
     // Configure ADC for measurement.
-    auto &adc = *adc_.adc[0];  // Use ADC 0.
+    auto &adc = *adc_.adc0;  // Use ADC 0.
     auto const resolution = adc.getResolution();
     adc.setReference(ADC_REFERENCE::REF_3V3);
     adc.wait_for_cal();
@@ -249,7 +249,11 @@ float benchmark_s16_percentile_diff(uint8_t pinP, uint8_t pinN,
 
 ADC_Module::ADC_Config save_config(uint8_t adc_num) {
   ADC_Module::ADC_Config config = {0};
-  adc_.adc[adc_num]->saveConfig(&config);
+  if (adc_num == 0) {
+    adc_.adc0->saveConfig(&config);
+  } else if (adc_num == 1) {
+    adc_.adc1->saveConfig(&config);
+  }
   return config;
 }
 
