@@ -119,7 +119,7 @@ float measure_temperature() {
 float measure_aref() {
   uint32_t sum = 0;
   for (uint8_t i = 0; i < 255; i++) {
-      sum += analogRead(39);
+      sum += analogRead(AREF_PIN);
   }
   return 1.195 * 65535.0 / (float)sum * 255.0;
 }
@@ -156,7 +156,7 @@ float measure_output_current(uint32_t n) {
     adc.setReference(ADC_REFERENCE::REF_3V3);
     adc.wait_for_cal();
 
-    voltage = static_cast<float>(read_max(2, n)) / (1L << resolution) * 3.3;
+    voltage = static_cast<float>(read_max(OUTPUT_CURRENT_PIN, n)) / (1L << resolution) * 3.3;
   });
   // TODO Explain this calculation.
   return (voltage / (51e3 / 5.1e3 * 1));
@@ -172,7 +172,7 @@ float measure_output_current_rms(uint32_t n) {
     adc.setReference(ADC_REFERENCE::REF_3V3);
     adc.wait_for_cal();
 
-    voltage = static_cast<float>(read_rms(2, n)) / (1L << resolution) * 3.3;
+    voltage = static_cast<float>(read_rms(OUTPUT_CURRENT_PIN, n)) / (1L << resolution) * 3.3;
   });
   // TODO Explain this calculation.
   return (voltage / (51e3 / 5.1e3 * 1));
@@ -188,7 +188,7 @@ float measure_input_current(uint32_t n) {
     adc.setReference(ADC_REFERENCE::REF_3V3);
     adc.wait_for_cal();
 
-    voltage = static_cast<float>(read_max(3, n)) / (1L << resolution) * 3.3;
+    voltage = static_cast<float>(read_max(INPUT_CURRENT_PIN, n)) / (1L << resolution) * 3.3;
   });
   // TODO Explain this calculation.
   return voltage / 0.03;
@@ -204,7 +204,7 @@ float measure_input_current_rms(uint32_t n) {
     adc.setReference(ADC_REFERENCE::REF_3V3);
     adc.wait_for_cal();
 
-    voltage = static_cast<float>(read_rms(3, n)) / (1L << resolution) * 3.3;
+    voltage = static_cast<float>(read_rms(INPUT_CURRENT_PIN, n)) / (1L << resolution) * 3.3;
   });
   // TODO Explain this calculation.
   return voltage / 0.03;
