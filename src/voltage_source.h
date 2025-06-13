@@ -3,13 +3,13 @@
 
 #include <stdint.h>
 #include <Arduino.h>
-#include <SlowSoftWire.h>
+#include <FlexWire.h>
 #include <TimerOne.h>
 
 namespace dropbot {
 namespace voltage_source {
 
-extern SlowSoftWire i2c;
+extern FlexWire i2c;
 
 // Configuration.
 extern float pot_max;
@@ -45,6 +45,8 @@ constexpr uint8_t HV_OUTPUT_SELECT_PIN = 8;
 #error "Unknown board"
 #endif
 
+constexpr uint8_t DIGIPOT_ADDRESS =44;
+
 void begin();
 void timer_callback();
 
@@ -72,13 +74,13 @@ inline bool _set_voltage(float voltage) {
   if (voltage <= max_voltage) {
     // This method is triggered whenever a voltage is included in a state
     // update.
-    i2c.beginTransmission(44);
+    i2c.beginTransmission(DIGIPOT_ADDRESS);
     i2c.write(0);
     i2c.write(wiper_value);
     i2c.endTransmission();
 
     // verify that we wrote the correct value to the pot
-    i2c.requestFrom(44, 1);
+    i2c.requestFrom(DIGIPOT_ADDRESS, static_cast<uint8_t>(1));
     if (i2c.read() == wiper_value) {
       target_voltage = voltage;
       return true;
