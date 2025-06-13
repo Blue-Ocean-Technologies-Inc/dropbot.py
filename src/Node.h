@@ -111,7 +111,7 @@ const uint32_t EVENT_ENABLE                        = (1 << 0);
 // Define the array that holds the conversions here.
 // The buffer is stored with the correct alignment in the DMAMEM section
 // the +0 in the aligned attribute is necessary b/c of a bug in gcc.
-DMAMEM static volatile uint16_t __attribute__((aligned(ADC_BUFFER_SIZE+0))) adc_buffer[ADC_BUFFER_SIZE];
+DMAMEM static volatile int16_t __attribute__((aligned(ADC_BUFFER_SIZE+0))) adc_buffer[ADC_BUFFER_SIZE];
 
 
 const size_t FRAME_SIZE = (3 * sizeof(uint8_t)  // Frame boundary
