@@ -60,7 +60,7 @@
 #include "channels.h"
 #include "drops.h"
 #include "format.h"
-#include "voltage_source.h"
+#include "voltage_source.h" // Uses custom Wire library and will override Wire.h if used earlier
 #include "Time.h"
 #include "Signal.h"
 #include "SignalTimer.h"
@@ -199,6 +199,7 @@ public:
 
   static const uint32_t BUFFER_SIZE = 8192;  // >= longest property string
 
+  #if defined(__MK20DX256__) // Teensy 3.1/3.2
   // SPI pins
   static const uint8_t MOSI_PIN = 11;
   static const uint8_t SCK_PIN = 13;
@@ -210,6 +211,11 @@ public:
   static const uint8_t CAPACITANCE_1PF_PIN = 0;
   static const uint8_t CAPACITANCE_10PF_PIN = 1;
   static const uint8_t CAPACITANCE_100PF_PIN = 2;
+  #elif defined(__IMXRT1062__) // Teensy 4.0
+  // TODO: Define pins for Teensy 4.0
+  #else
+  #error "Unknown board"
+  #endif
 
   uint8_t buffer_[BUFFER_SIZE];
 
