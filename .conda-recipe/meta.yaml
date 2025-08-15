@@ -91,7 +91,7 @@ outputs:
         - protobuf 5.29.*
         - tabulate
         - aiosignal
-        - matplotlib
+        - matplotlib<3.9
         - platformio
         - beautifulsoup4
         - nadamq
