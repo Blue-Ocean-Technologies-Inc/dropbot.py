@@ -38,12 +38,12 @@ requirements:
         - protobuf 5.29.*
         - tabulate
         - aiosignal
-        - matplotlib
+        - matplotlib-base
         - platformio
         - beautifulsoup4
         - nadamq
         - debounce
-        - base-node
+        - base-node >=0.16.4
         - svg-model
         - json-tricks
         - serial-device
@@ -91,12 +91,12 @@ outputs:
         - protobuf 5.29.*
         - tabulate
         - aiosignal
-        - matplotlib<3.9
+        - matplotlib-base
         - platformio
         - beautifulsoup4
         - nadamq
         - debounce
-        - base-node
+        - base-node >=0.16.4
         - svg-model
         - json-tricks
         - serial-device
