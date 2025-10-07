@@ -125,6 +125,9 @@ uint16_t Node::initialize_switching_boards() {
       // Query shift register count - this automatically handles v3/v4 differentiation
       uint8_t ports_to_check = query_shift_register_count(address_i);
       
+      // Store the ports per board for this chip
+      channels_.set_ports_per_board(chip_i, ports_to_check);
+      
       // Try setting all ports in output mode and initialize to ground.
       for (uint8_t port_ij = 0; port_ij < ports_to_check; port_ij++) {
         buffer_[0] = channels_.PCA9505_CONFIG_IO_REGISTER + port_ij;
