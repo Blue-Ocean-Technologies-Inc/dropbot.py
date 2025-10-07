@@ -11,17 +11,48 @@ namespace dropbot {
 namespace channels {
 
   float C16 = 150e-9;
+  Channels* active_channels_instance = nullptr;
 
 }
 
 
 Switch channel_to_switch(uint8_t channel) {
     /*
-     *  - 5 IO register ports per switching board.
+     *  - Legacy function with smart dynamic detection.
+     *  - Falls back to 5 ports if no active context available.
+     */
+    if (channels::active_channels_instance) {
+        // Smart mode: determine the board from channel number and use its port count
+        const auto* instance = channels::active_channels_instance;
+        uint16_t channels_so_far = 0;
+        
+        for (uint8_t board = 0; board < 8; board++) {
+            uint16_t channels_on_this_board = instance->ports_per_board_[board] * 8;
+            if (channel < channels_so_far + channels_on_this_board) {
+                // Found the right board - calculate relative channel and convert
+                uint8_t relative_channel = channel - channels_so_far;
+                const auto channels_per_port = 8;
+                
+                Switch _switch;
+                _switch.board = board;
+                _switch.port = relative_channel / channels_per_port;
+                _switch.bit = relative_channel % channels_per_port;
+                return _switch;
+            }
+            channels_so_far += channels_on_this_board;
+        }
+    }
+    
+    // Fallback to legacy behavior (5 ports per board)
+    return channel_to_switch(channel, 5);
+}
+
+Switch channel_to_switch(uint8_t channel, uint8_t ports_per_board) {
+    /*
+     *  - Dynamic IO register ports per switching board.
      *  - 8 bits per IO register port.
      *  - Channels in LSB-first order within each IO register port.
      */
-    const auto ports_per_board = 5;
     const auto channels_per_port = 8;
     const auto channels_per_board = ports_per_board * channels_per_port;
 
@@ -35,13 +66,39 @@ Switch channel_to_switch(uint8_t channel) {
 
 uint8_t switch_to_channel(Switch const &_switch) {
   /*
-   *  - 5 IO register ports per switching board.
+   *  - Legacy function with smart dynamic detection.
+   *  - Falls back to 5 ports if no active context available.
+   */
+  if (channels::active_channels_instance) {
+      // Smart mode: calculate channel offset based on dynamic board configuration
+      const auto* instance = channels::active_channels_instance;
+      if (_switch.board < 8) {
+          // Calculate offset from previous boards
+          uint16_t channel_offset = 0;
+          for (uint8_t board = 0; board < _switch.board; board++) {
+              channel_offset += instance->ports_per_board_[board] * 8;
+          }
+          
+          // Add this switch's position within its board
+          const auto channels_per_port = 8;
+          uint8_t channel_on_board = _switch.port * channels_per_port + _switch.bit;
+          
+          return channel_offset + channel_on_board;
+      }
+  }
+  
+  // Fallback to legacy behavior (5 ports per board)
+  return switch_to_channel(_switch, 5);
+}
+
+uint8_t switch_to_channel(Switch const &_switch, uint8_t ports_per_board) {
+  /*
+   *  - Dynamic IO register ports per switching board.
    *  - 8 bits per IO register port.
    *  - Channels in LSB-first order within each IO register port.
    */
 
   // Port number within all IO register ports concatenated.
-  const auto ports_per_board = 5;
   const auto channels_per_port = 8;
   const auto channels_per_board = ports_per_board * channels_per_port;
 
@@ -51,11 +108,11 @@ uint8_t switch_to_channel(Switch const &_switch) {
 
 
 void pack_channels(UInt8Array const &channels, UInt8Array &packed_channels) {
-  const auto ports_per_board = 5;
+  const auto ports_per_board = 5;  // Default to 5 for backward compatibility
   packed_channels.length = 0;
 
   for (uint32_t i = 0; i < channels.length; i++) {
-    const Switch _switch = channel_to_switch(channels.data[i]);
+    const Switch _switch = channel_to_switch(channels.data[i], ports_per_board);
     const uint8_t byte_i = _switch.board * ports_per_board + _switch.port;
 
     if (static_cast<uint32_t>(byte_i + 1) >= packed_channels.length) {
@@ -80,9 +137,19 @@ Channels::packed_channels_t const &Channels::state_of_channels() {
   //
   // See https://gitlab.com/sci-bots/dropbot.py/issues/26
   Timer1.stop(); // stop the timer during i2c transmission
-  const auto chip_count = channel_count_ / 40;  // # of detected boards
+  
+  // Calculate dynamic chip count and iterate through ports using ports_per_board_
+  uint8_t chip_count = 0;
+  uint16_t total_channels = 0;
+  for (uint8_t chip = 0; chip < 8 && total_channels < channel_count_; chip++) {
+    total_channels += ports_per_board_[chip] * 8;
+    chip_count++;
+  }
+  
+  uint8_t current_port_offset = 0;
   for (uint8_t chip = 0; chip < chip_count; chip++) {
-    for (uint8_t port = 0; port < 5; port++) {
+    const uint8_t ports_on_this_chip = ports_per_board_[chip];
+    for (uint8_t port = 0; port < ports_on_this_chip; port++) {
       Wire.beginTransmission(switching_board_i2c_address_ + chip);
       Wire.write(PCA9505_OUTPUT_PORT_REGISTER + port);
       Wire.endTransmission();
@@ -91,7 +158,7 @@ Channels::packed_channels_t const &Channels::state_of_channels() {
 
       Wire.requestFrom(switching_board_i2c_address_ + chip, 1);
       if (Wire.available()) {
-        state_of_channels_[chip * 5 + port] = ~Wire.read();
+        state_of_channels_[current_port_offset + port] = ~Wire.read();
       } else {
         Timer1.restart();
         // No response from switching board.
@@ -99,6 +166,7 @@ Channels::packed_channels_t const &Channels::state_of_channels() {
         return state_of_channels_;
       }
     }
+    current_port_offset += ports_on_this_chip;
   }
   Timer1.restart();
   return state_of_channels_;
@@ -112,19 +180,28 @@ void Channels::_update_channels(bool force) {
   // See https://gitlab.com/sci-bots/dropbot.py/issues/26
   Timer1.stop(); // stop the timer during i2c transmission
   uint8_t data[2];
-  // Each PCA9505 chip has 5 8-bit output registers for a total of 40 outputs
-  // per chip. We can have up to 8 of these chips on an I2C bus, which means
-  // we can control up to 320 channels.
+  // Each PCA9505 chip has dynamic 8-bit output registers for dynamic outputs
+  // per chip. We can have up to 8 of these chips on an I2C bus.
   //   Each register represent 8 channels (i.e. the first register on the
   // first PCA9505 chip stores the state of channels 0-7, the second register
   // represents channels 8-15, etc.).
-  const auto chip_count = channel_count_ / 40;  // # of detected boards
+  
+  // Calculate dynamic chip count and iterate through ports using ports_per_board_
+  uint8_t chip_count = 0;
+  uint16_t total_channels = 0;
+  for (uint8_t chip = 0; chip < 8 && total_channels < channel_count_; chip++) {
+    total_channels += ports_per_board_[chip] * 8;
+    chip_count++;
+  }
+  
+  uint8_t current_port_offset = 0;
   for (uint8_t chip = 0; chip < chip_count; chip++) {
-    for (uint8_t port = 0; port < 5; port++) {
+    const uint8_t ports_on_this_chip = ports_per_board_[chip];
+    for (uint8_t port = 0; port < ports_on_this_chip; port++) {
       data[0] = PCA9505_OUTPUT_PORT_REGISTER + port;
-      data[1] = ~(state_of_channels_[chip * 5 + port] &
+      data[1] = ~(state_of_channels_[current_port_offset + port] &
                   (force ? std::numeric_limits<uint8_t>::max() :
-                   ~disabled_channels_mask_[chip * 5 + port]));
+                   ~disabled_channels_mask_[current_port_offset + port]));
       Wire.beginTransmission(switching_board_i2c_address_ + chip);
       Wire.write(data, sizeof(data));
       Wire.endTransmission();
@@ -132,6 +209,7 @@ void Channels::_update_channels(bool force) {
       // i2c clock.
       delayMicroseconds(200);
     }
+    current_port_offset += ports_on_this_chip;
   }
   Timer1.restart();
 }

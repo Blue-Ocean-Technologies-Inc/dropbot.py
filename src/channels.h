@@ -12,6 +12,9 @@
 
 namespace dropbot {
 
+// Forward declaration
+class Channels;
+
 namespace channels {
 
     /**
@@ -27,6 +30,14 @@ namespace channels {
      */
     extern float C16;
 
+    /**
+     * @brief Global reference to the active Channels instance for legacy function compatibility.
+     * 
+     * This allows legacy switch_to_channel() and channel_to_switch() functions
+     * to access dynamic port configuration without breaking existing code.
+     */
+    extern Channels* active_channels_instance;
+
 }
 
 constexpr uint16_t MAX_NUMBER_OF_CHANNELS = 255;
@@ -39,9 +50,14 @@ struct Switch {
 };
 
 
+// Legacy functions with hardcoded 5 ports per board (for backward compatibility)
 Switch channel_to_switch(uint8_t channel);
 uint8_t switch_to_channel(Switch const &_switch);
 void pack_channels(UInt8Array const &channels, UInt8Array &packed_channels);
+
+// New functions with dynamic ports per board
+Switch channel_to_switch(uint8_t channel, uint8_t ports_per_board);
+uint8_t switch_to_channel(Switch const &_switch, uint8_t ports_per_board);
 
 
 // Accept iterators to support vectors, arrays, etc.
@@ -63,7 +79,7 @@ std::vector<uint8_t> unpack_channels(Iterator begin, const Iterator end) {
     for (uint8_t j = 0; j < 8; j++) {
         if (*it & (1 << j)) {
             const Switch _switch = {board_i, port_i, j};
-            uint8_t channel_ij = switch_to_channel(_switch);
+            uint8_t channel_ij = switch_to_channel(_switch, ports_per_board);
             channels.push_back(channel_ij);
         }
     }
@@ -127,6 +143,7 @@ public:
 
   uint16_t channel_count_;
   uint8_t switching_board_i2c_address_;
+  std::array<uint8_t, 8> ports_per_board_;  // Store detected ports per board
 
   typedef std::array<uint8_t, MAX_NUMBER_OF_CHANNELS / 8> packed_channels_t;
   packed_channels_t state_of_channels_;
@@ -134,7 +151,17 @@ public:
 
   Channels(uint16_t channel_count, uint8_t switching_board_i2c_address)
     : channel_count_(channel_count),
-      switching_board_i2c_address_(switching_board_i2c_address) {}
+      switching_board_i2c_address_(switching_board_i2c_address) {
+    ports_per_board_.fill(5);  // Initialize with default 5 ports per board
+    channels::active_channels_instance = this;  // Set global context for legacy functions
+  }
+
+  // Method to set ports per board for dynamic allocation
+  void set_ports_per_board(uint8_t board_index, uint8_t ports) {
+    if (board_index < 8) {
+      ports_per_board_[board_index] = ports;
+    }
+  }
 
   packed_channels_t const &state_of_channels();
 
@@ -182,7 +209,14 @@ public:
   void _update_channels(bool force=false);
 
   std::vector<Switch> actuated_switches() {
-    const uint8_t port_count = channel_count_ / 8;
+    // Calculate dynamic port count based on detected ports per board
+    uint8_t port_count = 0;
+    uint16_t total_channels = 0;
+    for (uint8_t chip = 0; chip < 8 && total_channels < channel_count_; chip++) {
+      port_count += ports_per_board_[chip];
+      total_channels += ports_per_board_[chip] * 8;
+    }
+    
     std::vector<uint8_t> enabled_states(port_count);
     for (uint8_t i = 0; i < port_count; i++) {
       enabled_states[i] = (state_of_channels_[i] &
@@ -195,7 +229,10 @@ public:
     auto switches = actuated_switches();
     std::vector<uint8_t> selected_channels(switches.size());
     std::transform(switches.begin(), switches.end(), selected_channels.begin(),
-                   +[] (Switch _switch) { return switch_to_channel(_switch); });
+                   [this] (Switch _switch) { 
+                     // Use dynamic ports_per_board for the switch's board
+                     return switch_to_channel(_switch, ports_per_board_[_switch.board]); 
+                   });
     return selected_channels;
   }
 
