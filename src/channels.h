@@ -29,7 +29,7 @@ namespace channels {
 
 }
 
-constexpr uint16_t MAX_NUMBER_OF_CHANNELS = 255;
+constexpr uint16_t MAX_NUMBER_OF_CHANNELS = 120;
 
 
 struct Switch {

@@ -60,34 +60,6 @@ void Node::begin() {
   analog::adc_.adc0->setResolution(16);
 }
 
-uint8_t Node::query_shift_register_count(uint8_t address) {
-  /*
-   * Query shift register count from a switching board.
-   * Returns 5 (default) if the command is not supported (v3.1 and below).
-   */
-  uint8_t I2C_DELAY_US = 200;
-  
-  // Try the new CMD_GET_SHIFT_REGISTER_COUNT command (firmware v4.1+)
-  buffer_[0] = 0xA6;  // CMD_GET_SHIFT_REGISTER_COUNT
-  i2c_write(address, UInt8Array_init(1, (uint8_t *)&buffer_[0]));
-  delayMicroseconds(I2C_DELAY_US);
-  
-  // Read the first response byte which indicates how many bytes to read next
-  uint8_t bytes_to_read = i2c_read(address, 1).data[0];
-  
-  if (bytes_to_read == 1) {
-    // v3.1 firmware: Single byte response indicates RETURN_UNKNOWN_COMMAND
-    return 5;  // Default to 5 shift registers for v3.1 and below
-  } else if (bytes_to_read == 2) {
-    // v4.1+ firmware: Two byte response with shift register count
-    delayMicroseconds(I2C_DELAY_US);  // Small delay between I2C transactions
-    return i2c_read(address, bytes_to_read).data[0];
-  } else {
-    // Unexpected response length - fallback to default
-    return 5;
-  }
-}
-
 uint16_t Node::initialize_switching_boards() {
   /*
    * Scan for connected switching boards and determine the number of actuation
@@ -121,12 +93,9 @@ uint16_t Node::initialize_switching_boards() {
         // No switching board found at I2C `address_i`.
         break;
     } else {
-      // Assume the device at I2C `address_i` is a switching board.
-      // Query shift register count - this automatically handles v3/v4 differentiation
-      uint8_t ports_to_check = query_shift_register_count(address_i);
-      
+      // Assume the device at I2C `address_i` is a PCA9505 chip.
       // Try setting all ports in output mode and initialize to ground.
-      for (uint8_t port_ij = 0; port_ij < ports_to_check; port_ij++) {
+      for (uint8_t port_ij = 0; port_ij < 5; port_ij++) {
         buffer_[0] = channels_.PCA9505_CONFIG_IO_REGISTER + port_ij;
         buffer_[1] = 0x00;
         i2c_write(address_i, UInt8Array_init(2, (uint8_t *)&buffer_[0]));

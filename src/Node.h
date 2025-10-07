@@ -978,16 +978,6 @@ public:
   }
 
   uint16_t initialize_switching_boards();
-  
-  /**
-   * @brief Query shift register count from a switching board.
-   * 
-   * @param address I2C address of the switching board
-   * @return Number of shift registers (default 5 for older firmware)
-   * 
-   * @since 4.1
-   */
-   uint8_t query_shift_register_count(uint8_t address);
 
   // # Callback methods
 
