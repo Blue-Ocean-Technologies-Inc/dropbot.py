@@ -21,6 +21,7 @@ import datetime as dt
 # import subprocess as sp
 
 import path_helpers as ph
+from nadamq import ureg
 
 from tqdm import tqdm
 
@@ -30,8 +31,6 @@ from .hardware_test import (ALL_TESTS, system_info, test_system_metrics,
                             test_i2c, test_voltage, test_shorts,
                             test_on_board_feedback_calibration,
                             test_channels)
-
-ureg = pint.UnitRegistry()
 
 logger = logging.getLogger(name=__name__)
 

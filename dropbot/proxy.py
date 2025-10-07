@@ -20,6 +20,7 @@ from .config import Config
 from .state import State
 
 from path_helpers import path
+from nadamq import ureg
 from nadamq.NadaMq import cPacket
 from logging_helpers import _L
 from teensy_minimal_rpc.adc_sampler import AdcDmaMixin
@@ -33,10 +34,6 @@ from ._version import get_versions
 
 __version__ = get_versions()['version']
 del get_versions
-
-
-# Unit conversion
-ureg = pint.UnitRegistry()
 
 # Event mask flags
 EVENT_ACTUATED_CHANNEL_CAPACITANCES = (1 << 31)
