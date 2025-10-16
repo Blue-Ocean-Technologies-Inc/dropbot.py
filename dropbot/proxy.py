@@ -138,8 +138,14 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
                     ignore = []
 
             # Check that we have power
-            if NoPower not in ignore and self.measure_voltage() < 5:
+            voltage = 120
+            for i in range(5):
+                voltage = min(voltage, self.measure_voltage())
+
+            if NoPower not in ignore and voltage < 5:
                 raise NoPower('Please check that 12V power supply is connected.')
+
+            time.sleep(0.5)
 
             # Only initialize switching boards if the control board has been assigned an i2c address.
             if self.config.i2c_address != 0:
@@ -982,44 +988,44 @@ class SerialProxy(ProxyMixin, Proxy):
 
     # TODO: Implement reboot
     # TODO: Currently reboot is not working because of async serial connection
-    # def _reboot(self):
-    #     """
-    #     Version log
-    #     -----------
-    #     .. versionadded:: 1.67
-    #
-    #     Reboot DropBot control board.
-    #
-    #     .. note:: **Connection is lost.**
-    #     """
-    #     # Reboot to put the device in known state.
-    #     try:
-    #         # XXX Temporarily disable timeout to avoid waiting for a
-    #         # response after reboot command has been sent.
-    #         original_timeout_s = self._timeout_s
-    #         self._timeout_s = 0
-    #         super(SerialProxy, self).reboot()
-    #     except (serial.SerialException, IOError):
-    #         pass
-    #     finally:
-    #         # Restore original timeout duration.
-    #         self._timeout_s = original_timeout_s
-    #         self.terminate()
+    def _reboot(self):
+        """
+        Version log
+        -----------
+        .. versionadded:: 1.67
+
+        Reboot DropBot control board.
+
+        .. note:: **Connection is lost.**
+        """
+        # Reboot to put the device in known state.
+        try:
+            # XXX Temporarily disable timeout to avoid waiting for a
+            # response after reboot command has been sent.
+            original_timeout_s = self._timeout_s
+            self._timeout_s = 0
+            super(SerialProxy, self).reboot()
+        except (serial.SerialException, IOError):
+            pass
+        finally:
+            # Restore original timeout duration.
+            self._timeout_s = original_timeout_s
+            self.terminate()
 
     
-    # def reboot(self):
-    #     """
-    #     Version log
-    #     -----------
-    #     .. versionchanged:: 1.27.1
-    #         Temporarily disable timeout to avoid waiting for a response
-    #         after reboot command has been sent.
-    #     """
-    #     # Reboot to put the device in a known state.
-    #     self._reboot()
-    #
-    #     # Wait for serial port to settle after reboot.
-    #     time.sleep(.5)
-    #
-    #     # Reestablish serial connection to the device.
-    #     self._connect()
+    def reboot(self):
+        """
+        Version log
+        -----------
+        .. versionchanged:: 1.27.1
+            Temporarily disable timeout to avoid waiting for a response
+            after reboot command has been sent.
+        """
+        # Reboot to put the device in a known state.
+        self._reboot()
+
+        # Wait for serial port to settle after reboot.
+        time.sleep(.5)
+
+        # Reestablish serial connection to the device.
+        self._connect()
