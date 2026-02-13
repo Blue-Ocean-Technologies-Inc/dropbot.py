@@ -20,7 +20,7 @@ def parse_args(args=None):
 if __name__ == '__main__':
     args, extra_args = parse_args()
 
-    extra_args += [r'-D DEVICE_ID_RESPONSE=\"dropbot::{}\"'.format(args.version), r'-D TWI_BUFFER_LENGTH=160',
-                   r'-D PACKET_SIZE=1024']
+    extra_args += [r'-DDEVICE_ID_RESPONSE=\"dropbot::{}\"'.format(args.version), r'-DTWI_BUFFER_LENGTH=160',
+                   r'-DPACKET_SIZE=1024']
 
     print(' '.join(extra_args))
