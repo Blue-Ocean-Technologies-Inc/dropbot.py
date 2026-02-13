@@ -2,9 +2,7 @@
 import time
 import math
 import uuid
-import pint
 import serial
-import logging
 import threading
 
 import datetime as dt
@@ -16,13 +14,13 @@ import base_node_rpc as bnr
 from typing import Optional, Union, List
 
 # Load protobuf files before loading other rpc modules!
-from .config import Config
 from .state import State
+from .config import Config
 
-from path_helpers import path
 from nadamq import ureg
-from nadamq.NadaMq import cPacket
+from path_helpers import path
 from logging_helpers import _L
+from nadamq.NadaMq import cPacket
 from teensy_minimal_rpc.adc_sampler import AdcDmaMixin
 from base_node_rpc.proxy import ConfigMixinBase, StateMixinBase
 
@@ -361,7 +359,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         """
         default_C16 = Config.DESCRIPTOR.fields_by_name['C16'].default_value
         self.update_config(C16=default_C16)
-        logging.info(f"Reset `C16` as {(default_C16 * ureg.F).to('pF'):.1f}")
+        _L().info(f"Reset `C16` as {(default_C16 * ureg.F).to('pF'):.1f}")
         return default_C16
 
     def calibrate_C16(self, n_samples: Optional[int] = 10, reset: Optional[bool] = True) -> Union[int, float]:
@@ -402,11 +400,11 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         nominal_C = NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS[NOMINAL_ON_BOARD_CALIBRATION_CAPACITORS > 0]
         df_C = pd.DataFrame(self.on_board_capacitance() for i in range(n_samples))
         correction = df_C.median()[nominal_C] / nominal_C.values
-        logging.debug(f"Correction factors relative to `C16` = {(init_C16 * ureg.F).to('pF'):.1f}:")
-        map(logging.debug, str(correction).splitlines())
+        _L().debug(f"Correction factors relative to `C16` = {(init_C16 * ureg.F).to('pF'):.1f}:")
+        map(_L().debug, str(correction).splitlines())
         C16_ = self.config.C16 / correction.mean()
         self.update_config(C16=C16_)
-        logging.info(f"Calibrated `C16` as {(C16_ * ureg.F).to('pF'):1f}")
+        _L().info(f"Calibrated `C16` as {(C16_ * ureg.F).to('pF'):1f}")
         return C16_
 
     def measure_capacitance(self, n_samples: Optional[int] = 50, amplitude: str = 'filtered_mean') -> float:
@@ -935,7 +933,7 @@ class SerialProxy(ProxyMixin, Proxy):
             df_devices = bnr.available_devices(timeout=settling_time_s)
             if not df_devices.shape[0]:
                 raise IOError('No serial devices available for connection')
-            df_dropbots = df_devices.loc[df_devices.device_name == 'dropbot']
+            df_dropbots = df_devices.loc[df_devices.device_name == self.device_name]
             if not df_dropbots.shape[0]:
                 raise IOError('No DropBot available for connection')
             port = df_dropbots.index[0]
