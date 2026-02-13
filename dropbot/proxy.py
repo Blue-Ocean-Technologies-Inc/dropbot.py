@@ -293,7 +293,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
 
     def i2c_send_command(self, address: int, cmd: bytes, data: bytes) -> bytes:
         self.i2c_write(address, [cmd] + data)
-        n = self.i2c_read(address, 1)
+        n = int(self.i2c_read(address, 1)[0])
         return self.i2c_read(address, n)
 
     def on_board_capacitance(self) -> pd.Series:
