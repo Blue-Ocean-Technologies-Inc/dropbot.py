@@ -75,6 +75,7 @@ outputs:
         - base-node-rpc-dev
         - teensy-minimal-rpc-dev
   - name: {{ PKG_NAME }}
+    noarch: python
     files:
       - {{ SP_DIR }}/{{ MODULE_NAME }}
     requirements:

@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 import versioneer
 
-from setuptools import setup
+from setuptools import setup, find_packages
 from file_handler import get_properties
 
 properties = get_properties(package_name='dropbot')['LIB_PROPERTIES']
@@ -19,4 +19,4 @@ setup(name=properties['package_name'],
       # Install data listed in `MANIFEST.in`
       include_package_data=True,
       license='BSD-3',
-      packages=[properties['package_name']])
+      packages=find_packages())
