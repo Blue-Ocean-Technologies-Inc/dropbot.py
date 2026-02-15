@@ -5,7 +5,7 @@
 namespace dropbot {
 namespace voltage_source {
 
-FlexWire i2c = FlexWire(SSDA_PIN, SSCL_PIN);
+SlowSoftWire i2c(SSDA_PIN, SSCL_PIN);
 
 // Configuration.
 float pot_max = dropbot_Config_pot_max_tag;
@@ -24,9 +24,6 @@ void begin() {
   pinMode(DRIVER_LOW_PIN, OUTPUT);
   pinMode(SHDN_PIN, OUTPUT);
   pinMode(HV_OUTPUT_SELECT_PIN, OUTPUT);
-//  pinMode(SSDA_PIN, OUTPUT);
-//  pinMode(SSCL_PIN, OUTPUT);
-  pinMode(OE_PIN, INPUT);
 
   i2c.begin();
 

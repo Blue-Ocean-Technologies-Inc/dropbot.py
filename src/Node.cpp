@@ -3,10 +3,10 @@
 namespace dropbot {
 
 void Node::begin() {
-  Serial.begin(115200);
   pinMode(SCK_PIN, OUTPUT);
   pinMode(MOSI_PIN, OUTPUT);
 
+  Wire.begin();
   // Set D0-D2 high (these are used to select test capacitors for
   // on-board calibration).
   for (uint8_t i = 0; i <= 3; i++) {
@@ -42,8 +42,7 @@ void Node::begin() {
   // state protocol buffer definition).
   state_.validate();
 
- // Call Wire.begin() with the i2c address specified in the config.
-  on_config_i2c_address_changed(config_._.i2c_address);
+  Serial.begin(115200);
 
   // If we have a valid i2c address (i.e., if Wire.begin() was called)
   if (config_._.i2c_address > 0) {

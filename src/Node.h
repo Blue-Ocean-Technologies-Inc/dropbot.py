@@ -60,7 +60,7 @@
 #include "channels.h"
 #include "drops.h"
 #include "format.h"
-#include "voltage_source.h" // Uses custom Wire library and will override Wire.h if used earlier
+#include "voltage_source.h"
 #include "Time.h"
 #include "Signal.h"
 #include "SignalTimer.h"

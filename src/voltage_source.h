@@ -3,13 +3,13 @@
 
 #include <stdint.h>
 #include <Arduino.h>
-#include <FlexWire.h>
+#include <SlowSoftWire.h>
 #include <TimerOne.h>
 
 namespace dropbot {
 namespace voltage_source {
 
-extern FlexWire i2c;
+extern SlowSoftWire i2c;
 
 // Configuration.
 extern float pot_max;

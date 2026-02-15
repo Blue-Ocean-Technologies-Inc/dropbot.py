@@ -12,6 +12,7 @@
 #include <Memory.h>  // Required replacing memory functions with stubs returning 0.
 #include <SlowSoftWire.h>
 #include <ArduinoRpc.h>
+#include <TimerOne.h>
 
 #include "RPCBuffer.h"
 #include <BaseNodeRpc.h>  // Check for changes (may have removed some include statements...
