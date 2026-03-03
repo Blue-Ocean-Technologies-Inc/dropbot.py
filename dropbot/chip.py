@@ -290,8 +290,8 @@ def get_channel_neighbours(svg_source: Union[str, StringIO, pd.DataFrame],
     df_intersections = get_all_intersections(df_shapes, distance_threshold=distance_threshold)
 
     df_neighbours = df_intersections.reset_index([2, 3]).join(df_segments, lsuffix='_neighbour')
-    df_neighbours.reset_index('id', inplace=True)
-    df_neighbours.drop_duplicates(['id', 'id_neighbour'], inplace=True)
+    df_neighbours = df_neighbours.reset_index('id')
+    df_neighbours = df_neighbours.drop_duplicates(['id', 'id_neighbour'])
     df_neighbours['direction'] = None
 
     # Assign direction labels
@@ -302,17 +302,17 @@ def get_channel_neighbours(svg_source: Union[str, StringIO, pd.DataFrame],
     df_neighbours.loc[~vertical & (df_neighbours.x_normal > 0), 'direction'] = 'right'
     df_neighbours['normal_magnitude'] = df_neighbours[['x_normal', 'y_normal']].abs().max(axis=1)
 
-    df_neighbours.sort_values(['id', 'direction', 'normal_magnitude'],
-                              inplace=True, ascending=False)
+    df_neighbours = df_neighbours.sort_values(['id', 'direction', 'normal_magnitude'],
+                                              ascending=False)
     # If multiple neighbours match a direction, only keep the first match.
-    df_neighbours.drop_duplicates(['id', 'direction'], inplace=True)
+    df_neighbours = df_neighbours.drop_duplicates(['id', 'direction'])
 
     electrode_channels = df_shapes.drop_duplicates(['id', 'data-channels']).set_index('id')['data-channels'].map(int)
     electrode_channels.name = 'channel'
     df_neighbours['channel'] = electrode_channels.loc[df_neighbours['id']].values
     df_neighbours['channel_neighbour'] = electrode_channels.loc[df_neighbours['id_neighbour']].values
-    df_neighbours.set_index(['channel', 'direction'], inplace=True)
-    df_neighbours.sort_index(inplace=True)
+    df_neighbours = df_neighbours.set_index(['channel', 'direction'])
+    df_neighbours = df_neighbours.sort_index()
 
     directions = ['up', 'down', 'left', 'right']
 

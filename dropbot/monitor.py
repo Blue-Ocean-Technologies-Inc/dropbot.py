@@ -67,8 +67,7 @@ async def monitor(signals_: dict):
     >>>
     >>> signals = blinker.Namespace()
     >>>
-    >>> @asyncio.coroutine
-    >>> def dump(*args, **kwargs):
+    >>> async def dump(*args, **kwargs):
     >>>     print('args=`%s`, kwargs=`%s`' % (args, kwargs))
     >>>
     >>> signals_.signal('chip-inserted').connect(dump, weak=False)
@@ -88,7 +87,7 @@ async def monitor(signals_: dict):
         Send `'no-power'` signal if 12V power supply not connected.  Receivers
         may return `'ignore'` to attempt to connect anyway.
     """
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     global dropbot
     dropbot = None
 
@@ -131,10 +130,10 @@ async def monitor(signals_: dict):
             # Automatically select DropBot with highest version, with ties
             # going to the lowest port name (i.e., `COM1` before `COM2`).
             df_comports = df_comports.loc[df_comports.device_name == 'dropbot'].copy()
-            df_comports.reset_index(inplace=True)
+            df_comports = df_comports.reset_index()
 
-            df_comports.sort_values(['device_version', 'port'], ascending=[False, True], inplace=True)
-            df_comports.set_index('port', inplace=True)
+            df_comports = df_comports.sort_values(['device_version', 'port'], ascending=[False, True])
+            df_comports = df_comports.set_index('port')
             if not len(df_comports):
                 continue
 
@@ -190,7 +189,7 @@ async def monitor(signals_: dict):
                 dropbot = await _attempt_connect()
                 pass
             except bnr.proxy.DeviceNotFound:
-                raise 'Could not find device'
+                raise RuntimeError('Could not find device')
             except asyncio.CancelledError:
                 raise
             except Exception:
@@ -263,7 +262,8 @@ if __name__ == '__main__':
     async def on_connected(sender, **message):
         connected.dropbot = message['dropbot']
         _L().info(f'sender=`{sender}`')
-        map(_L().info, str(connected.dropbot.properties).splitlines())
+        for line in str(connected.dropbot.properties).splitlines():
+            _L().info(line)
         connected.dropbot.update_state(capacitance_update_interval_ms=10,
                                        event_mask=EVENT_CHANNELS_UPDATED |
                                                   EVENT_SHORTS_DETECTED |
@@ -380,6 +380,7 @@ if __name__ == '__main__':
 
     register_signal('closed', on_closed)
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
     task = loop.create_task(monitor(signal_register))
     loop.run_until_complete(task)
+    loop.close()

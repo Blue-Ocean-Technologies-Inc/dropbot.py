@@ -3,7 +3,6 @@ import time
 
 import pytest
 import serial
-from six.moves import range
 from dropbot.proxy import SerialProxy, NoPower, I2cAddressNotSet
 
 # Watchdog enable bit mask

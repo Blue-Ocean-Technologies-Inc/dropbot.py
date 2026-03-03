@@ -4,6 +4,7 @@ import threading
 import uuid
 
 from dropbot.proxy import EVENT_ENABLE, EVENT_CHANNELS_UPDATED
+import numpy as np
 import pandas as pd
 import asyncio
 
@@ -94,9 +95,8 @@ def actuate_channels(proxy_, channels, timeout=None, allow_disabled=True):
             elif not hasattr(channels_updated, 'actuated'):
                 raise RuntimeError('Actuation was cancelled.')
             elif not allow_disabled and (set(channels_updated.actuated) != set(channels)):
-                raise RuntimeError('Actuated channels `%s` do not match '
-                                   'expected channels `%s`' %
-                                   (channels_updated.actuated, channels))
+                raise RuntimeError(f'Actuated channels `{channels_updated.actuated}` do not match '
+                                   f'expected channels `{channels}`')
             elif set(channels_updated.actuated) - set(channels):
                 # Disabled channels are allowed.
                 raise RuntimeError(f'Actuated channels `{channels_updated.actuated}` are not included in'
@@ -152,7 +152,7 @@ async def co_target_capacitance(proxy_, channels, target_capacitance, count=3, *
             loop.call_soon_threadsafe(threshold_reached.set)
 
         threshold_reached = asyncio.Event()
-        loop = ensure_event_loop()
+        loop = asyncio.get_running_loop()
 
         # Perform actuation and wait until actuation has been applied.
         actuated_channels = actuate_channels(proxy_, channels, **kwargs)
@@ -238,7 +238,7 @@ async def execute_actuation(proxy_, chip_info_, specific_capacitance, channels,
     else:
         # Assume electrode IDs (e.g., `"electrode001", ...`) were specified.
         electrodes = channels
-        channels = chip_info_['electrode_channels'].loc[electrodes].astype(int)
+        channels = chip_info_['electrode_channels'].loc[electrodes].astype(np.intp)
 
     def _actuated_result_info(actuated_channels):
         actuated_electrodes = (chip_info_['channel_electrodes'].loc[actuated_channels])
@@ -319,6 +319,7 @@ if __name__ == '__main__':
         pprint(result)
 
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
     task = loop.create_task(tester(db, chip_info, 1e-10, [1, 2, 3]))
     loop.run_until_complete(task)
+    loop.close()

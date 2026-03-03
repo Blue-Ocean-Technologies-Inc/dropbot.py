@@ -28,6 +28,7 @@ build:
 requirements:
   build:
         - python {{ python }}
+        - setuptools
         - pint
         - numpy
         - pandas
@@ -83,11 +84,13 @@ outputs:
         - python >=3.6
         - {{ pin_subpackage(PKG_NAME + '-dev', max_pin='x.x') }}
         - pint
+        - tqdm
         - numpy
         - pandas
         - pandoc
         - pypandoc
         - jinja2
+        - pytest
         - pytables
         - protobuf 5.29.*
         - tabulate
@@ -111,7 +114,6 @@ outputs:
         - logging-helpers
         - platformio-helpers
         - hv-switching-board
-        - pytest
 
     test:
       imports:

@@ -51,7 +51,7 @@ def parse_args(switching_boards_info, args=None):
     boards_group.add_argument('-a', '--all', action='store_true', help='Upload to all.')
     boards_group.add_argument('-b', '--board', action='append', help='Address '
                                                                      'of switching board to flash.',
-                              choices=map(str, switching_boards_info.index))
+                              choices=list(map(str, switching_boards_info.index)))
 
     subparsers.add_parser('boot', help='Boot all switching boards currently in bootloader mode.')
 
@@ -73,7 +73,7 @@ def parse_args(switching_boards_info, args=None):
         if parsed_args.all:
             parsed_args.addresses = switching_boards_info.index.tolist()
         else:
-            parsed_args.addresses = map(int, parsed_args.board)
+            parsed_args.addresses = list(map(int, parsed_args.board))
         if not parsed_args.addresses:
             parser_upload.error(f'{C_.Fore.RED}No switching board(s) detected.')
     return parsed_args

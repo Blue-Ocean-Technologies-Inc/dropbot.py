@@ -9,7 +9,7 @@ Example
 
     import dropbot as db
     import dropbot.move
-    import trollius as asyncio
+    import asyncio
 
     route = [110, 109, 115, 114, 115, 109, 110]
 
@@ -23,9 +23,7 @@ Example
     # seconds of actuation before attempting to retry.
     task = db.move.move_liquid(proxy, route, min_duration=.3,
                                wrapper=ft.partial(asyncio.wait_for, timeout=5))
-    loop = asyncio.get_event_loop()
-    # Collect DropBot `capacitance-updated` messages.
-    messages = loop.run_until_complete(task)
+    messages = asyncio.run(task)
     # Disable DropBot capacitance updates.
     proxy.update_state(capacitance_update_interval_ms=0)
     proxy.turn_off_all_channels()
@@ -39,7 +37,7 @@ import networkx as nx
 import functools as ft
 import itertools as it
 
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 
 from .proxy import SerialProxy, dropbot_state, EVENT_CHANNELS_UPDATED
 
@@ -84,7 +82,7 @@ def window(seq: Union[list, np.array], n: int):
         yield result
 
 
-async def wait_on_capacitance(proxy_: SerialProxy, callback: callable) -> list:
+async def wait_on_capacitance(proxy_: SerialProxy, callback: Callable) -> list:
     """
     Return once callback returns `True`.
 
@@ -108,7 +106,7 @@ async def wait_on_capacitance(proxy_: SerialProxy, callback: callable) -> list:
          - ``V_a``: measured actuation voltage during capacitance reading
     """
     move_done = asyncio.Event()
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     messages = []
 
@@ -157,7 +155,7 @@ async def actuate_channels(proxy_: SerialProxy, channels: Union[list, np.array],
         (missing disabled channels are ignored if ``allowed_disabled`` is
         `True`).
     """
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     channels_updated = asyncio.Event()
 
@@ -219,7 +217,7 @@ def test_steady_state(messages: list, std_error: Optional[float] = .02,
     df = pd.DataFrame(messages[-100:])
     df['time'] = df.time_us * 1e-6
     df['time'] -= df.time.iloc[0]
-    df.set_index('time', inplace=True)
+    df = df.set_index('time')
     if (df.index.values[-1] - df.index.values[0]) < min_duration:
         return False
     start = df.index.values[-1] - min_duration
@@ -229,7 +227,7 @@ def test_steady_state(messages: list, std_error: Optional[float] = .02,
     return result and (q50 >= threshold)
 
 
-async def actuate(proxy_: SerialProxy, channels: Union[list, np.array], callback: callable) -> list:
+async def actuate(proxy_: SerialProxy, channels: Union[list, np.array], callback: Callable) -> list:
     """
     Actuate channels and wait for callback to return `True`.
 
@@ -250,7 +248,7 @@ async def actuate(proxy_: SerialProxy, channels: Union[list, np.array], callback
 
 
 async def move_liquid(proxy_: SerialProxy, route: list, min_duration: Optional[float] = .3,
-                      trail_length: Optional[int] = 1, wrapper: Optional[callable] = None) -> list:
+                      trail_length: Optional[int] = 1, wrapper: Optional[Callable] = None) -> list:
     """
     Move liquid along specified route (i.e., list of channels).
 
@@ -345,7 +343,7 @@ def move_results_to_frame(move_results: list) -> pd.DataFrame:
 
         import dropbot as db
         import dropbot.move
-        import trollius as asyncio
+        import asyncio
 
         route = [110, 109, 115, 114, 115, 109, 110]
 
@@ -360,9 +358,7 @@ def move_results_to_frame(move_results: list) -> pd.DataFrame:
         task = db.move.move_liquid(proxy, route, min_duration=.3,
                                    wrapper=ft.partial(asyncio.wait_for,
                                    timeout=5))
-        loop = asyncio.get_event_loop()
-        # Collect DropBot `capacitance-updated` messages.
-        messages = loop.run_until_complete(task)
+        messages = asyncio.run(task)
         # Disable DropBot capacitance updates.
         proxy.update_state(capacitance_update_interval_ms=0)
         proxy.turn_off_all_channels()
@@ -381,14 +377,14 @@ def move_results_to_frame(move_results: list) -> pd.DataFrame:
     keys = []
     frames = []
     for i, message_i in enumerate(move_results):
-        keys.append('%3d - %s' % (i, message_i['channels']))
+        keys.append(f'{i:3d} - {message_i["channels"]}')
         frames.append(pd.DataFrame(message_i['messages']))
     df = pd.concat(frames, keys=keys)
     df.index.levels[0].name = 'channels'
     df['time (s)'] = df['time_us'] * 1e-6
     df['time (s)'] -= df['time (s)'].iloc[0]
-    df.set_index('time (s)', append=True, inplace=True)
-    df.reset_index(level=1, drop=True, inplace=True)
+    df = df.set_index('time (s)', append=True)
+    df = df.reset_index(level=1, drop=True)
     return df
 
 

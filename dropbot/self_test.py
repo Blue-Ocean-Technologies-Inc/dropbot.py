@@ -611,7 +611,7 @@ def self_test(proxy, tests=None):
 
     for test_name_i in (pbar:= tqdm(tests)):
         pbar.set_description(test_name_i)
-        test_func_i = eval(test_name_i)
+        test_func_i = globals()[test_name_i]
         results[test_name_i] = test_func_i(proxy)
         duration_i = results[test_name_i]['duration']
         logger.info('%s: %.1f s', test_name_i, duration_i)
@@ -659,7 +659,7 @@ def _generate_test_channels_results(channels=20, n_reps=3, c_min=3e-12,
         Default: 0.
     """
     if isinstance(channels, int):
-        test_channels_ = np.arange(20, dtype=int)
+        test_channels_ = np.arange(20, dtype=np.intp)
     else:
         test_channels_ = channels
 
@@ -754,9 +754,8 @@ def generate_report(results, output_path=None, force=False):
     if output_path is None:
         # Execute `format_<test name>_results` for each test to generate each
         # respective Markdown report.
-        md_results_cmds = ['format_{test_name}_results(results["{test_name}"])'
-                           .format(test_name=name_i) for name_i in ALL_TESTS if name_i in results]
-        md_results = list(map(eval, md_results_cmds))
+        md_results = [globals()[f'format_{name_i}_results'](results[name_i])
+                      for name_i in ALL_TESTS if name_i in results]
 
         # Join Markdown reports, separated by horizontal bars.
         md_report = header + (2 * '\n' + (72 * '-') + 2 * '\n').join(md_results)
@@ -781,8 +780,7 @@ def generate_report(results, output_path=None, force=False):
     try:
         # Execute `format_<test name>_results` for each test to generate each
         # respective Markdown report.
-        md_results = [eval('format_{test_name}_results'
-                           .format(test_name=name_i))
+        md_results = [globals()[f'format_{name_i}_results']
                       (results[name_i],
                        **({'figure_path': parent_dir.joinpath(name_i + '.png')}
                           if name_i in tests_with_figure else {}))
@@ -800,7 +798,7 @@ def generate_report(results, output_path=None, force=False):
             # Write template to file for use with `pandoc`.
             template = pkgutil.get_data('dropbot', 'static/templates/SelfTestTemplate.html5')
             template_path = parent_dir.joinpath('SelfTestTemplate.html5')
-            template_path.write_text(template)
+            template_path.write_text(template.decode('utf-8'))
             # Use `pandoc` to create self-contained `.html` report.
             # sp.check_call(['pandoc', markdown_path, '-o', output_path,
             #                '--standalone', '--self-contained', '--template',

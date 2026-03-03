@@ -161,7 +161,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
             raise
 
     def _initialize_switching_boards(self) -> int:
-        return super(ProxyMixin, self).initialize_switching_boards()
+        return super().initialize_switching_boards()
 
     def initialize_switching_boards(self) -> int:
         """
@@ -186,7 +186,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
             but subsequent restored connection events after connecting to
             the ``connected`` signal will be received.
         """
-        super(ProxyMixin, self)._connect(*args, **kwargs)
+        super()._connect(*args, **kwargs)
         self.signals.signal('connected').send({'event': 'connected'})
 
     def sync_time(self) -> None:
@@ -198,7 +198,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         .. versionadded:: 1.55
         """
         utc_timestamp = dt.datetime.now(dt.timezone.utc).timestamp()
-        super(ProxyMixin, self).sync_time(utc_timestamp)
+        super().sync_time(utc_timestamp)
 
     @property
     def wall_time(self) -> dt.datetime:
@@ -209,7 +209,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         -----------
         .. versionadded:: 1.55
         """
-        wall_time = super(ProxyMixin, self).wall_time()
+        wall_time = super().wall_time()
         return dt.datetime.fromtimestamp(wall_time, dt.timezone.utc)
 
     @property
@@ -401,7 +401,8 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         df_C = pd.DataFrame(self.on_board_capacitance() for i in range(n_samples))
         correction = df_C.median()[nominal_C] / nominal_C.values
         _L().debug(f"Correction factors relative to `C16` = {(init_C16 * ureg.F).to('pF'):.1f}:")
-        map(_L().debug, str(correction).splitlines())
+        for line in str(correction).splitlines():
+            _L().debug(line)
         C16_ = self.config.C16 / correction.mean()
         self.update_config(C16=C16_)
         _L().info(f"Calibrated `C16` as {(C16_ * ureg.F).to('pF'):1f}")
@@ -603,7 +604,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
 
         Prepend underscore to the auto-generated disabled_channels_mask accessor
         """
-        return super(ProxyMixin, self).disabled_channels_mask()
+        return super().disabled_channels_mask()
 
     def _set_disabled_channels_mask(self, mask: np.array) -> np.array:
         """
@@ -613,7 +614,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
 
         Prepend underscore to the auto-generated disabled_channels_mask setter
         """
-        return super(ProxyMixin, self).set_disabled_channels_mask(mask)
+        return super().set_disabled_channels_mask(mask)
 
     @property
     def disabled_channels_mask(self) -> np.array:
@@ -631,7 +632,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         mask states are stored in bytes, where each byte corresponds to
         the mask state for eight channels.
         """
-        return np.unpackbits(super(ProxyMixin, self).disabled_channels_mask()[::-1])[::-1]
+        return np.unpackbits(super().disabled_channels_mask()[::-1])[::-1]
 
     @disabled_channels_mask.setter
     def disabled_channels_mask(self, mask: np.array) -> None:
@@ -651,19 +652,19 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         if len(mask) != self.number_of_channels:
             raise ValueError('Error setting disabled channels mask.  Check '
                              'size of mask matches channel count.')
-        super(ProxyMixin, self).set_disabled_channels_mask(np.packbits(mask.astype(int)[::-1])[::-1])
+        super().set_disabled_channels_mask(np.packbits(mask.astype(np.intp)[::-1])[::-1])
 
     def _state_of_channels(self) -> np.array:
         """
         Prepend underscore to the auto-generated state_of_channels accessor
         """
-        return super(ProxyMixin, self).state_of_channels()
+        return super().state_of_channels()
 
     def _set_state_of_channels(self, states: np.array) -> None:
         """
         Prepend underscore to the auto-generated state_of_channels setter
         """
-        return super(ProxyMixin, self).set_state_of_channels(states)
+        return super().set_state_of_channels(states)
 
     @property
     def state_of_channels(self) -> pd.Series:
@@ -688,7 +689,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         .. versionchanged:: 1.56
             Return channels as `pandas.Series` instance.
         """
-        return pd.Series(np.unpackbits(super(ProxyMixin, self).state_of_channels()[::-1])[::-1])
+        return pd.Series(np.unpackbits(super().state_of_channels()[::-1])[::-1])
 
     @state_of_channels.setter
     def state_of_channels(self, states: np.array) -> None:
@@ -735,16 +736,16 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         N = self.number_of_channels
         if isinstance(states, pd.Series):
             if len(states) == N or not append:
-                channel_states = np.zeros(N, dtype=int)
+                channel_states = np.zeros(N, dtype=np.intp)
             else:
                 channel_states = self.state_of_channels
             channel_states[states.index] = states
             states = channel_states
         else:
-            states = np.asarray(states, dtype=int)
+            states = np.asarray(states, dtype=np.intp)
 
-        state_bits = np.packbits(states.astype(int)[::-1])[::-1]
-        if not super(ProxyMixin, self).set_state_of_channels(state_bits):
+        state_bits = np.packbits(states.astype(np.intp)[::-1])[::-1]
+        if not super().set_state_of_channels(state_bits):
             raise ValueError('Error setting state of channels.  Check number of states matches channel count.')
 
     def reset_switching_boards(self) -> DeprecationWarning:
@@ -786,7 +787,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         return uuid.UUID(bytes=self._uuid().tobytes())
 
     def _number_of_channels(self) -> np.array:
-        return super(ProxyMixin, self).number_of_channels()
+        return super().number_of_channels()
 
     @property
     def number_of_channels(self) -> int:
@@ -800,10 +801,10 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         return self.__number_of_channels
 
     def detect_shorts(self, delay_ms: Optional[int] = 5) -> List:
-        return super(ProxyMixin, self).detect_shorts(delay_ms).tolist()
+        return super().detect_shorts(delay_ms).tolist()
 
     def _hardware_version(self) -> np.array:
-        return super(ProxyMixin, self).hardware_version()
+        return super().hardware_version()
 
     @property
     def hardware_version(self) -> str:
@@ -823,11 +824,11 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
 
     @property
     def min_waveform_voltage(self) -> float:
-        return float(super(ProxyMixin, self).min_waveform_voltage())
+        return float(super().min_waveform_voltage())
 
     @property
     def neighbours(self) -> pd.Series:
-        channel_neighbours = super(ProxyMixin, self).neighbours()
+        channel_neighbours = super().neighbours()
         N = channel_neighbours.shape[0] / 4
         index = pd.MultiIndex.from_arrays([np.repeat(range(N), 4),
                                            ['up', 'down', 'left', 'right']
@@ -842,7 +843,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
 
     @property
     def drops(self) -> List[np.array]:
-        return _unpack_drops(super(ProxyMixin, self).drops())
+        return _unpack_drops(super().drops())
 
     def get_drops(self, channels: Optional[np.array] = None,
                   capacitance_threshold: Optional[float] = 0) -> List[np.array]:
@@ -868,9 +869,9 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
             also met).
         """
         if channels is None:
-            drops_raw = super(ProxyMixin, self).get_all_drops(capacitance_threshold)
+            drops_raw = super().get_all_drops(capacitance_threshold)
         else:
-            drops_raw = super(ProxyMixin, self).get_channels_drops(channels, capacitance_threshold)
+            drops_raw = super().get_channels_drops(channels, capacitance_threshold)
         return _unpack_drops(drops_raw)
 
 
@@ -940,7 +941,7 @@ class SerialProxy(ProxyMixin, Proxy):
 
         self.port = port
         self.connect()
-        super(SerialProxy, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
     @property
     def signals(self):
@@ -1002,7 +1003,7 @@ class SerialProxy(ProxyMixin, Proxy):
             # response after reboot command has been sent.
             original_timeout_s = self._timeout_s
             self._timeout_s = 0
-            super(SerialProxy, self).reboot()
+            super().reboot()
         except (serial.SerialException, IOError):
             pass
         finally:

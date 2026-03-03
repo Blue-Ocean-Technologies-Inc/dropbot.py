@@ -50,7 +50,7 @@ def switching_boards_info(switching_boards) -> pd.DataFrame:
         Columns include: ``uuid``, ``hardware_version``, and
         ``software_version``.
     """
-    switching_boards_info = pd.DataFrame(({k: getattr(switching_board_i, k)().split(b'\0')[0]
+    switching_boards_info = pd.DataFrame(({k: getattr(switching_board_i, k)().split(b'\0')[0].decode('utf-8')
                                            for k in ('hardware_version', 'software_version')}
                                           for switching_board_i in switching_boards),
                                          index=pd.Series([switching_board_i.address
