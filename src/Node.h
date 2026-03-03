@@ -236,6 +236,12 @@ public:
   UInt8Array dma_data_;
   uint16_t dma_stream_id_;
   bool watchdog_disable_request_;
+  // Deferred HV state flags — set by validator callbacks, applied in loop().
+  // Validator callbacks cannot do FlexWire I2C reliably (proven empirically).
+  bool hv_enable_pending_;
+  bool hv_disable_pending_;
+  bool frequency_pending_;
+  bool output_select_pending_;
   Channels channels_;
   std::array<drops::ChannelNeighbours, MAX_NUMBER_OF_CHANNELS>
       channel_neighbours_;
@@ -343,6 +349,8 @@ public:
            adc_count_(0), dma_adc_active_(false), dma_channel_done_(-1),
            last_dma_channel_done_(-1), adc_read_active_(false),
            dma_stream_id_(0), watchdog_disable_request_(false),
+           hv_enable_pending_(false), hv_disable_pending_(false),
+           frequency_pending_(false), output_select_pending_(false),
            channels_(0, dropbot_Config_switching_board_i2c_address_tag),
            output_enable_input(*this, voltage_source::OE_PIN, 1000,
                                InputDebounce::PinInMode::PIM_EXT_PULL_UP_RES,
@@ -1007,7 +1015,9 @@ public:
   * \version 1.63  Refactor to use voltage_source::set_frequency()
   */
   bool on_state_frequency_changed(float frequency) {
-    return voltage_source::set_frequency(frequency);
+    // Defer to loop() — FlexWire I2C from validator callbacks is unreliable.
+    frequency_pending_ = true;
+    return true;
   }
 
   /**
@@ -1032,10 +1042,13 @@ public:
   *   voltage_source::disable_high_voltage_output()
   */
   bool on_state_hv_output_enabled_changed(bool value) {
+    // Defer to loop() — FlexWire I2C from validator callbacks is unreliable.
     if (value) {
-      voltage_source::enable_high_voltage_output();
+      hv_enable_pending_ = true;
+      hv_disable_pending_ = false;
     } else {
-      voltage_source::disable_high_voltage_output();
+      hv_disable_pending_ = true;
+      hv_enable_pending_ = false;
     }
     return true;
   }
@@ -1047,9 +1060,9 @@ public:
   * \version 1.63  Refactor to use voltage_source::select_output()
   */
   bool on_state_hv_output_selected_changed(bool value) {
-    const uint8_t output = (value ? voltage_source::OUTPUT_HIGH_VOLTAGE
-                            : voltage_source::OUTPUT_3V3);
-    return voltage_source::select_output(output);
+    // Defer to loop() — FlexWire I2C from validator callbacks is unreliable.
+    output_select_pending_ = true;
+    return true;
   }
 
   bool on_state_channel_count_changed(int32_t value) {
@@ -1196,16 +1209,45 @@ public:
       refresh_drops(0);
       drops_timestamp_ms_ = millis();
     }
-    // Poll state_._.voltage and apply changes via _set_voltage.
-    // Direct calls from the validator callback are ineffective on the digipot,
-    // so we poll from the main loop instead.
+    // Poll state changes and apply hardware actions from the main loop.
+    // Validator callbacks cannot do FlexWire I2C reliably (proven empirically),
+    // so all hardware I/O is deferred here.
+
+    // Voltage
     {
       static float last_applied_voltage = -1;
       float desired = state_._.voltage;
       if (desired != last_applied_voltage) {
-        voltage_source::_set_voltage(desired);
-        last_applied_voltage = desired;
+        if (voltage_source::_set_voltage(desired)) {
+          last_applied_voltage = desired;
+        }
       }
+    }
+
+    // HV disable (process before enable — disable wins in same cycle)
+    if (hv_disable_pending_) {
+      hv_disable_pending_ = false;
+      voltage_source::disable_high_voltage_output();
+    }
+
+    // HV enable
+    if (hv_enable_pending_) {
+      hv_enable_pending_ = false;
+      voltage_source::enable_high_voltage_output();
+    }
+
+    // Frequency
+    if (frequency_pending_) {
+      frequency_pending_ = false;
+      voltage_source::set_frequency(state_._.frequency);
+    }
+
+    // Output select
+    if (output_select_pending_) {
+      output_select_pending_ = false;
+      const uint8_t output = state_._.hv_output_selected
+        ? voltage_source::OUTPUT_HIGH_VOLTAGE : voltage_source::OUTPUT_3V3;
+      voltage_source::select_output(output);
     }
 
     if (dma_channel_done_ >= 0) {
@@ -2377,10 +2419,15 @@ public:
               output_capacitances.data);
     if (events_disabled) { enable_events(); }
 
-    // Restore the original high-votage (HV) output state.
+    // Restore the original high-voltage (HV) output state.
+    // Call voltage_source:: directly (not via on_state_* which defers to loop).
     if (restore_required) {
-      on_state_hv_output_selected_changed(state_._.hv_output_selected);
-      on_state_hv_output_enabled_changed(state_._.hv_output_enabled);
+      const uint8_t output = state_._.hv_output_selected
+        ? voltage_source::OUTPUT_HIGH_VOLTAGE : voltage_source::OUTPUT_3V3;
+      voltage_source::select_output(output);
+      if (!state_._.hv_output_enabled) {
+        voltage_source::disable_high_voltage_output();
+      }
     }
 
     return output_capacitances;
@@ -2603,9 +2650,11 @@ public:
   * \version added: 1.56
   */
   void halt() {
-    // Disable high voltage.
+    // Disable high voltage immediately (safety-critical, no deferral).
     state_._.hv_output_enabled = false;
-    on_state_hv_output_enabled_changed(false);
+    hv_enable_pending_ = false;
+    hv_disable_pending_ = false;
+    voltage_source::disable_high_voltage_output();
     // Turn off all channels.
     channels_.disable_all_channels();
   }
