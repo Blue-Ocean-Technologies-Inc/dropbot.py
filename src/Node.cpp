@@ -9,7 +9,7 @@ void Node::begin() {
 
   // Set D0-D2 high (these are used to select test capacitors for
   // on-board calibration).
-  for (uint8_t i = 0; i <= 3; i++) {
+  for (uint8_t i = 0; i < 3; i++) {
     pinMode(i, OUTPUT);
     digitalWriteFast(i, HIGH);
   }
