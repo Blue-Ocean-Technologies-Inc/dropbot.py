@@ -25,6 +25,19 @@ void Node::begin() {
   // Load values set explicitly in EEPROM.
   config_.load();
 
+  // Propagate config values to voltage_source namespace.
+  // config_.reset()/load() populate the config struct but do NOT trigger
+  // validator callbacks, so we must copy values explicitly.
+  voltage_source::R7 = config_._.R7;
+  voltage_source::pot_max = config_._.pot_max;
+  voltage_source::max_voltage = config_._.max_voltage;
+  voltage_source::min_frequency = config_._.min_frequency;
+  voltage_source::max_frequency = config_._.max_frequency;
+
+  // Initialize voltage source (FlexWire I2C, Timer1) BEFORE state validation,
+  // since state validators call _set_voltage() which requires I2C to be ready.
+  voltage_source::begin();
+
   state_.set_buffer(get_buffer());
   state_.validator_.set_node(*this);
   state_.reset();
@@ -54,8 +67,6 @@ void Node::begin() {
      * channels available. */
     initialize_switching_boards();
   }
-
-  voltage_source::begin();
 
   analog::adc_.adc0->setResolution(16);
 }

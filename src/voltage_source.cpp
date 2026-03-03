@@ -7,16 +7,46 @@ namespace voltage_source {
 
 FlexWire i2c = FlexWire(SSDA_PIN, SSCL_PIN);
 
-// Configuration.
-float pot_max = dropbot_Config_pot_max_tag;
-float R7 = dropbot_Config_R7_tag;
-float max_voltage = dropbot_Config_max_voltage_tag;
-float min_frequency = dropbot_Config_min_frequency_tag;
-float max_frequency = dropbot_Config_max_frequency_tag;
+// Configuration — use protobuf defaults (NOT tag numbers).
+// These are overridden by EEPROM values in Node::begin().
+float pot_max = 50000.0f;
+float R7 = 10000.0f;
+float max_voltage = 150.0f;
+float min_frequency = 100.0f;
+float max_frequency = 10000.0f;
 
-// State.
-float target_voltage = dropbot_State_voltage_tag;
-float frequency = dropbot_State_frequency_tag;
+// State — use protobuf defaults (NOT tag numbers).
+float target_voltage = 100.0f;
+float frequency = 10000.0f;
+
+
+
+bool _set_voltage(float voltage) {
+  // Calculate digipot wiper value from target voltage.
+  //   pot_value = R6 / ((2 * V / 1.5) - 1) - R7
+  //   wiper_value = pot_value / pot_max * 255
+  // Clamp voltage to minimum 1V to avoid division by zero/negative.
+  float clamped_voltage = (voltage < 1.0f) ? 1.0f : voltage;
+  float pot_value = R6 / ((2.0f * clamped_voltage / 1.5f) - 1.0f) - R7;
+  if (pot_value < 0.0f) pot_value = 0.0f;
+  float wiper_f = pot_value / pot_max * 255.0f;
+  uint8_t wiper_value = (wiper_f > 255.0f) ? 255 : (uint8_t)wiper_f;
+
+  // Stop Timer1 to prevent ISR from interfering with FlexWire bit-bang I2C.
+  Timer1.stop();
+  i2c.begin();  // Reinitialize FlexWire pin states before each transaction.
+  i2c.beginTransmission(DIGIPOT_ADDRESS);
+  i2c.write(0);
+  i2c.write(wiper_value);
+  uint8_t error = i2c.endTransmission();
+  Timer1.restart();
+
+  if (error == 0) {
+    target_voltage = voltage;
+    return true;
+  }
+  return false;
+}
 
 void begin() {
   // Configure pins as outputs.

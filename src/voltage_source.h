@@ -22,6 +22,8 @@ extern float max_frequency;
 extern float target_voltage;
 extern float frequency;
 
+
+
 constexpr float R6 = 2e6;
 
 #if defined(__MK20DX256__) // Teensy 3.1/3.2
@@ -68,26 +70,7 @@ inline float min_waveform_voltage() {
  *
  * [i44]: https://gitlab.com/sci-bots/dropbot.py/issues/44
  */
-inline bool _set_voltage(float voltage) {
-  const float pot_value = max(0., R6 / ((2 * max(1, voltage) / 1.5) - 1) - R7);
-  const uint8_t wiper_value = min(pot_value / pot_max * 255, 255.);
-  if (voltage <= max_voltage) {
-    // This method is triggered whenever a voltage is included in a state
-    // update.
-    i2c.beginTransmission(DIGIPOT_ADDRESS);
-    i2c.write(0);
-    i2c.write(wiper_value);
-    i2c.endTransmission();
-
-    // verify that we wrote the correct value to the pot
-    i2c.requestFrom(DIGIPOT_ADDRESS, static_cast<uint8_t>(1));
-    if (i2c.read() == wiper_value) {
-      target_voltage = voltage;
-      return true;
-    }
-  }
-  return false;
-}
+bool _set_voltage(float voltage);
 
 inline void enable_high_voltage_output() {
   // If we're turning the output on, we need to start with a low voltage,

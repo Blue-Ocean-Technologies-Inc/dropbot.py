@@ -1018,7 +1018,10 @@ public:
   * \version 1.63  Refactor to use voltage_source::_set_voltage()
   */
   bool on_state_voltage_changed(float voltage) {
-    return voltage_source::_set_voltage(voltage);
+    // Accept state change; actual I2C write is handled by polling in loop().
+    // Direct _set_voltage calls from within the validator callback do not
+    // take effect on the digipot (proven by competing handler test).
+    return true;
   }
 
   /**
@@ -1193,6 +1196,18 @@ public:
       refresh_drops(0);
       drops_timestamp_ms_ = millis();
     }
+    // Poll state_._.voltage and apply changes via _set_voltage.
+    // Direct calls from the validator callback are ineffective on the digipot,
+    // so we poll from the main loop instead.
+    {
+      static float last_applied_voltage = -1;
+      float desired = state_._.voltage;
+      if (desired != last_applied_voltage) {
+        voltage_source::_set_voltage(desired);
+        last_applied_voltage = desired;
+      }
+    }
+
     if (dma_channel_done_ >= 0) {
       // DMA channel has completed.
       last_dma_channel_done_ = dma_channel_done_;
