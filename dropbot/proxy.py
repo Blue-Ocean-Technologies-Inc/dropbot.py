@@ -829,7 +829,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
     @property
     def neighbours(self) -> pd.Series:
         channel_neighbours = super().neighbours()
-        N = channel_neighbours.shape[0] / 4
+        N = channel_neighbours.shape[0] // 4
         index = pd.MultiIndex.from_arrays([np.repeat(range(N), 4),
                                            ['up', 'down', 'left', 'right']
                                            * N])
