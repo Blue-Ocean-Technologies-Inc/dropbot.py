@@ -69,13 +69,13 @@ void begin() {
 }
 
 void timer_callback() {
-  uint8_t high_pin_state = digitalRead(DRIVER_HIGH_PIN);
+  uint8_t high_pin_state = digitalReadFast(DRIVER_HIGH_PIN);
   if (high_pin_state == HIGH) {
-    digitalWrite(DRIVER_HIGH_PIN, LOW);
-    digitalWrite(DRIVER_LOW_PIN, HIGH);
+    digitalWriteFast(DRIVER_HIGH_PIN, LOW);
+    digitalWriteFast(DRIVER_LOW_PIN, HIGH);
   } else {
-    digitalWrite(DRIVER_LOW_PIN, LOW);
-    digitalWrite(DRIVER_HIGH_PIN, HIGH);
+    digitalWriteFast(DRIVER_LOW_PIN, LOW);
+    digitalWriteFast(DRIVER_HIGH_PIN, HIGH);
   }
 }
 
