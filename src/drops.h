@@ -62,7 +62,7 @@ std::vector<std::vector<uint8_t> > get_drops(Neighbours &neighbours,
   // Assign each channel to a **drop group**.
   for (auto it_channel = channels.begin(); it_channel != channels.end();
        it_channel++) {
-    if (capacitances[*it_channel] <= C_THRESHOLD) {
+    if (capacitances[*it_channel] <= c_threshold) {
       continue;
     }
     const auto &neighbours_i = neighbours[*it_channel];
@@ -84,7 +84,7 @@ std::vector<std::vector<uint8_t> > get_drops(Neighbours &neighbours,
             drop_member[j] = *it_channel;
           }
         }
-      } else if (capacitances[x_i] > C_THRESHOLD) {
+      } else if (capacitances[x_i] > c_threshold) {
         // Neighbour is partially covered.  Map to current **drop group**.
         drop_member[x_i] = *it_channel;
       }
