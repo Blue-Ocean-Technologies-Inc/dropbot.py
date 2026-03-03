@@ -125,6 +125,10 @@ if port:
                 proxy.signals.signal('capacitance-updated').connect(dump_capacitance)
 
                 for i in tqdm(range(6), desc='Measuring capacitance'):
+                    if i == 3:
+                        print('Updating Voltage to 100V')
+                        proxy.update_state(voltage=100)
+                        time.sleep(0.1)
                     if i > 1:
                         # After 1 iteration, we will turn on some channels
                         channels = np.random.choice([0, 1], size=proxy.number_of_channels,
