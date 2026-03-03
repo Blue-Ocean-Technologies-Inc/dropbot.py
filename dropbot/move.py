@@ -380,7 +380,7 @@ def move_results_to_frame(move_results: list) -> pd.DataFrame:
         keys.append(f'{i:3d} - {message_i["channels"]}')
         frames.append(pd.DataFrame(message_i['messages']))
     df = pd.concat(frames, keys=keys)
-    df.index.levels[0].name = 'channels'
+    df.index = df.index.set_names('channels', level=0)
     df['time (s)'] = df['time_us'] * 1e-6
     df['time (s)'] -= df['time (s)'].iloc[0]
     df = df.set_index('time (s)', append=True)
