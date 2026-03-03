@@ -10,7 +10,7 @@ namespace dropbot {
 
 namespace channels {
 
-  float C16 = 150e-9;
+  float C16 = 330e-9;
 
 }
 

@@ -322,7 +322,7 @@ public:
    * See [HVAC][HVAC] in DropBot HV square wave driver and `A11` and `C16` in
    * [feedback filter][feedback filter]:
    *
-   *  - `C16`: 0.15 uF
+   *  - `C16`: 0.33 uF
    *
    * Where ``V1`` and ``V2`` are root-mean-squared voltages, and Z1 == jwC1``
    * and ``Z2 == jwC2``, ``C2 = V2 / V1 * C1``.
