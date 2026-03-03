@@ -119,13 +119,12 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
             #    connected to a power source.
             #  - Connecting to a DropBot without a configured I2C address
             #    to set an I2C address.
+            ignore = kwargs.pop('ignore', [])
             super().__init__(*args, **kwargs)
             # XXX TODO Need to initialize DMA in embedded C++ code.
             # XXX Otherwise, initialization will not be performed on
             # device reset.
             self.init_dma()
-
-            ignore = kwargs.pop('ignore', [])
 
             if isinstance(ignore, bool):
                 if ignore:
@@ -176,6 +175,8 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
 
     def _connect(self, *args, **kwargs) -> None:
         """
+        Reconnect to the device and emit a ``connected`` signal.
+
         Version log
         -----------
         .. versionadded:: 1.55
@@ -186,7 +187,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
             but subsequent restored connection events after connecting to
             the ``connected`` signal will be received.
         """
-        super()._connect(*args, **kwargs)
+        self.connect()
         self.signals.signal('connected').send({'event': 'connected'})
 
     def sync_time(self) -> None:
@@ -287,7 +288,6 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         except Exception:
             # ignore any exceptions (e.g., if we can't communicate with the board)
             _L().debug('Communication error', exc_info=True)
-            pass
 
     def i2c_send_command(self, address: int, cmd: bytes, data: bytes) -> bytes:
         self.i2c_write(address, [cmd] + data)
@@ -755,7 +755,8 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         .. deprecated:: 1.73.2
             Not supported by DropBot v3 hardware.
         """
-        raise DeprecationWarning()
+        raise NotImplementedError("reset_switching_boards is deprecated and "
+                                  "not supported by DropBot v3 hardware.")
 
     @property
     def baud_rate(self) -> int:
@@ -947,11 +948,15 @@ class SerialProxy(ProxyMixin, Proxy):
     def signals(self):
         return self.monitor.signals
 
-    def connect(self):
+    def connect(self, timeout=None):
         self.terminate()
+        if timeout is None:
+            timeout = self.default_timeout
         monitor = bnr.ser_async.BaseNodeSerialMonitor(port=self.port)
         monitor.start()
-        monitor.connected_event.wait()
+        if not monitor.connected_event.wait(timeout=timeout):
+            monitor.stop()
+            raise IOError(f'Timed out waiting for connection to {self.port}')
         self.monitor = monitor
         return self.monitor
 
@@ -969,9 +974,17 @@ class SerialProxy(ProxyMixin, Proxy):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
+        try:
+            self.hv_output_enabled = False
+        except Exception:
+            pass
         self.terminate()
 
     def __del__(self) -> None:
+        try:
+            self.hv_output_enabled = False
+        except Exception:
+            pass
         self.terminate()
 
     def flash_firmware(self) -> None:
