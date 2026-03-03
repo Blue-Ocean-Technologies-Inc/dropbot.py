@@ -244,8 +244,9 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         for i in range(int(math.ceil(len(data) / float(i2c_packet_size)))):
             start = i * i2c_packet_size
             end = min((i + 1) * i2c_packet_size, len(data))
-            self.i2c_write(i2c_address, [eeprom_address + start] +
-                           (end - start) * [255])
+            # Commenting out this, seems unnecessary 
+            # self.i2c_write(i2c_address, [eeprom_address + start] +
+            #                (end - start) * [255])
             self.i2c_write(i2c_address, [eeprom_address + start] +
                            data[start:end])
 
@@ -284,7 +285,6 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         try:
             # turn off the high voltage when we disconnect
             self.hv_output_enabled = False
-            super().__del__()
         except Exception:
             # ignore any exceptions (e.g., if we can't communicate with the board)
             _L().debug('Communication error', exc_info=True)
@@ -405,7 +405,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
             _L().debug(line)
         C16_ = self.config.C16 / correction.mean()
         self.update_config(C16=C16_)
-        _L().info(f"Calibrated `C16` as {(C16_ * ureg.F).to('pF'):1f}")
+        _L().info(f"Calibrated `C16` as {(C16_ * ureg.F).to('pF'):.1f}")
         return C16_
 
     def measure_capacitance(self, n_samples: Optional[int] = 50, amplitude: str = 'filtered_mean') -> float:
@@ -455,7 +455,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
                 amplitude_i = .5 * (volts_description['75%'] -
                                     volts_description['25%'])
             else:
-                raise NameError(f'Unknown amplitude calculation method `{method_i}`.')
+                raise ValueError(f'Unknown amplitude calculation method `{method_i}`.')
             values.append(amplitude_i)
 
         if not singleton:
@@ -748,7 +748,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         if not super().set_state_of_channels(state_bits):
             raise ValueError('Error setting state of channels.  Check number of states matches channel count.')
 
-    def reset_switching_boards(self) -> DeprecationWarning:
+    def reset_switching_boards(self) -> None:
         """
         Version log
         -----------
@@ -775,7 +775,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         self.set_id(id_)
 
     @property
-    def uuid(self) -> uuid:
+    def uuid(self) -> 'uuid.UUID':
         """
         Returns
         -------

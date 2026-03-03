@@ -252,16 +252,18 @@ async def execute_actuation(proxy_, chip_info_, specific_capacitance, channels,
             capacitance_messages = []
             result = {}
 
-            def _on_capacitance_updated(self, message):
-                message['actuated_channels'] = self.actuated_channels
-                message['actuated_area'] = self.actuated_area
-                capacitance_messages.append(message)
-
             #  1. Set control board state of channels according to requested
             #     actuation states; and
             #  2. Wait for channels to be actuated.
             actuated_channels = actuate_channels(proxy_, channels, timeout=duration_s)
+            actuated_info = _actuated_result_info(actuated_channels)
             result['start'] = dt.datetime.now()
+
+            def _on_capacitance_updated(message):
+                message['actuated_channels'] = actuated_info['actuated_channels']
+                message['actuated_area'] = actuated_info['actuated_area']
+                capacitance_messages.append(message)
+
             #  3. Connect to `capacitance-updated` signal to record capacitance
             #     values measured during the step.
             proxy_.signals.signal('capacitance-updated').connect(_on_capacitance_updated)
@@ -269,7 +271,7 @@ async def execute_actuation(proxy_, chip_info_, specific_capacitance, channels,
             try:
                 await asyncio.sleep(duration_s)
                 result['end'] = dt.datetime.now()
-                result.update(_actuated_result_info(actuated_channels))
+                result.update(actuated_info)
             finally:
                 proxy_.signals.signal('capacitance-updated').disconnect(_on_capacitance_updated)
         else:
@@ -299,7 +301,7 @@ async def execute_actuation(proxy_, chip_info_, specific_capacitance, channels,
 
             # Add actuated area to capacitance update messages.
             for capacitance_i in capacitance_messages:
-                capacitance_i['acuated_area'] = result['actuated_area']
+                capacitance_i['actuated_area'] = result['actuated_area']
         return result
 
 

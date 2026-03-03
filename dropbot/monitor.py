@@ -5,6 +5,7 @@
     If 12V power is not detected, prompt to either a) ignore and connect
     anyway; or b) skip the DropBot.
 '''
+import asyncio
 import time
 
 import base_node_rpc as bnr
@@ -21,7 +22,7 @@ DROPBOT_SIGNAL_NAMES = ('halted', 'output_enabled',
 dropbot = None
 
 
-async def monitor(signals_: dict):
+async def monitor(signals_: dict, register_signal=None):
     """
     Establish and maintain a DropBot connection.
 
@@ -100,22 +101,17 @@ async def monitor(signals_: dict):
     def flash_firmware(dropbot_):
         loop.create_task(co_flash_firmware())
 
-    register_signal('flash-firmware',
-                    lambda *args: loop.call_soon_threadsafe(flash_firmware, dropbot))
-
-    # def reboot(dropbot_):
-    #     if dropbot_ is not None:
-    #         dropbot_._reboot()
-
-    # register_signal('reboot',
-    #                 lambda *args: loop.call_soon_threadsafe(reboot, dropbot))
+    if register_signal is not None:
+        register_signal('flash-firmware',
+                        lambda *args: loop.call_soon_threadsafe(flash_firmware, dropbot))
 
     def reconnect(dropbot_):
         if dropbot_ is not None:
             dropbot_.terminate()
 
-    register_signal('reconnect',
-                    lambda *args: loop.call_soon_threadsafe(reconnect, dropbot))
+    if register_signal is not None:
+        register_signal('reconnect',
+                        lambda *args: loop.call_soon_threadsafe(reconnect, dropbot))
 
     try:
         while True:
@@ -381,6 +377,6 @@ if __name__ == '__main__':
     register_signal('closed', on_closed)
 
     loop = asyncio.new_event_loop()
-    task = loop.create_task(monitor(signal_register))
+    task = loop.create_task(monitor(signal_register, register_signal=register_signal))
     loop.run_until_complete(task)
     loop.close()
