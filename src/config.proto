@@ -34,4 +34,7 @@ message Config {
   optional uint32 capacitance_n_samples = 60 [default = 50];
   //: .. versionadded:: 1.73.0
   optional float C16 = 61 [default = 150e-9];
+  //: Maximum number of shift register ports to probe per switching board.
+  //: Default 16 probes all possible ports. Set lower to limit detection.
+  optional uint32 max_ports_per_board = 62 [default = 16];
 }

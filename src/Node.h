@@ -848,6 +848,7 @@ public:
     return output;
   }
   uint16_t number_of_channels() const { return state_._.channel_count; }
+  uint8_t ports_per_board() const { return channels_.ports_per_board_; }
   UInt8Array hardware_version() { return UInt8Array_init(strlen(HARDWARE_VERSION_),
                       (uint8_t *)&HARDWARE_VERSION_[0]); }
   UInt8Array _uuid() {
@@ -1143,6 +1144,11 @@ public:
   */
   bool on_config_max_frequency_changed(float value) {
     voltage_source::max_frequency = value;
+    return true;
+  }
+
+  bool on_config_max_ports_per_board_changed(uint32_t value) {
+    if (value < 1 || value > 16) return false;
     return true;
   }
 

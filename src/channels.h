@@ -29,7 +29,7 @@ namespace channels {
 
 }
 
-constexpr uint16_t MAX_NUMBER_OF_CHANNELS = 120;
+constexpr uint16_t MAX_NUMBER_OF_CHANNELS = 256;
 
 
 struct Switch {
@@ -39,19 +39,17 @@ struct Switch {
 };
 
 
-Switch channel_to_switch(uint8_t channel);
-uint8_t switch_to_channel(Switch const &_switch);
-void pack_channels(UInt8Array const &channels, UInt8Array &packed_channels);
+Switch channel_to_switch(uint8_t channel, uint8_t ports_per_board = 5);
+uint8_t switch_to_channel(Switch const &_switch, uint8_t ports_per_board = 5);
+void pack_channels(UInt8Array const &channels, UInt8Array &packed_channels,
+                   uint8_t ports_per_board = 5);
 
 
 // Accept iterators to support vectors, arrays, etc.
 // See: https://stackoverflow.com/a/26684784/345236
 template <typename Iterator>
-std::vector<uint8_t> unpack_channels(Iterator begin, const Iterator end) {
-  const auto ports_per_board = 5;
-  // Variable not used in this function but kept for documentation
-  (void)ports_per_board;
-  
+std::vector<uint8_t> unpack_channels(Iterator begin, const Iterator end,
+                                     uint8_t ports_per_board = 5) {
   std::vector<uint8_t> channels;
   channels.reserve(MAX_NUMBER_OF_CHANNELS);
 
@@ -63,7 +61,7 @@ std::vector<uint8_t> unpack_channels(Iterator begin, const Iterator end) {
     for (uint8_t j = 0; j < 8; j++) {
         if (*it & (1 << j)) {
             const Switch _switch = {board_i, port_i, j};
-            uint8_t channel_ij = switch_to_channel(_switch);
+            uint8_t channel_ij = switch_to_channel(_switch, ports_per_board);
             channels.push_back(channel_ij);
         }
     }
@@ -76,9 +74,10 @@ std::vector<uint8_t> unpack_channels(Iterator begin, const Iterator end) {
 // Accept iterators to support vectors, arrays, etc.
 // See: https://stackoverflow.com/a/26684784/345236
 template <typename Container>
-std::vector<uint8_t> unpack_channels(Container packed_channels) {
+std::vector<uint8_t> unpack_channels(Container packed_channels,
+                                     uint8_t ports_per_board = 5) {
   return unpack_channels(std::begin(packed_channels),
-                         std::end(packed_channels));
+                         std::end(packed_channels), ports_per_board);
 }
 
 
@@ -86,11 +85,8 @@ std::vector<uint8_t> unpack_channels(Container packed_channels) {
 // See: https://stackoverflow.com/a/26684784/345236
 template <typename Iterator>
 std::vector<Switch> unpack_switches(Iterator begin,
-                                           const Iterator end) {
-  const auto ports_per_board = 5;
-  // Variable not used in this function but kept for documentation
-  (void)ports_per_board;
-  
+                                    const Iterator end,
+                                    uint8_t ports_per_board = 5) {
   std::vector<Switch> switches;
   switches.reserve(MAX_NUMBER_OF_CHANNELS);
 
@@ -113,9 +109,10 @@ std::vector<Switch> unpack_switches(Iterator begin,
 
 
 template <typename Container>
-std::vector<Switch> unpack_switches(const Container &packed_switches) {
+std::vector<Switch> unpack_switches(const Container &packed_switches,
+                                    uint8_t ports_per_board = 5) {
   return unpack_switches(std::begin(packed_switches),
-                         std::end(packed_switches));
+                         std::end(packed_switches), ports_per_board);
 }
 
 
@@ -127,14 +124,17 @@ public:
 
   uint16_t channel_count_;
   uint8_t switching_board_i2c_address_;
+  uint8_t ports_per_board_;  // detected ports per switching board (default 5)
 
   typedef std::array<uint8_t, MAX_NUMBER_OF_CHANNELS / 8> packed_channels_t;
   packed_channels_t state_of_channels_;
   packed_channels_t disabled_channels_mask_;
 
-  Channels(uint16_t channel_count, uint8_t switching_board_i2c_address)
+  Channels(uint16_t channel_count, uint8_t switching_board_i2c_address,
+           uint8_t ports_per_board = 5)
     : channel_count_(channel_count),
-      switching_board_i2c_address_(switching_board_i2c_address) {}
+      switching_board_i2c_address_(switching_board_i2c_address),
+      ports_per_board_(ports_per_board) {}
 
   packed_channels_t const &state_of_channels();
 
@@ -188,14 +188,15 @@ public:
       enabled_states[i] = (state_of_channels_[i] &
                            ~disabled_channels_mask_[i]);
     }
-    return unpack_switches(enabled_states);
+    return unpack_switches(enabled_states, ports_per_board_);
   }
 
   std::vector<uint8_t> actuated_channels() {
     auto switches = actuated_switches();
     std::vector<uint8_t> selected_channels(switches.size());
+    const uint8_t ppb = ports_per_board_;
     std::transform(switches.begin(), switches.end(), selected_channels.begin(),
-                   +[] (Switch _switch) { return switch_to_channel(_switch); });
+                   [ppb] (Switch _switch) { return switch_to_channel(_switch, ppb); });
     return selected_channels;
   }
 
@@ -478,7 +479,7 @@ public:
                    disabled_channels_mask_.end(),
                    enabled_channels_mask.begin(),
                    +[] (uint8_t port) { return ~port; });
-    return unpack_channels(enabled_channels_mask);
+    return unpack_channels(enabled_channels_mask, ports_per_board_);
   }
 
   std::vector<float> all_channel_capacitances(uint16_t n_samples) {

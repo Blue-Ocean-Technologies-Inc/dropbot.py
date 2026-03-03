@@ -15,13 +15,12 @@ namespace channels {
 }
 
 
-Switch channel_to_switch(uint8_t channel) {
+Switch channel_to_switch(uint8_t channel, uint8_t ports_per_board) {
     /*
-     *  - 5 IO register ports per switching board.
+     *  - N IO register ports per switching board (detected at boot).
      *  - 8 bits per IO register port.
      *  - Channels in LSB-first order within each IO register port.
      */
-    const auto ports_per_board = 5;
     const auto channels_per_port = 8;
     const auto channels_per_board = ports_per_board * channels_per_port;
 
@@ -33,15 +32,14 @@ Switch channel_to_switch(uint8_t channel) {
 }
 
 
-uint8_t switch_to_channel(Switch const &_switch) {
+uint8_t switch_to_channel(Switch const &_switch, uint8_t ports_per_board) {
   /*
-   *  - 5 IO register ports per switching board.
+   *  - N IO register ports per switching board (detected at boot).
    *  - 8 bits per IO register port.
    *  - Channels in LSB-first order within each IO register port.
    */
 
   // Port number within all IO register ports concatenated.
-  const auto ports_per_board = 5;
   const auto channels_per_port = 8;
   const auto channels_per_board = ports_per_board * channels_per_port;
 
@@ -50,12 +48,12 @@ uint8_t switch_to_channel(Switch const &_switch) {
 }
 
 
-void pack_channels(UInt8Array const &channels, UInt8Array &packed_channels) {
-  const auto ports_per_board = 5;
+void pack_channels(UInt8Array const &channels, UInt8Array &packed_channels,
+                   uint8_t ports_per_board) {
   packed_channels.length = 0;
 
   for (uint32_t i = 0; i < channels.length; i++) {
-    const Switch _switch = channel_to_switch(channels.data[i]);
+    const Switch _switch = channel_to_switch(channels.data[i], ports_per_board);
     const uint8_t byte_i = _switch.board * ports_per_board + _switch.port;
 
     if (static_cast<uint32_t>(byte_i + 1) >= packed_channels.length) {
@@ -80,9 +78,11 @@ Channels::packed_channels_t const &Channels::state_of_channels() {
   //
   // See https://gitlab.com/sci-bots/dropbot.py/issues/26
   Timer1.stop(); // stop the timer during i2c transmission
-  const auto chip_count = channel_count_ / 40;  // # of detected boards
+  const auto channels_per_board = ports_per_board_ * 8;
+  const auto chip_count = (channels_per_board > 0)
+                          ? channel_count_ / channels_per_board : 0;
   for (uint8_t chip = 0; chip < chip_count; chip++) {
-    for (uint8_t port = 0; port < 5; port++) {
+    for (uint8_t port = 0; port < ports_per_board_; port++) {
       Wire.beginTransmission(switching_board_i2c_address_ + chip);
       Wire.write(PCA9505_OUTPUT_PORT_REGISTER + port);
       Wire.endTransmission();
@@ -91,7 +91,7 @@ Channels::packed_channels_t const &Channels::state_of_channels() {
 
       Wire.requestFrom(switching_board_i2c_address_ + chip, 1);
       if (Wire.available()) {
-        state_of_channels_[chip * 5 + port] = ~Wire.read();
+        state_of_channels_[chip * ports_per_board_ + port] = ~Wire.read();
       } else {
         Timer1.restart();
         // No response from switching board.
@@ -112,19 +112,17 @@ void Channels::_update_channels(bool force) {
   // See https://gitlab.com/sci-bots/dropbot.py/issues/26
   Timer1.stop(); // stop the timer during i2c transmission
   uint8_t data[2];
-  // Each PCA9505 chip has 5 8-bit output registers for a total of 40 outputs
-  // per chip. We can have up to 8 of these chips on an I2C bus, which means
-  // we can control up to 320 channels.
-  //   Each register represent 8 channels (i.e. the first register on the
-  // first PCA9505 chip stores the state of channels 0-7, the second register
-  // represents channels 8-15, etc.).
-  const auto chip_count = channel_count_ / 40;  // # of detected boards
+  // Each switching board has `ports_per_board_` 8-bit output registers.
+  // We can have up to 8 boards on an I2C bus.
+  const auto channels_per_board = ports_per_board_ * 8;
+  const auto chip_count = (channels_per_board > 0)
+                          ? channel_count_ / channels_per_board : 0;
   for (uint8_t chip = 0; chip < chip_count; chip++) {
-    for (uint8_t port = 0; port < 5; port++) {
+    for (uint8_t port = 0; port < ports_per_board_; port++) {
       data[0] = PCA9505_OUTPUT_PORT_REGISTER + port;
-      data[1] = ~(state_of_channels_[chip * 5 + port] &
+      data[1] = ~(state_of_channels_[chip * ports_per_board_ + port] &
                   (force ? std::numeric_limits<uint8_t>::max() :
-                   ~disabled_channels_mask_[chip * 5 + port]));
+                   ~disabled_channels_mask_[chip * ports_per_board_ + port]));
       Wire.beginTransmission(switching_board_i2c_address_ + chip);
       Wire.write(data, sizeof(data));
       Wire.endTransmission();

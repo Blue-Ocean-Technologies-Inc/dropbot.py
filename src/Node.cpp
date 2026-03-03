@@ -74,7 +74,8 @@ void Node::begin() {
 uint16_t Node::initialize_switching_boards() {
   /*
    * Scan for connected switching boards and determine the number of actuation
-   * channels available.
+   * channels available.  Auto-detects the number of shift register ports per
+   * board by probing up to `config_._.max_ports_per_board` ports on each board.
    *
    * Returns
    * -------
@@ -83,59 +84,77 @@ uint16_t Node::initialize_switching_boards() {
    */
   // Each additional board's address must equal the previous boards address +1
   // to be valid.
-  uint16_t  number_of_channels = 0;
+  uint16_t number_of_channels = 0;
   const uint8_t base_address = config_._.switching_board_i2c_address;
+  const uint8_t max_ports = config_._.max_ports_per_board;
+  uint8_t detected_ports_per_board = 0;
 
   uint8_t I2C_DELAY_US = 200;
 
   for (uint8_t chip_i = 0; chip_i < 8; chip_i++) {
     const uint8_t address_i = base_address + chip_i;
 
-    // Set IO ports as inputs.
+    // Probe: write 0xFF to config register port 0, read back.
     buffer_[0] = channels_.PCA9505_CONFIG_IO_REGISTER;
     buffer_[1] = 0xFF;
     i2c_write(address_i, UInt8Array_init(2, (uint8_t *)&buffer_[0]));
     // XXX Delay required when operating with a 400kbps i2c clock.
     delayMicroseconds(I2C_DELAY_US);
 
-    // Read back the register value
-    // if it matches what we previously set, this might be a PCA9505 chip
+    // Read back the register value.
+    // If it matches what we previously set, this might be a switching board.
     if (i2c_read(address_i, 1).data[0] != 0xFF) {
         // No switching board found at I2C `address_i`.
         break;
-    } else {
-      // Assume the device at I2C `address_i` is a PCA9505 chip.
-      // Try setting all ports in output mode and initialize to ground.
-      for (uint8_t port_ij = 0; port_ij < 5; port_ij++) {
-        buffer_[0] = channels_.PCA9505_CONFIG_IO_REGISTER + port_ij;
-        buffer_[1] = 0x00;
-        i2c_write(address_i, UInt8Array_init(2, (uint8_t *)&buffer_[0]));
-        // XXX Delay required when operating with a 400kbps i2c clock.
-        delayMicroseconds(I2C_DELAY_US);
+    }
 
-        // Check that we successfully set the IO config register to 0x00.
-        if (i2c_read(address_i, 1).data[0] != 0x00) {
-            // Error setting IO port pins as output.
-            break;
-        } else {
-            // Verified all IO port pins set as output.
-            // Set output pins to ground.  **N.B.** `PCA9505` outputs are
-            // **active low**.
-            buffer_[0] = channels_.PCA9505_OUTPUT_PORT_REGISTER + port_ij;
-            buffer_[1] = 0xFF;
-            i2c_write(address_i, UInt8Array_init(2, (uint8_t *)&buffer_[0]));
-            // XXX Delay required when operating with a 400kbps i2c clock.
-            delayMicroseconds(I2C_DELAY_US);
+    // Probe ports up to max_ports to detect actual register count.
+    uint8_t ports_found = 0;
+    for (uint8_t port_ij = 0; port_ij < max_ports; port_ij++) {
+      buffer_[0] = channels_.PCA9505_CONFIG_IO_REGISTER + port_ij;
+      buffer_[1] = 0x00;
+      i2c_write(address_i, UInt8Array_init(2, (uint8_t *)&buffer_[0]));
+      // XXX Delay required when operating with a 400kbps i2c clock.
+      delayMicroseconds(I2C_DELAY_US);
 
-            number_of_channels += 8;
-        }
+      // Check that we successfully set the IO config register to 0x00.
+      if (i2c_read(address_i, 1).data[0] != 0x00) {
+          // Port doesn't exist on this board.
+          break;
       }
+
+      // Verified all IO port pins set as output.
+      // Set output pins to ground.  **N.B.** outputs are **active low**.
+      buffer_[0] = channels_.PCA9505_OUTPUT_PORT_REGISTER + port_ij;
+      buffer_[1] = 0xFF;
+      i2c_write(address_i, UInt8Array_init(2, (uint8_t *)&buffer_[0]));
+      // XXX Delay required when operating with a 400kbps i2c clock.
+      delayMicroseconds(I2C_DELAY_US);
+
+      number_of_channels += 8;
+      ports_found++;
+    }
+
+    // Use first board's port count as the reference for all boards.
+    if (chip_i == 0 && ports_found > 0) {
+      detected_ports_per_board = ports_found;
     }
   }
-  // Update channel count according to the number of discovered channels.
+
+  // Store detected ports per board (fallback to 5 for safety).
+  if (detected_ports_per_board == 0) {
+    detected_ports_per_board = 5;
+  }
+  channels_.ports_per_board_ = detected_ports_per_board;
+
+  // Clamp to MAX_NUMBER_OF_CHANNELS to prevent out-of-bounds access on
+  // internal uint8_t-indexed arrays.  The full detected count is still
+  // reported in state_._.channel_count so the host knows the true hardware
+  // capability.
   state_._.channel_count = number_of_channels;
   state_._.has_channel_count = true;
-  channels_.channel_count_ = state_._.channel_count;
+  channels_.channel_count_ = (number_of_channels > MAX_NUMBER_OF_CHANNELS)
+                              ? MAX_NUMBER_OF_CHANNELS : number_of_channels;
   channels_.switching_board_i2c_address_ = base_address;
   return state_._.channel_count;
 }
