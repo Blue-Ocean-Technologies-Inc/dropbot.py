@@ -998,8 +998,6 @@ class SerialProxy(ProxyMixin, Proxy):
         time.sleep(0.5)
         self.connect()
 
-    # TODO: Implement reboot
-    # TODO: Currently reboot is not working because of async serial connection
     def _reboot(self):
         """
         Version log
@@ -1011,17 +1009,17 @@ class SerialProxy(ProxyMixin, Proxy):
         .. note:: **Connection is lost.**
         """
         # Reboot to put the device in known state.
+        original_timeout = self.default_timeout
         try:
-            # XXX Temporarily disable timeout to avoid waiting for a
+            # Temporarily disable timeout to avoid waiting for a
             # response after reboot command has been sent.
-            original_timeout_s = self._timeout_s
-            self._timeout_s = 0
+            self.default_timeout = 0
             super().reboot()
-        except (serial.SerialException, IOError):
+        except (serial.SerialException, IOError, TimeoutError, OSError):
             pass
         finally:
             # Restore original timeout duration.
-            self._timeout_s = original_timeout_s
+            self.default_timeout = original_timeout
             self.terminate()
 
     
@@ -1036,8 +1034,8 @@ class SerialProxy(ProxyMixin, Proxy):
         # Reboot to put the device in a known state.
         self._reboot()
 
-        # Wait for serial port to settle after reboot.
-        time.sleep(.5)
+        # Wait for serial port to settle after reboot (USB re-enumeration).
+        time.sleep(2)
 
         # Reestablish serial connection to the device.
-        self._connect()
+        self.connect()
