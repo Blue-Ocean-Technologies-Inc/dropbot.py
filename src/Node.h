@@ -1071,30 +1071,6 @@ public:
   }
 
   /**
-  * @brief Validate output current limit.
-  *
-  * @param value  New output current limit in amps.
-  *
-  * @return `true` if value is within valid range (0, 0.5] A.
-  */
-  bool on_state_output_current_limit_changed(float value) {
-    return (value > 0) && (value <= 0.5f);
-  }
-
-  /**
-  * @brief Validate chip load range margin.
-  *
-  * Negative values disable the saturation check (see Node constructor).
-  *
-  * @param value  New chip load range margin (fraction of ADC range).
-  *
-  * @return `true` if value is in range [-1.0, 1.0].
-  */
-  bool on_state_chip_load_range_margin_changed(float value) {
-    return (value >= -1.0f) && (value <= 1.0f);
-  }
-
-  /**
   * @brief Update channels::C16 when respective config value is changed.
   *
   * @param value
@@ -1167,20 +1143,6 @@ public:
   */
   bool on_config_max_frequency_changed(float value) {
     voltage_source::max_frequency = value;
-    return true;
-  }
-
-  /**
-  * @brief Callback when watchdog_enabled config is changed.
-  *
-  * Accepts any boolean value. When set to false via update_config + save_config,
-  * the watchdog will be disabled on next boot.
-  *
-  * @param value  `true` to enable watchdog at boot, `false` to disable.
-  *
-  * \since 1.74.0
-  */
-  bool on_config_watchdog_enabled_changed(bool value) {
     return true;
   }
 
@@ -2746,6 +2708,49 @@ public:
     result.length = end - begin;
     std::copy(begin, end, result.data);
     return result;
+  }
+
+  // =========================================================================
+  // NEW VALIDATORS — appended at end to preserve RPC command code ordering.
+  // Do NOT insert new public methods above this point.
+  // =========================================================================
+
+  /**
+  * @brief Validate output current limit.
+  *
+  * @param value  New output current limit in amps.
+  *
+  * @return `true` if value is within valid range (0, 0.5] A.
+  */
+  bool on_state_output_current_limit_changed(float value) {
+    return (value > 0) && (value <= 0.5f);
+  }
+
+  /**
+  * @brief Validate chip load range margin.
+  *
+  * Negative values disable the saturation check (see Node constructor).
+  *
+  * @param value  New chip load range margin (fraction of ADC range).
+  *
+  * @return `true` if value is in range [-1.0, 1.0].
+  */
+  bool on_state_chip_load_range_margin_changed(float value) {
+    return (value >= -1.0f) && (value <= 1.0f);
+  }
+
+  /**
+  * @brief Callback when watchdog_enabled config is changed.
+  *
+  * Accepts any boolean value. When set to false via update_config + save_config,
+  * the watchdog will be disabled on next boot.
+  *
+  * @param value  `true` to enable watchdog at boot, `false` to disable.
+  *
+  * \since 1.74.0
+  */
+  bool on_config_watchdog_enabled_changed(bool value) {
+    return true;
   }
 };
 }  // namespace dropbot
