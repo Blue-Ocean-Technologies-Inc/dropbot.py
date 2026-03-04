@@ -33,9 +33,13 @@ void serialEvent() { node_obj.serial_handler_.receiver()(Serial.available()); }
 void setup() {
   node_obj.begin();
 
-  // Restart if loop takes longer than 10s
-  node_obj.watchdog_enable(0, 10000);
-  node_obj.watchdog_auto_refresh(true);
+  // Enable watchdog unless persistently disabled via config.
+  // Disable with: proxy.update_config(watchdog_enabled=False); proxy.save_config()
+  if (node_obj.config_._.watchdog_enabled) {
+    // Restart if loop takes longer than 10s
+    node_obj.watchdog_enable(0, 10000);
+    node_obj.watchdog_auto_refresh(true);
+  }
 }
 
 
