@@ -148,6 +148,12 @@ std::vector<uint16_t> Channels::short_detection_voltages(uint8_t delay_ms) {
   // actuation of channels regardless of status in disabled channels mask.
   channel_scan([&] (uint8_t channel) { voltages[channel] = analogRead(0); },
                delay_ms, true);
+  // We could also use 16-sample median to reduce noise in short detection readings.
+    //  channel_scan([&] (uint8_t channel) {
+    //    auto samples = analog::analog_reads_simple(0, 16);
+    //    std::sort(samples.begin(), samples.end());
+    //    voltages[channel] = samples[samples.size() / 2];  // median
+    //  }, delay_ms, true);
 
   // Restore originally selected voltage.
   voltage_source::select_output(selected_output);
