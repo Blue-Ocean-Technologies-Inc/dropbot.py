@@ -434,7 +434,8 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
             Add :data:`amplitude` keyword argument.  See `issue #25 <https://gitlab.com/sci-bots/dropbot.py/issues/25>`_
             for more information.
         """
-        df_volts = pd.DataFrame({'volts': self.analog_reads_simple(11, n_samples) * 3.3 / 2 ** 16})
+        volts = np.asarray(self.analog_reads_simple(11, n_samples),
+                           dtype=np.float64) * 3.3 / 2 ** 16
 
         singleton = False
 
@@ -445,15 +446,14 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         values = []
         for method_i in amplitude:
             if method_i == 'filtered_mean':
-                v_gnd = np.mean(df_volts)
-                v_abs = np.abs(df_volts - v_gnd)
+                v_gnd = np.mean(volts)
+                v_abs = np.abs(volts - v_gnd)
                 v_abs_mean = np.mean(v_abs)
                 filter_th = v_abs_mean * 1.5
-                amplitude_i = np.mean(v_abs[v_abs < filter_th])#['volts']
+                amplitude_i = np.mean(v_abs[v_abs < filter_th])
             elif method_i == 'percentile_difference':
-                volts_description = df_volts['volts'].describe()
-                amplitude_i = .5 * (volts_description['75%'] -
-                                    volts_description['25%'])
+                q25, q75 = np.percentile(volts, [25, 75])
+                amplitude_i = .5 * (q75 - q25)
             else:
                 raise ValueError(f'Unknown amplitude calculation method `{method_i}`.')
             values.append(amplitude_i)
