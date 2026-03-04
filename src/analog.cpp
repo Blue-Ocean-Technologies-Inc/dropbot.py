@@ -55,12 +55,30 @@ uint16_t s16_percentile_diff(uint8_t pinP, uint8_t pinN, uint16_t n_samples,
 * @brief Measure high-side *root mean-squared (RMS)* voltage.
 *
 * See [`A1/HV_FB`][1] in DropBot boost converter schematic:
+* [1]: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/boost-converter-boost-converter.pdf
+*
+* The MAX1771 boost converter generates a DC high voltage from 12V input.
+* An NCP5304 half-bridge driver (D6/DRIVER_LO, D7/DRIVER_HI) drives two
+* IRF740B MOSFETs (Q5, Q6) to produce an AC square wave (HVAC) from the
+* DC rail.
 *
 *  - `R8`: 2 Mohms
 *  - `R9`: 20 Kohms
 *  - `AREF`: 3.3 V
 *
-* [1]: https://gitlab.com/sci-bots/dropbot-control-board.kicad/blob/77cd712f4fe4449aa735749f46212b20d290684e/pdf/boost-converter-boost-converter.pdf
+* The DC rail voltage is measured at A1/HV_FB via a resistive divider:
+*
+*     HV ---[R6 2M]---+---[R8 2M]--- A1/HV_FB
+*                      |
+*                  [R9 20k]
+*                      |
+*                     GND
+*
+* The divider ratio is R9 / (R6 + R8 + R9) but since R6 and R8 are in
+* series to the HV rail: V_FB = V_HV * R9 / (R8 + R9) ≈ V_HV * 20k / 2.02M.
+* Rearranging: V_HV_pp = V_FB * R8 / R9 (simplified, R8 >> R9).
+*
+* For a 50% duty-cycle square wave, V_RMS = V_peak = 0.5 * V_peak-to-peak.
 *
 * \version 1.53  Cache most recent RMS voltage as `high_voltage_`.
 *
@@ -75,14 +93,16 @@ float high_voltage() {
     adc.setReference(ADC_REFERENCE::REF_3V3);
     adc.wait_for_cal();
 
-    // HV_FB = (float(A1) / MAX_ANALOG) * AREF
+    // Convert ADC reading to voltage: HV_FB = (ADC / MAX_ANALOG) * AREF
+    //   -> HV_FB = (float(A1) / 2^resolution) * 3.3V
     const float hv_fb = (adc.analogRead(A1) /
                          float(1L << resolution)) * 3.3;
+    // Reconstruct HV peak-to-peak from divider ratio.
     // HV peak-to-peak = HV_FB * R8 / R9
     const float R8 = 2e6;
     const float R9 = 20e3;
     const float hv_peak_to_peak = hv_fb * R8 / R9;
-    // HV RMS = 0.5 * HV peak-to-peak
+    // For a square wave: HV_RMS (Vrms) = 0.5 * HV peak-to-peak (V_pp)
     // Cache most recent high voltage measurement.
     high_voltage_ = 0.5 * hv_peak_to_peak;
   });
@@ -99,24 +119,32 @@ float measure_temperature() {
     auto &adc = *adc_.adc0;  // Use ADC 0.
 
     auto const resolution = adc.getResolution();
+    // Use internal 1.2V bandgap reference for temperature measurement.
     adc.setReference(ADC_REFERENCE::REF_1V2);
     adc.wait_for_cal();
 
+    // Average 255 readings to reduce noise.
     uint32_t sum = 0;
     for (uint8_t i = 0; i < 255; i++) {
         sum += analogRead(TEMPERATURE_PIN);
     }
+    // Convert averaged ADC count to voltage: V = (sum/255) / 2^res * V_ref
     voltage = (float)sum / 255.0 / float(1L << resolution) * 1.2;
   });
-  /* From `ADC_Module.h`:
-   *
-   * > 0.719 V at 25ºC and slope of 1.715 mV/ºC for Teensy 3.x and 0.716 V.
-   */
+  // K20 MCU internal temp sensor (from ADC_Module.h):
+  //   V_temp = 0.719V at 25C, slope = -1.715 mV/C
+  //   T = 25 + (0.719 - V_measured) / 1.715e-3
   return 25.0 + (0.719 - voltage) / 1.715e-3;
 }
 
 
 float measure_aref() {
+  // AREF_PIN (pin 39) is connected to the internal 1.195V bandgap reference.
+  // By reading this known voltage against the external AREF (3.3V nominal),
+  // we can compute the actual AREF:
+  //   ADC = V_bandgap / V_AREF * 2^16
+  //   V_AREF = V_bandgap * 2^16 / ADC
+  // With 255 averaged samples: V_AREF = 1.195 * 65535 / (sum / 255)
   uint32_t sum = 0;
   for (uint8_t i = 0; i < 255; i++) {
       sum += analogRead(AREF_PIN);
@@ -158,7 +186,11 @@ float measure_output_current(uint32_t n) {
 
     voltage = static_cast<float>(read_max(OUTPUT_CURRENT_PIN, n)) / (1L << resolution) * 3.3;
   });
-  // TODO Explain this calculation.
+  // A2/HV7802_CS: The HV7802 (U4) high-voltage current sense IC measures
+  // current flowing through the HVAC output to the switching boards.
+  // R15 (51k) and R13 (5.1k) set the sense amplifier gain = 51k / 5.1k = 10.
+  // R14 (1 ohm) is the sense resistor in the HV path.
+  // I_out = V_adc / (gain * R_sense) = V_adc / (10 * 1)
   return (voltage / (51e3 / 5.1e3 * 1));
 }
 
@@ -174,7 +206,8 @@ float measure_output_current_rms(uint32_t n) {
 
     voltage = static_cast<float>(read_rms(OUTPUT_CURRENT_PIN, n)) / (1L << resolution) * 3.3;
   });
-  // TODO Explain this calculation.
+  // Same as measure_output_current: HV7802 gain = R15/R13 = 51k/5.1k = 10,
+  // R14 = 1 ohm sense resistor.
   return (voltage / (51e3 / 5.1e3 * 1));
 }
 
@@ -190,7 +223,10 @@ float measure_input_current(uint32_t n) {
 
     voltage = static_cast<float>(read_max(INPUT_CURRENT_PIN, n)) / (1L << resolution) * 3.3;
   });
-  // TODO Explain this calculation.
+  // A3/MAX1771_CS: R5 (30 milliohm) is the MAX1771 boost converter current
+  // sense shunt resistor. The voltage across it is read directly by the ADC
+  // (no amplifier gain).
+  // I_in = V_shunt / R5 = voltage / 0.03
   return voltage / 0.03;
 }
 
@@ -206,7 +242,7 @@ float measure_input_current_rms(uint32_t n) {
 
     voltage = static_cast<float>(read_rms(INPUT_CURRENT_PIN, n)) / (1L << resolution) * 3.3;
   });
-  // TODO Explain this calculation.
+  // Same as measure_input_current: R5 = 30m (0.03 ohm), no amplifier gain.
   return voltage / 0.03;
 }
 

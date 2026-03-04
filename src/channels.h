@@ -121,7 +121,10 @@ std::vector<Switch> unpack_switches(const Container &packed_switches) {
 
 class Channels {
 public:
-  // PCA9505 (gpio) chip/register addresses
+  // I2C register addresses for the PCA9505 protocol.
+  // The HV switching boards (v3+) use 74HC595 shift registers + SSR-DPST relays,
+  // but their ATmega328P firmware emulates the PCA9505 register interface over I2C,
+  // so these addresses remain the same.
   static constexpr uint8_t PCA9505_CONFIG_IO_REGISTER = 0x18;
   static constexpr uint8_t PCA9505_OUTPUT_PORT_REGISTER = 0x08;
 
