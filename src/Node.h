@@ -546,19 +546,25 @@ public:
     // chip load analog measurement has saturated (either upper or lower end of
     // analog scale).
     chip_load_saturated_.connect([&] (int16_t chip_load, int16_t margin) {
-      halt();
+      if (state_._.halt_on_chip_load_saturated) {
+        halt();
+      }
     });
 
-    // Publish `halted` event when chip load analog measurement is saturated.
+    // Publish `halted` or `capacitance_saturated` event
+    // when chip load measurement saturates. Includes chip load measurement.
     chip_load_saturated_.connect([&] (int16_t chip_load, int16_t margin) {
       UInt8Array buffer = this->get_buffer();
       buffer.length = 0;
 
       buffer.length += sprintf((char *)&buffer.data[buffer.length],
-                              "{\"event\": \"halted\", \"wall_time\": %f, "
+                              "{\"event\": \"%s\", "
+                               "\"wall_time\": %f, "
                                "\"error\": {\"name\": "
                                "\"chip-load-saturated\", "
                                "\"chip_load\": %d, \"margin\": %d}}",
+                               state_._.halt_on_chip_load_saturated
+                                 ? "halted" : "capacitance_saturated",
                                time::wall_time(),
                                static_cast<int>(chip_load),
                                static_cast<int>(margin));

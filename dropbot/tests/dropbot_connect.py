@@ -18,6 +18,18 @@ def dump_capacitance(signal):
 def dump(signal):
     tqdm.write(f'{signal}' )
 
+halt_events = []
+cap_sat_events = []
+
+def on_halted(signal):
+    halt_events.append(signal)
+    tqdm.write('\033[91m' + f'HALTED: {signal["error"]["name"]}' + '\033[0m')
+
+def on_cap_saturated(signal):
+    cap_sat_events.append(signal)
+    saturation = signal['error']
+    tqdm.write('\033[93m' + f'CAP SATURATED: {saturation["chip_load"]} ({saturation["margin"]}) ' + '\033[0m', end='>')
+
 def dump_event(signal):
     event = signal.get('event', None)
     if event == 'output_disabled':
@@ -98,6 +110,10 @@ if port:
 
                 proxy.signals.signal('output_disabled').connect(dump_event)
                 proxy.signals.signal('output_enabled').connect(dump_event)
+
+                proxy.signals.signal('halted').connect(on_halted, weak=False)
+                proxy.signals.signal('capacitance_saturated').connect(on_cap_saturated, weak=False)
+
                 print('='*(len(title)-9))
                 for _ in tqdm(range(5), desc='Test Signals'):
                     time.sleep(2)
@@ -146,6 +162,99 @@ if port:
 
                 print('='*(len(title)-9))
                 print("Turning off HV output...")
+
+                # ── Test halt signals ──
+                # Feature detection: try toggling the field — if old firmware
+                # ignores it, the readback stays at the protobuf default (True).
+                proxy.update_state(halt_on_chip_load_saturated=False)
+                has_halt_flag = not proxy.state['halt_on_chip_load_saturated']
+                if has_halt_flag:
+                    proxy.update_state(halt_on_chip_load_saturated=True)  # restore
+                if has_halt_flag and proxy.number_of_channels > 0:
+                    title = '='*26 + '\033[91m' + ' Halt Signal Tests ' + '\033[0m' + '='*27
+                    print(title)
+
+                    # --- Test 1: chip_load saturation WITHOUT halt ---
+                    print('\n\033[96mTest 1: Chip load saturation (halt disabled)\033[0m')
+                    halt_events.clear()
+                    cap_sat_events.clear()
+                    proxy.update_state(
+                        halt_on_chip_load_saturated=False,
+                        chip_load_range_margin=0.6,
+                        hv_output_selected=True,
+                        hv_output_enabled=True,
+                        voltage=80,
+                        frequency=1000
+                    )
+                    time.sleep(0.5)  # wait for 25ms timer to fire
+
+                    for i in tqdm(range(11), desc='Testing Random Electrodes'):
+                        if not proxy.hv_output_enabled:
+                            break
+                        channels = np.random.choice([0, 1], size=proxy.number_of_channels,
+                                                    p=[1 - i / 10, i / 10]).astype('uint8')
+                        proxy.state_of_channels = channels
+                        if len(cap_sat_events):
+                            tqdm.write(f"\n\033[92m Turned on {sum(channels == 1)} channels > {sum(channels == 1)*1e-11:.2e}\033[0m")
+                        else:
+                            tqdm.write(f"\033[92m Turned on {sum(channels==1)} channels > {sum(channels == 1)*1e-11:.2e}\033[0m")
+                        time.sleep(0.25) # wait enough time for capacitance saturation trigger
+
+                    # HV should still be on (no halt)
+                    assert proxy.hv_output_enabled, 'FAIL: HV was halted but should not have been'
+                    assert len(cap_sat_events) > 0, 'FAIL: No capacitance_saturated events received'
+                    assert len(halt_events) == 0, '\nFAIL: Received halted event when halt was disabled'
+                    print(f'\n\033[92m  PASS: {len(cap_sat_events)} capacitance_saturated events, '
+                          f'no halt, HV still on\033[0m')
+
+                    # Clean up
+                    proxy.state_of_channels = np.zeros(proxy.number_of_channels, dtype='uint8')
+                    proxy.update_state(
+                        hv_output_enabled=False,
+                        hv_output_selected=False
+                    )
+                    time.sleep(0.2)
+
+                    # --- Test 2: chip_load saturation WITH halt ---
+                    print('\n\033[96mTest 2: Chip load saturation (halt enabled)\033[0m')
+                    halt_events.clear()
+                    cap_sat_events.clear()
+                    proxy.update_state(
+                        halt_on_chip_load_saturated=True,
+                        hv_output_selected=True,
+                        hv_output_enabled=True,
+                        voltage=80,
+                        frequency=1000
+                    )
+                    time.sleep(0.5)
+
+                    for i in tqdm(range(11), desc='Testing Random Electrodes'):
+                        if not proxy.hv_output_enabled:
+                            break
+                        channels = np.random.choice([0, 1], size=proxy.number_of_channels,
+                                                    p=[1 - i / 10, i / 10]).astype('uint8')
+                        proxy.state_of_channels = channels
+                        tqdm.write(f"\033[92m Turned on {sum(channels==1)} channels > {sum(channels == 1)*1e-11:.2e} \033[0m")
+                        time.sleep(0.25) # wait enough time for capacitance saturation trigger
+
+                    # HV should be OFF (halted)
+                    assert not proxy.hv_output_enabled, 'FAIL: HV still on after halt'
+                    assert len(halt_events) > 0, 'FAIL: No halted events received'
+                    print(f'\033[92m  PASS: {len(halt_events)} halted events, '
+                          f'HV correctly disabled\033[0m')
+
+                    print('Rebooting...')
+                    proxy.reboot()
+                    print('Booted!')
+                    time.sleep(1)
+
+                    title = '='*26 + '\033[96m' + ' State After Reboot' + '\033[0m' + '='*27
+                    print(title)
+                    print(proxy.state)
+                    print('='*(len(title)-9))
+                    time.sleep(0.1)
+
+                    print('='*(len(title)-9))
 
             except Exception as e:
                 print(f'[Error] {e}')

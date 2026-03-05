@@ -27,4 +27,6 @@ message State {
   //: .. versionadded:: 1.60
   optional float output_current_limit = 11 [default = 0.025];
   optional float chip_load_range_margin = 12 [default = 0.03];
+  //: .. versionadded:: 1.74.3
+  optional bool halt_on_chip_load_saturated = 13 [default = true];
 }
