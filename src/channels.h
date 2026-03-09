@@ -345,8 +345,12 @@ public:
       auto const resolution = adc.getResolution();
       const int16_t max_analog =
         ((resolution == 16) ? (1L << 15) : (1L << resolution)) - 1;
-      adc.setReference(ADC_REFERENCE::REF_1V2);
-      adc.wait_for_cal();
+      analog::select_reference(ADC_REFERENCE::REF_1V2);
+      // Disable hardware averaging for AC signal measurement — averaging
+      // across multiple samples of a square wave reduces apparent amplitude.
+      adc.setAveraging(0);
+      adc.setConversionSpeed(ADC_CONVERSION_SPEED::MED_SPEED);
+      adc.setSamplingSpeed(ADC_SAMPLING_SPEED::MED_SPEED);
 
       uint16_t A11_raw = analog::s16_percentile_diff(A10, A11, n_samples, 25,
                                                      75);

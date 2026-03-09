@@ -9,6 +9,78 @@ namespace analog {
 
 ADC adc_;
 float high_voltage_ = 0;
+RefGainCache ref_gain_cache_ = {0, 0, 0, 0, 0, 0, false};
+
+
+void init_dual_ref_calibration() {
+  auto &adc = *adc_.adc0;
+
+  // Calibrate at REF_3V3 (boot default, no VREF needed).
+  adc.setReference(ADC_REFERENCE::REF_3V3);
+  adc.recalibrate();
+  // Read OFS/PG/MG calibration registers directly via memory-mapped K20 ADC0
+  // addresses (adc_regs is private in ADC_Module).
+  ref_gain_cache_.ofs_3v3 = ADC0_OFS;
+  ref_gain_cache_.pg_3v3 = ADC0_PG;
+  ref_gain_cache_.mg_3v3 = ADC0_MG;
+
+  // Start internal 1.2V VREF and wait for it to stabilize (~35ms).
+  VREF::start();
+  VREF::waitUntilStable();
+
+  // Switch to REF_1V2 by flipping SC2 REFSEL directly.
+  // Do NOT call setReference() — it calls VREF::start() which may restart
+  // the oscillator, and then immediately calibrate() before re-stabilization.
+  {
+    uint32_t sc2 = ADC0_SC2;
+    sc2 &= ~ADC_SC2_REFSEL(3);
+    sc2 |= ADC_SC2_REFSEL(1);
+    ADC0_SC2 = sc2;
+  }
+  delay(5);  // Let ADC reference buffer settle.
+  adc.calibrate();
+  adc.wait_for_cal();
+  ref_gain_cache_.ofs_1v2 = ADC0_OFS;
+  ref_gain_cache_.pg_1v2 = ADC0_PG;
+  ref_gain_cache_.mg_1v2 = ADC0_MG;
+
+  // Return to REF_3V3: restore SC2 REFSEL and ALL calibration registers.
+  // ADC uses OFS (offset), PG (plus-side gain), MG (minus-side gain) for
+  // correction — all three are reference-dependent.
+  {
+    uint32_t sc2 = ADC0_SC2;
+    sc2 &= ~ADC_SC2_REFSEL(3);
+    ADC0_SC2 = sc2;
+  }
+  ADC0_OFS = ref_gain_cache_.ofs_3v3;
+  ADC0_PG = ref_gain_cache_.pg_3v3;
+  ADC0_MG = ref_gain_cache_.mg_3v3;
+
+  ref_gain_cache_.initialized = true;
+}
+
+
+void select_reference(ADC_REFERENCE ref) {
+  // Direct SC2 register write (avoids bitband addressing).
+  uint32_t sc2 = ADC0_SC2;
+  sc2 &= ~ADC_SC2_REFSEL(3);  // Clear REFSEL bits [1:0]
+  if (ref == ADC_REFERENCE::REF_1V2) {
+    sc2 |= ADC_SC2_REFSEL(1);  // REFSEL = 01 (internal 1.2V)
+  }
+  ADC0_SC2 = sc2;
+  // Restore cached OFS/PG/MG calibration registers for the selected reference.
+  // All three are reference-dependent: OFS (offset), PG (plus-side gain),
+  // MG (minus-side gain).
+  if (ref == ADC_REFERENCE::REF_1V2) {
+    ADC0_OFS = ref_gain_cache_.ofs_1v2;
+    ADC0_PG = ref_gain_cache_.pg_1v2;
+    ADC0_MG = ref_gain_cache_.mg_1v2;
+  } else {
+    ADC0_OFS = ref_gain_cache_.ofs_3v3;
+    ADC0_PG = ref_gain_cache_.pg_3v3;
+    ADC0_MG = ref_gain_cache_.mg_3v3;
+  }
+}
 
 
 std::vector<uint16_t> analog_reads_simple(uint8_t pin, uint16_t n_samples) {
@@ -90,8 +162,7 @@ float high_voltage() {
     // Configure ADC for measurement.
     auto &adc = *adc_.adc0;  // Use ADC 0.
     auto const resolution = adc.getResolution();
-    adc.setReference(ADC_REFERENCE::REF_3V3);
-    adc.wait_for_cal();
+    select_reference(ADC_REFERENCE::REF_3V3);
 
     // Convert ADC reading to voltage: HV_FB = (ADC / MAX_ANALOG) * AREF
     //   -> HV_FB = (float(A1) / 2^resolution) * 3.3V
@@ -120,13 +191,12 @@ float measure_temperature() {
 
     auto const resolution = adc.getResolution();
     // Use internal 1.2V bandgap reference for temperature measurement.
-    adc.setReference(ADC_REFERENCE::REF_1V2);
-    adc.wait_for_cal();
+    select_reference(ADC_REFERENCE::REF_1V2);
 
     // Average 255 readings to reduce noise.
     uint32_t sum = 0;
     for (uint8_t i = 0; i < 255; i++) {
-        sum += analogRead(TEMPERATURE_PIN);
+        sum += adc.analogRead(TEMPERATURE_PIN);
     }
     // Convert averaged ADC count to voltage: V = (sum/255) / 2^res * V_ref
     voltage = (float)sum / 255.0 / float(1L << resolution) * 1.2;
@@ -145,11 +215,16 @@ float measure_aref() {
   //   ADC = V_bandgap / V_AREF * 2^16
   //   V_AREF = V_bandgap * 2^16 / ADC
   // With 255 averaged samples: V_AREF = 1.195 * 65535 / (sum / 255)
-  uint32_t sum = 0;
-  for (uint8_t i = 0; i < 255; i++) {
-      sum += analogRead(AREF_PIN);
-  }
-  return 1.195 * 65535.0 / (float)sum * 255.0;
+  float result;
+  adc_context([&] (auto adc_config) {
+    select_reference(ADC_REFERENCE::REF_3V3);
+    uint32_t sum = 0;
+    for (uint8_t i = 0; i < 255; i++) {
+        sum += analogRead(AREF_PIN);
+    }
+    result = 1.195 * 65535.0 / (float)sum * 255.0;
+  });
+  return result;
 }
 
 
@@ -181,8 +256,7 @@ float measure_output_current(uint32_t n) {
     // Configure ADC for measurement.
     auto &adc = *adc_.adc0;  // Use ADC 0.
     auto const resolution = adc.getResolution();
-    adc.setReference(ADC_REFERENCE::REF_3V3);
-    adc.wait_for_cal();
+    select_reference(ADC_REFERENCE::REF_3V3);
 
     voltage = static_cast<float>(read_max(OUTPUT_CURRENT_PIN, n)) / (1L << resolution) * 3.3;
   });
@@ -201,8 +275,7 @@ float measure_output_current_rms(uint32_t n) {
     // Configure ADC for measurement.
     auto &adc = *adc_.adc0;  // Use ADC 0.
     auto const resolution = adc.getResolution();
-    adc.setReference(ADC_REFERENCE::REF_3V3);
-    adc.wait_for_cal();
+    select_reference(ADC_REFERENCE::REF_3V3);
 
     voltage = static_cast<float>(read_rms(OUTPUT_CURRENT_PIN, n)) / (1L << resolution) * 3.3;
   });
@@ -218,8 +291,7 @@ float measure_input_current(uint32_t n) {
     // Configure ADC for measurement.
     auto &adc = *adc_.adc0;  // Use ADC 0.
     auto const resolution = adc.getResolution();
-    adc.setReference(ADC_REFERENCE::REF_3V3);
-    adc.wait_for_cal();
+    select_reference(ADC_REFERENCE::REF_3V3);
 
     voltage = static_cast<float>(read_max(INPUT_CURRENT_PIN, n)) / (1L << resolution) * 3.3;
   });
@@ -237,8 +309,7 @@ float measure_input_current_rms(uint32_t n) {
     // Configure ADC for measurement.
     auto &adc = *adc_.adc0;  // Use ADC 0.
     auto const resolution = adc.getResolution();
-    adc.setReference(ADC_REFERENCE::REF_3V3);
-    adc.wait_for_cal();
+    select_reference(ADC_REFERENCE::REF_3V3);
 
     voltage = static_cast<float>(read_rms(INPUT_CURRENT_PIN, n)) / (1L << resolution) * 3.3;
   });
@@ -295,16 +366,13 @@ ADC_Module::ADC_Config save_config(uint8_t adc_num) {
 
 
 void load_config(ADC_Module::ADC_Config const &config, int8_t adc_num) {
+  // Direct register restore — fast, no recalibration.
+  // OFS/PG/MG are NOT part of ADC_Config; they are saved/restored
+  // separately by adc_context().
   if (adc_num == 0) {
-    adc_.adc0->setAveraging(_averaging(config));
-    adc_.adc0->setConversionSpeed(_conversion_speed(config));
-    adc_.adc0->setSamplingSpeed(_sampling_speed(config));
-    adc_.adc0->setReference(_analog_reference(config));
+    adc_.adc0->loadConfig(&config);
   } else if (adc_num == 1) {
-    adc_.adc1->setAveraging(_averaging(config));
-    adc_.adc1->setConversionSpeed(_conversion_speed(config));
-    adc_.adc1->setSamplingSpeed(_sampling_speed(config));
-    adc_.adc1->setReference(_analog_reference(config));
+    adc_.adc1->loadConfig(&config);
   }
 }
 

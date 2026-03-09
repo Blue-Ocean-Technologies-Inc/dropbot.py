@@ -72,6 +72,7 @@ void Node::begin() {
   }
 
   analog::adc_.adc0->setResolution(16);
+  analog::init_dual_ref_calibration();
 }
 
 uint16_t Node::initialize_switching_boards() {

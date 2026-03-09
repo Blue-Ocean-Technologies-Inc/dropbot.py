@@ -527,7 +527,7 @@ public:
           // analog value.
           const int16_t max_analog =
             ((resolution == 16) ? (1L << 15) : (1L << resolution)) - 1;
-          analog::adc_.adc0->setReference(ADC_REFERENCE::REF_1V2);
+          analog::select_reference(ADC_REFERENCE::REF_1V2);
           analog::adc_.adc0->disablePGA();
 
           const int16_t chip_load =
@@ -711,8 +711,7 @@ public:
     analog::adc_context([&] (auto adc_config) {
       auto &adc = *analog::adc_.adc0;  // Use ADC 0.
       adc.setResolution(16);
-      adc.setReference(ADC_REFERENCE::REF_1V2);
-      adc.wait_for_cal();
+      analog::select_reference(ADC_REFERENCE::REF_1V2);
 
       result = analog::s16_percentile_diff(pinP, pinN, n_samples,
                                            low_percentile, high_percentile);
@@ -1761,17 +1760,29 @@ public:
     }
   }
   void setReference(uint8_t type, int8_t adc_num) {
-    //! Set the voltage reference you prefer, default is 3.3 V (VCC)
+    //! Set the voltage reference and recalibrate the dual-reference gain cache.
     /*!
      * \param type can be ADC_REF_3V3, ADC_REF_1V2 (not for Teensy LC) or ADC_REF_EXT.
      *
-     *  It recalibrates at the end.
+     * NOTE: The original implementation called adc.setReference() directly,
+     * which triggers calibrate() and corrupts the OFS/PG/MG gain cache used
+     * by select_reference().  We now apply the reference change and then
+     * recalibrate both references to keep the cache valid.
+     *
+     * // Original implementation (corrupts gain cache):
+     * // if (adc_num == 0) {
+     * //   analog::adc_.adc0->setReference((ADC_REFERENCE)type);
+     * // } else if (adc_num == 1) {
+     * //   analog::adc_.adc1->setReference((ADC_REFERENCE)type);
+     * // }
      */
     if (adc_num == 0) {
       analog::adc_.adc0->setReference((ADC_REFERENCE)type);
     } else if (adc_num == 1) {
       analog::adc_.adc1->setReference((ADC_REFERENCE)type);
     }
+    // Recalibrate both references to rebuild the gain cache.
+    analog::init_dual_ref_calibration();
   }
   void setResolution(uint8_t bits, int8_t adc_num) {
     //! Change the resolution of the measurement.
@@ -2757,6 +2768,19 @@ public:
   */
   bool on_config_watchdog_enabled_changed(bool value) {
     return true;
+  }
+
+  /**
+  * @brief Recalibrate the ADC for both voltage references (3.3V and 1.2V).
+  *
+  * Updates the cached OFS/PG/MG calibration registers used by
+  * select_reference(). Call this if ADC drift is suspected (e.g., after
+  * significant temperature change).
+  *
+  * \since 1.74.3
+  */
+  void recalibrate_adc() {
+    analog::init_dual_ref_calibration();
   }
 };
 }  // namespace dropbot

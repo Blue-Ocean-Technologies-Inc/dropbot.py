@@ -6,6 +6,8 @@
 #include <stdint.h>
 
 #include <ADC.h>
+#include <VREF.h>
+#include <atomic.h>
 
 #include "kxsort.h"
 
@@ -27,6 +29,20 @@ constexpr uint8_t INPUT_CURRENT_PIN = 3;  // Pin connected to the input current 
 #endif
 
 extern float high_voltage_;
+
+// Cached ADC calibration registers (OFS/PG/MG) for both voltage references.
+// Populated once at boot by init_dual_ref_calibration(); used by
+// select_reference() to switch references in ~1µs without recalibrating.
+struct RefGainCache {
+  uint32_t ofs_3v3, pg_3v3, mg_3v3;
+  uint32_t ofs_1v2, pg_1v2, mg_1v2;
+  bool initialized;
+};
+
+extern RefGainCache ref_gain_cache_;
+
+void init_dual_ref_calibration();
+void select_reference(ADC_REFERENCE ref);
 
 /**
  * @brief Read the specified number of samples from the specified analog pin.
@@ -87,9 +103,6 @@ uint16_t s16_percentile_diff(uint8_t pinP, uint8_t pinN, uint16_t n_samples,
  * @return RMS voltage of generated *high voltage* square wave signal.
  */
 float high_voltage();
-
-/*
-*/
 
 /**
  * @brief Measure the temperature (in degrees Celsius) of the MCU via its
@@ -265,15 +278,15 @@ ADC_Module::ADC_Config save_config(uint8_t adc_num);
 
 
 /**
-* @brief Apply a serialized configuration to ADC registers.
+* @brief Restore a serialized ADC configuration.
 *
 * \See save_config()
 *
-* **Note: individual mutator functions (e.g., `setAveraging`, etc.) are
-* called to make sure other internal state of `ADC_Module` is kept up to
-* date.**  In contrast, if `ADC_Module::loadConfig()` was used directly, the
-* `ADC_Module` internal state would become stale if the ADC register values
-* changed.
+* Uses ADC_Module::loadConfig() for direct register writes (fast, no
+* recalibration).  Only restores the 5 config registers (SC1A, SC2, SC3,
+* CFG1, CFG2) — does NOT restore OFS/PG/MG calibration registers.
+* Callers that need OFS/PG/MG preserved should use adc_context(), which
+* saves and restores them separately.
 *
 * @param adc_num  Zero-based ADC index.
 * @param config  Serialized ADC configuration containing the contents of the
@@ -299,8 +312,16 @@ void load_config(ADC_Module::ADC_Config const &config, int8_t adc_num);
 template <typename Func>
 void adc_context(Func func) {
   auto const adc_config = save_config(0);
+  // Save OFS/PG/MG — loadConfig() does NOT restore these, and
+  // select_reference() overwrites them with cached values.
+  const uint32_t saved_ofs = ADC0_OFS;
+  const uint32_t saved_pg = ADC0_PG;
+  const uint32_t saved_mg = ADC0_MG;
   func(adc_config);
   load_config(adc_config, 0);
+  ADC0_OFS = saved_ofs;
+  ADC0_PG = saved_pg;
+  ADC0_MG = saved_mg;
 }
 
 }  // namespace analog {
