@@ -34,6 +34,9 @@ void Node::begin() {
   voltage_source::min_frequency = config_._.min_frequency;
   voltage_source::max_frequency = config_._.max_frequency;
 
+  // Propagate C16 from config to channels namespace.
+  channels::C16 = config_._.C16;
+
   // Initialize voltage source (FlexWire I2C, Timer1) BEFORE state validation,
   // since state validators call _set_voltage() which requires I2C to be ready.
   voltage_source::begin();
