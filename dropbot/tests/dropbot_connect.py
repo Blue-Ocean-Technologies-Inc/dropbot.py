@@ -39,6 +39,7 @@ def dump_event(signal):
     else:
         tqdm.write(f'{signal}')
 
+time.sleep(5)
 port = None
 for port in lsp.comports():
     # check if the hwid matches teensy 3.2
@@ -61,6 +62,8 @@ if port:
             packet = cPacketParser().parse(raw_packet)
             print('\033[94m', packet, '\033[0m', sep='')
             ser.close()
+
+            time.sleep(2)
 
             import dropbot as db
             try:
