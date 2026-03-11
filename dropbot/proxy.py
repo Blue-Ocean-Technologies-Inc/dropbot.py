@@ -981,10 +981,11 @@ class SerialProxy(ProxyMixin, Proxy):
         self.terminate()
 
     def __del__(self) -> None:
-        try:
-            self.hv_output_enabled = False
-        except Exception:
-            pass
+        if self.monitor is not None:
+            try:
+                self.hv_output_enabled = False
+            except Exception:
+                pass
         self.terminate()
 
     def flash_firmware(self) -> None:
