@@ -6,7 +6,7 @@
     anyway; or b) skip the DropBot.
 '''
 import asyncio
-import time
+import inspect
 
 import base_node_rpc as bnr
 
@@ -20,6 +20,84 @@ DROPBOT_SIGNAL_NAMES = ('halted', 'output_enabled',
                         'channels-updated', 'shorts-detected')
 
 dropbot = None
+
+
+def _signal(signals_, name):
+    """
+    Look up the signal registered as :data:`name`.
+
+    Supports both a `blinker.Namespace` (where ``signal()`` creates the signal
+    on demand) and a plain `dict` of signals.
+
+    Returns
+    -------
+    blinker.Signal or None
+        ``None`` if :data:`signals_` is a plain mapping with no such key.
+
+    .. versionadded:: 1.78.0
+    """
+    signal_factory = getattr(signals_, 'signal', None)
+    if signal_factory is not None:
+        return signal_factory(name)
+    return signals_.get(name)
+
+
+def _as_coroutine_function(func):
+    """
+    Wrap a plain function so that it may be used as a coroutine function.
+
+    Used as the ``_sync_wrapper`` argument of `blinker.Signal.send_async()`.
+
+    .. versionadded:: 1.78.0
+    """
+
+    async def _wrapped(*args, **kwargs):
+        return func(*args, **kwargs)
+
+    return _wrapped
+
+
+async def _send(signals_, name, *args, **kwargs) -> list:
+    """
+    Send the :data:`name` signal, awaiting any coroutine receivers.
+
+    Notes
+    -----
+    `blinker` >= 1.7 is strict about mixing receiver kinds: ``Signal.send()``
+    raises ``RuntimeError`` if *any* receiver is a coroutine function, and
+    ``Signal.send_async()`` raises ``RuntimeError`` if *any* receiver is a
+    plain function unless a ``_sync_wrapper`` is supplied.  Since DropBot
+    consumers register a mixture of both, this helper always uses
+    ``send_async()`` with a ``_sync_wrapper``, which handles every
+    combination (including a signal with no receivers at all).
+
+    Older `blinker` releases have no ``send_async()``; those fall back to a
+    plain ``send()`` with any returned coroutines awaited explicitly.
+
+    Returns
+    -------
+    list
+        ``(receiver, response)`` pairs.
+
+    .. versionadded:: 1.78.0
+    """
+    signal = _signal(signals_, name)
+    if signal is None:
+        _L().debug(f'No `{name}` signal registered.')
+        return []
+
+    send_async = getattr(signal, 'send_async', None)
+    if send_async is not None:
+        return await send_async(*args, _sync_wrapper=_as_coroutine_function, **kwargs)
+
+    # `blinker` < 1.7: `send()` returns un-awaited coroutines for coroutine
+    # receivers.
+    responses = []
+    for receiver, response in signal.send(*args, **kwargs):
+        if inspect.isawaitable(response):
+            response = await response
+        responses.append((receiver, response))
+    return responses
 
 
 async def monitor(signals_: dict, register_signal=None):
@@ -44,8 +122,12 @@ async def monitor(signals_: dict, register_signal=None):
 
     Parameters
     ----------
-    signals_: dict of aiosignals
+    signals_: blinker.Namespace
         Namespace for DropBot monitor signals.
+
+        A plain `dict` mapping signal name to `blinker.Signal` is also
+        accepted.  Receivers may be plain functions or coroutine functions;
+        coroutine responses are awaited (see :func:`_send`).
 
     Sends
     -----
@@ -87,16 +169,28 @@ async def monitor(signals_: dict, register_signal=None):
     .. versionchanged:: 1.68
         Send `'no-power'` signal if 12V power supply not connected.  Receivers
         may return `'ignore'` to attempt to connect anyway.
+
+    .. versionchanged:: 1.78.0
+        Use a single, consistent (`blinker`) signal API throughout.  A
+        `'skip'` response to the `'no-power'`/`'version-mismatch'` prompts now
+        actually skips the port instead of re-prompting forever, and a missing
+        prompt receiver raises instead of retrying silently.
     """
     loop = asyncio.get_running_loop()
     global dropbot
     dropbot = None
 
+    # Ports the user explicitly chose to skip, so that a `'skip'` response is
+    # not immediately undone by the reconnect loop re-selecting the same port.
+    skipped_ports = set()
+
     async def co_flash_firmware():
         if dropbot is not None:
             dropbot.terminate()
-        upload.upload()
-        time.sleep(.5)
+        # `upload()` shells out to PlatformIO and blocks for several seconds;
+        # run it off the event loop so the loop is not stalled.
+        await loop.run_in_executor(None, upload.upload)
+        await asyncio.sleep(.5)
 
     def flash_firmware(dropbot_):
         loop.create_task(co_flash_firmware())
@@ -130,10 +224,58 @@ async def monitor(signals_: dict, register_signal=None):
 
             df_comports = df_comports.sort_values(['device_version', 'port'], ascending=[False, True])
             df_comports = df_comports.set_index('port')
+
+            # Drop any ports the user asked to skip.
+            if skipped_ports:
+                df_comports = df_comports.loc[~df_comports.index.isin(skipped_ports)]
+
             if not len(df_comports):
+                # Nothing (left) to connect to.  Sleep before retrying;
+                # otherwise this becomes a busy-loop that pins a CPU core.
+                await asyncio.sleep(.1)
                 continue
 
             port = df_comports.index[0]
+
+            async def _prompt(name, exception, **kwargs):
+                """
+                Ask receivers of the :data:`name` signal how to proceed.
+
+                Receivers respond either by setting a result on the supplied
+                ``future`` keyword argument or by returning the response
+                directly.
+
+                Raises
+                ------
+                Exception
+                    Re-raises :data:`exception` if no receiver is registered
+                    or if no receiver produced a response.  Retrying silently
+                    would otherwise spin forever on the same failure.
+                """
+                signal = _signal(signals_, name)
+                if signal is None or not signal.receivers:
+                    _L().error(f'No `{name}` receiver is registered, so there '
+                               f'is no way to determine how to proceed.  '
+                               f'Re-raising.')
+                    raise exception
+
+                response_future = asyncio.Future()
+                responses = await _send(signals_, name, 'keep_alive',
+                                        future=response_future, **kwargs)
+
+                if response_future.done():
+                    return response_future.result()
+
+                # Fall back to the first non-`None` value returned directly by
+                # a receiver.
+                for _, response in responses:
+                    if response is not None:
+                        return response
+
+                _L().error(f'No receiver of the `{name}` signal provided a '
+                           f'response, so there is no way to determine how to '
+                           f'proceed.  Re-raising.')
+                raise exception
 
             async def _attempt_connect(**kwargs):
                 ignore = kwargs.pop('ignore', [])
@@ -144,13 +286,15 @@ async def monitor(signals_: dict, register_signal=None):
                 except NoPower as exception:
                     # No 12V power supply detected on DropBot.
                     _L().debug('No 12V power supply detected.')
-                    response_future = asyncio.Future()
-                    await signals_['no-power'].send('keep_alive', future=response_future)
-                    response = response_future.result()
+                    response = await _prompt('no-power', exception)
 
                     if response == 'ignore':
                         ignore.append(NoPower)
                     else:
+                        # Do not re-select this port on the next iteration of
+                        # the reconnect loop, otherwise the user would be
+                        # prompted again immediately, forever.
+                        skipped_ports.add(port)
                         raise exception
 
                 except bnr.proxy.DeviceVersionMismatch as exception:
@@ -158,11 +302,10 @@ async def monitor(signals_: dict, register_signal=None):
                     _L().debug(f"Driver version (`{__version__}`) does not match firmware "
                                f"version (`{exception.device_version}`)")
 
-                    response_future = asyncio.Future()
-                    await signals_['version-mismatch'].send('keep_alive', driver_version=__version__,
-                                                            firmware_version=exception.device_version,
-                                                            future=response_future)
-                    response = response_future.result()
+                    response = await _prompt('version-mismatch',
+                                             exception,
+                                             driver_version=__version__,
+                                             firmware_version=exception.device_version)
 
                     update = False
 
@@ -171,7 +314,8 @@ async def monitor(signals_: dict, register_signal=None):
                     elif response == 'update':
                         update = True
                     else:
-                        raise
+                        skipped_ports.add(port)
+                        raise exception
 
                     if update:
                         # Flash firmware and retry connection.
@@ -183,7 +327,6 @@ async def monitor(signals_: dict, register_signal=None):
 
             try:
                 dropbot = await _attempt_connect()
-                pass
             except bnr.proxy.DeviceNotFound:
                 raise RuntimeError('Could not find device')
             except asyncio.CancelledError:
@@ -194,14 +337,19 @@ async def monitor(signals_: dict, register_signal=None):
                 continue
 
             def co_connect(name):
-                def _wrapped(sender, **message):
-                    async def co_callback(message_):
-                        signal = signals_.get(name)
-                        if signal:
-                            await signal.send('keep_alive', **message_)
-                        # await asyncio.gather(*(listener[1] for listener in listeners))
+                """
+                Build a DropBot signal receiver that forwards the message to
+                the `name` signal of the :data:`signals_` namespace.
 
-                    return loop.call_soon_threadsafe(loop.create_task, co_callback(sender, **message))
+                DropBot signals are emitted from the serial monitor thread, so
+                forwarding is scheduled onto this coroutine's event loop.
+                """
+
+                def _wrapped(sender, **message):
+                    async def co_callback():
+                        await _send(signals_, name, 'keep_alive', **message)
+
+                    return loop.call_soon_threadsafe(loop.create_task, co_callback())
 
                 return _wrapped
 
@@ -211,7 +359,7 @@ async def monitor(signals_: dict, register_signal=None):
             dropbot.signals.signal('output_enabled').connect(co_connect('chip-inserted'), weak=False)
             dropbot.signals.signal('output_disabled').connect(co_connect('chip-removed'), weak=False)
 
-            await signals_['connected'].send('keep_alive', dropbot=dropbot)
+            await _send(signals_, 'connected', 'keep_alive', dropbot=dropbot)
 
             OUTPUT_ENABLE_PIN = 22
             # Chip may have been inserted before connecting, so `chip-inserted`
@@ -225,26 +373,39 @@ async def monitor(signals_: dict, register_signal=None):
 
             disconnected = asyncio.Event()
 
-            dropbot.signals.signal('disconnected').connect(lambda *args:
-                                                           loop.call_soon_threadsafe(disconnected.set),
-                                                           weak=False)
+            # NOTE `disconnected` is emitted on the serial monitor's
+            # `serial_signals` namespace, **not** on `dropbot.signals` (which
+            # carries device *events* decoded from stream packets).  Wiring it
+            # to `dropbot.signals` meant the disconnect was never observed and
+            # the monitor blocked here forever.
+            dropbot.serial_signals.signal('disconnected').connect(
+                lambda *args: loop.call_soon_threadsafe(disconnected.set),
+                weak=False)
 
             await disconnected.wait()
 
             dropbot.terminate()
 
-            responses = signals_['disconnected'].send('keep_alive')
-            await asyncio.gather(*(r[1] for r in responses))
+            await _send(signals_, 'disconnected', 'keep_alive')
     finally:
-        signals_['closed'].send('keep_alive')
+        # NOTE Terminate **before** notifying, so that the DropBot connection
+        # is always released even if a `closed` receiver misbehaves (this
+        # block also runs during cancellation).
         if dropbot is not None:
             dropbot.terminate()
+        try:
+            await _send(signals_, 'closed', 'keep_alive')
+        except asyncio.CancelledError:
+            # Already being cancelled; `closed` receivers that yield to the
+            # loop cannot complete.  Nothing more to clean up.
+            raise
+        except Exception:
+            _L().warning('Error sending `closed` signal.', exc_info=True)
 
 
 if __name__ == '__main__':
     import logging
-    import asyncio
-    import aiosignal
+    import blinker
 
     import functools as ft
 
@@ -291,8 +452,8 @@ if __name__ == '__main__':
 
     async def on_version_mismatch(*args, **kwargs):
         _L().info(f'args=`{args}`, kwargs=`{kwargs}`')
-        message = (f"Driver version `kwargs['driver_version']` does not match "
-                   f"firmware `kwargs['firmware_version']` version.")
+        message = (f"Driver version `{kwargs.get('driver_version')}` does not "
+                   f"match firmware version `{kwargs.get('firmware_version')}`.")
         while True:
             response = input(f"{message} [I]gnore/[u]pdate/[s]kip: ")
             if not response:
@@ -349,14 +510,11 @@ if __name__ == '__main__':
         dropbot = None
 
 
-    signal_register = {}
+    signal_register = blinker.Namespace()
 
 
     def register_signal(signame, func):
-        new_signal = aiosignal.Signal(signame)
-        new_signal.append(func)
-        new_signal.freeze()
-        signal_register[signame] = new_signal
+        signal_register.signal(signame).connect(func, weak=False)
 
 
     register_signal('version-mismatch', on_version_mismatch)
