@@ -19,4 +19,6 @@ setup(name=properties['package_name'],
       # Install data listed in `MANIFEST.in`
       include_package_data=True,
       license='BSD-3',
+      # `networkx` is required by `dropbot.move` (route/graph traversal).
+      install_requires=['networkx'],
       packages=find_packages())

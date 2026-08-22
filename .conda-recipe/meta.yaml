@@ -36,6 +36,7 @@ requirements:
         - pypandoc
         - jinja2
         - pytables
+        - networkx
         - protobuf 5.29.*
         - tabulate
         - aiosignal
@@ -92,6 +93,7 @@ outputs:
         - jinja2
         - pytest
         - pytables
+        - networkx
         - protobuf 5.29.*
         - tabulate
         - aiosignal
