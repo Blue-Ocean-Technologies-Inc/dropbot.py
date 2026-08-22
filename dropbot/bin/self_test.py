@@ -55,6 +55,12 @@ def parse_args(args=None):
 
     parsed_args = parser.parse_args(args)
 
+    if parsed_args.command is None:
+        # No sub-command was specified.  Print usage and exit non-zero rather
+        # than failing below with an obscure `AttributeError`.
+        parser.print_help(sys.stderr)
+        parser.exit(1)
+
     if parsed_args.command == 'test' and 'all' in parsed_args.test:
         parsed_args.test = None
 

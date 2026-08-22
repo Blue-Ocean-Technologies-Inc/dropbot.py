@@ -482,9 +482,24 @@ def format_test_channels_results(results, figure_path=None):
         fig.tight_layout()
         fig.savefig(figure_path, bbox_inches='tight')
 
+    # NOTE `c` is indexed **positionally** within the tested-channels subset
+    # (see `dropbot.hardware_test.test_channels()`), whereas `no_connection`
+    # holds **channel numbers**.  Those only coincide when *all* channels are
+    # tested, so map channel number -> position before indexing into `c`.
+    channel_positions = {int(channel_i): i
+                         for i, channel_i in enumerate(test_channels_)}
+    if n_reps > 1:
+        no_connection_fails = [
+            (channel_i,
+             int((c[channel_positions[int(channel_i)]] < c_threshold).sum()))
+            for channel_i in no_connection]
+    else:
+        no_connection_fails = []
+
     context = dict(c=c, c_threshold=c_threshold, figure_path=figure_path,
                    n_channels=n_channels, n_reps=n_reps,
-                   no_connection=no_connection, shorts=shorts,
+                   no_connection=no_connection,
+                   no_connection_fails=no_connection_fails, shorts=shorts,
                    test_channels=test_channels_)
 
     template = jinja2.Template(r'''
@@ -501,8 +516,7 @@ No channels tested.
 {%- if no_connection|length %}
     * **No connection** ({{ no_connection | length }} of {{ n_channels }} / {{ '{:.1f}'.format((no_connection|length|float) / n_channels * 100) }}%): **{{ no_connection | join(', ') }}**
 {%- if n_reps > 1 -%}
-{% for x in no_connection -%}
-{%- set n_fails = (c[x] < c_threshold).sum() %}
+{% for x, n_fails in no_connection_fails %}
      * **Channel {{ x }} failed** {{ n_fails }} of {{ n_reps }} reps **({{ '{:.1f}'.format(n_fails / n_reps * 100) }}%)**
 {%- endfor %}
 {%- endif %}

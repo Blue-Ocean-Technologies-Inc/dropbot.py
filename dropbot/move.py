@@ -304,7 +304,12 @@ async def move_liquid(proxy_: SerialProxy, route: list, min_duration: Optional[f
                                                                                  min_duration=duration)))
             messages_.append({'channels': tuple(head_channels_i),
                               'messages': messages})
-    except (asyncio.CancelledError, asyncio.TimeoutError):
+    except asyncio.CancelledError:
+        # Cancellation is **not** a timeout.  Swallowing it here would break
+        # `Task.cancel()` semantics (and, in Python >= 3.8, `CancelledError` is
+        # a `BaseException`, i.e., explicitly not an error condition).
+        raise
+    except (asyncio.TimeoutError, TimeoutError):
         raise MoveTimeout(route, route_i)
 
     return messages_

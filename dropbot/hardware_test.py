@@ -362,9 +362,12 @@ def test_channels(proxy, n_reps=1, test_channels=None, shorts=None):
             of replicates.
     """
     n_channels = proxy.number_of_channels
-    if not shorts:
+    # NOTE Use explicit `None`/length checks rather than truth testing, since
+    # `shorts`/`test_channels` may be passed as `numpy` arrays (for which
+    # `bool(array)` raises `ValueError: truth value ... is ambiguous`).
+    if shorts is None or len(shorts) == 0:
         shorts = proxy.detect_shorts()
-    if not test_channels:
+    if test_channels is None or len(test_channels) == 0:
         test_channels = np.arange(0, n_channels)
 
     proxy.voltage = 100

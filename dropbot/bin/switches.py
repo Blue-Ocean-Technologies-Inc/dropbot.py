@@ -84,7 +84,9 @@ def main(argv=None):
 
     try:
         proxy = SerialProxy(ignore=[bnr.proxy.DeviceVersionMismatch])
-    except bnr.proxy.DeviceNotFound:
+    except (bnr.proxy.DeviceNotFound, IOError):
+        # NOTE `dropbot.SerialProxy` reports "no device"/"connection timed out"
+        # as plain `IOError`, so catch both to show the friendly message.
         print(f'{C_.Fore.RED}No DropBot available. {C_.Fore.BLUE}\n\n' +
               'Please make sure DropBot USB cable is connected and DropBot is not being used by another application.',
               file=sys.stderr)
@@ -151,6 +153,13 @@ def main(argv=None):
 
     if args.command == 'list' or list_boards:
         # Show available COM ports.
+        if info is None or not len(info):
+            # No switching boards detected: `info` has no rows (and possibly
+            # no columns), so the version formatting below would fail.
+            print(f'{C_.Fore.YELLOW}No switching boards detected.{C_.Fore.BLUE}\n\n'
+                  'Please check that the switching board ribbon cable is connected '
+                  'and that the boards are powered.', file=sys.stderr)
+            return
 
         # Increase pandas display width to show each row of the switching
         # boards table on a single line.

@@ -1,13 +1,10 @@
 from platformio_helpers.upload import upload_conda
 import platformio_helpers as pioh
-import os
-import shutil
-import tempfile
 
 
 def upload():
     upload_conda('dropbot')
-     
+
 
 if __name__ == '__main__':
     from argparse import ArgumentParser

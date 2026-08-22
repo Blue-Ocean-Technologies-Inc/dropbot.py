@@ -135,6 +135,28 @@ async def co_target_capacitance(proxy_, channels, target_capacitance, count=3, *
          - ``actuated_channels``: actuated channels (`list`).
     """
     actuation_uuid1 = uuid.uuid1()
+    # ------------------------------------------------------------------
+    # XXX KNOWN LIMITATION: `transaction_lock` (a `threading.RLock`) is held
+    # across the `await threshold_reached.wait()` below, i.e., for the entire
+    # duration of the actuation.  Other *threads* attempting a DropBot
+    # transaction block for that whole period.
+    #
+    # This is deliberately NOT restructured, for two reasons:
+    #
+    #  1. SAFETY.  The lock is what prevents another thread from actuating
+    #     channels or changing the high-voltage output state part-way through
+    #     a live actuation.  Releasing it around the wait would make that
+    #     interleaving possible.
+    #  2. It would not actually help.  `execute_actuation()` below acquires
+    #     the *same* lock around its own `await`s (including its
+    #     `asyncio.wait_for()` on this coroutine), so the lock would remain
+    #     held across an await regardless.
+    #
+    # Note also that, because `RLock` is reentrant *per thread*, this lock
+    # does not isolate coroutines running on the same event loop thread.
+    # Fixing that properly requires an `asyncio`-aware lock and a coordinated
+    # change across `threshold.py`, `move.py` and `proxy.py`.
+    # ------------------------------------------------------------------
     with proxy_.transaction_lock:
         capacitance_messages = []
 
@@ -232,8 +254,11 @@ async def execute_actuation(proxy_, chip_info_, specific_capacitance, channels,
         If target capacitance was not reached after specified timeout.
     """
 
-    if isinstance(channels[0], int):
-        # Channels were specified.
+    if isinstance(channels[0], (int, np.integer)):
+        # Channels were specified.  Note that `numpy` integers (e.g., as
+        # produced by `numpy.arange()` or by indexing a `pandas.Series`) are
+        # **not** instances of the Python `int` builtin, hence the explicit
+        # `numpy.integer` check.
         electrodes = chip_info_['channel_electrodes'].loc[channels]
     else:
         # Assume electrode IDs (e.g., `"electrode001", ...`) were specified.
