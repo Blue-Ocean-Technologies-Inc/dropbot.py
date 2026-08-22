@@ -49,9 +49,18 @@ def get_segments(svg_source: Union[str, StringIO, pd.DataFrame],
     distance_threshold_px = (distance_threshold * file_ppi * ureg.pixels_per_inch).to('pixels')
 
 
-    df_segments = (df_shapes.groupby('id').apply(lambda x: x.iloc[:-1]).reset_index(drop=True)
-                   .join(df_shapes.groupby('id').apply(lambda x: x.iloc[1:]).reset_index(drop=True), rsuffix='2')
-                   )[['id', 'vertex_i', 'vertex_i2', 'x', 'y', 'x2', 'y2']]
+    # Pair each vertex with the following vertex of the *same* electrode to
+    # form the electrode outline line segments.
+    #
+    # NOTE Do **not** use `groupby(...).apply(...)` here: as of pandas 3.0 the
+    # grouping column (i.e., `id`) is excluded from the object passed to the
+    # applied function, which silently drops the `id` column.  Iterating over
+    # the groups explicitly is version-independent (and faster).
+    groups = [group_i for _, group_i in df_shapes.groupby('id', sort=True)]
+    df_head = pd.concat([group_i.iloc[:-1] for group_i in groups], ignore_index=True)
+    df_tail = pd.concat([group_i.iloc[1:] for group_i in groups], ignore_index=True)
+
+    df_segments = df_head.join(df_tail, rsuffix='2')[['id', 'vertex_i', 'vertex_i2', 'x', 'y', 'x2', 'y2']]
     v = (df_segments[['x2', 'y2']].values - df_segments[['x', 'y']]).values
     mid = .5 * v + df_segments[['x', 'y']].values
     x_mid = mid[:, 0]
@@ -69,15 +78,34 @@ def get_segments(svg_source: Union[str, StringIO, pd.DataFrame],
     return df_segments.join(df_normal).set_index(['id', 'vertex_i'])
 
 
+def _cross_2d(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """
+    2D cross product (i.e., the ``z`` component of the 3D cross product of the
+    corresponding vectors with ``z = 0``).
+
+    Broadcasts over the leading axes, so ``a`` and/or ``b`` may be a single
+    ``(2, )`` vector or an ``(N, 2)`` array of vectors.
+
+    Notes
+    -----
+    ``numpy.cross()`` deprecated 2-dimensional vectors in NumPy 2.0 and will
+    remove support for them in a future release, hence this explicit
+    implementation.
+    """
+    a = np.asarray(a, dtype=np.float64)
+    b = np.asarray(b, dtype=np.float64)
+    return a[..., 0] * b[..., 1] - a[..., 1] * b[..., 0]
+
+
 def get_intersections(df_segments: pd.DataFrame, p: float, r: float) -> pd.DataFrame:
     # See: https://stackoverflow.com/a/565282/345236
     q = df_segments[['x', 'y']].values
     s = df_segments[['x2', 'y2']].values - q
 
-    r_x_s = np.cross(r, s)
+    r_x_s = _cross_2d(r, s)
     r_x_s[r_x_s == 0] = np.nan
-    t = np.cross((q - p), s) / r_x_s
-    u = np.cross((q - p), r) / r_x_s
+    t = _cross_2d((q - p), s) / r_x_s
+    u = _cross_2d((q - p), r) / r_x_s
 
     df_tu = pd.DataFrame(np.column_stack(
         [t, u]), columns=list('tu'), index=df_segments.index)
@@ -212,7 +240,7 @@ def draw(svg_source: Union[str, StringIO, pd.DataFrame], ax: Optional[plt.subplo
 
 def draw_w_segments(svg_source: Union[str, StringIO, pd.DataFrame], ax: Optional[plt.subplot] = None,
                     distance_threshold: Optional[float] = DEFAULT_DISTANCE_THRESHOLD) -> dict:
-    f"""
+    """
     Draw the specified device, along with rays casted normal to the electrode
     line segments that intersect with a line segment of a neighbouring
     electrode.
@@ -229,7 +257,7 @@ def draw_w_segments(svg_source: Union[str, StringIO, pd.DataFrame], ax: Optional
         Axis to draw on.
     distance_threshold : pint.quantity.Quantity, optional
         Maximum gap between electrodes to still be considered neighbours
-        (default: ``{DEFAULT_DISTANCE_THRESHOLD}s``).
+        (default: :data:`DEFAULT_DISTANCE_THRESHOLD`).
 
     Returns
     -------
