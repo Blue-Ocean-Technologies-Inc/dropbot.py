@@ -13,6 +13,8 @@ import base_node_rpc as bnr
 
 from typing import Optional, Union, List
 
+from packaging import version as _version
+
 # Load protobuf files before loading other rpc modules!
 from .state import State
 from .config import Config
@@ -53,6 +55,64 @@ class NoPower(Exception):
 
 class CommunicationError(Exception):
     pass
+
+
+def _versions_match(driver_version: str, device_version: str) -> bool:
+    """
+    Compare a driver version against a firmware-reported version.
+
+    The comparison is deliberately **tolerant**:
+
+     - Exactly equal strings match.
+     - Otherwise, the two versions are compared by
+       `packaging.version.Version.base_version`, i.e., ``1.78.0`` matches
+       ``1.78.0`` but not ``1.77.0``.
+     - Versions that cannot be parsed, *development* releases, and versions
+       carrying a *local* segment (e.g., the ``1.78.0+7.gdeadbee.dirty``
+       strings produced by ``versioneer`` for an untagged working tree) are
+       treated as a **match**, with a warning.
+
+    That last rule is intentional: a locally regenerated development build
+    would otherwise be unable to connect to the firmware it was just flashed
+    from, which would make the normal development loop unusable.  A genuine
+    release-vs-release mismatch is still reported.
+
+    Parameters
+    ----------
+    driver_version : str
+        Version of this Python driver.
+    device_version : str
+        Software version reported by the connected device.
+
+    Returns
+    -------
+    bool
+        ``True`` if the versions should be considered compatible.
+
+    Version log
+    -----------
+    .. versionadded:: 1.78.0
+    """
+    if driver_version == device_version:
+        return True
+
+    try:
+        driver = _version.Version(driver_version)
+        device = _version.Version(device_version)
+    except (_version.InvalidVersion, TypeError):
+        _L().warning(f'Could not parse driver version (`{driver_version}`) '
+                     f'and/or device version (`{device_version}`); assuming '
+                     f'they are compatible.')
+        return True
+
+    if (driver.is_devrelease or device.is_devrelease or driver.local or
+            device.local):
+        _L().warning(f'Driver version (`{driver_version}`) and device version '
+                     f'(`{device_version}`) differ, but at least one is a '
+                     f'development build; assuming they are compatible.')
+        return True
+
+    return driver.base_version == device.base_version
 
 
 class ConfigMixin(ConfigMixinBase):
@@ -130,9 +190,13 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
                 if ignore:
                     # If `ignore` is set to `True`, ignore all optional
                     # exceptions.
-                    ignore = [NoPower, I2cAddressNotSet]
+                    ignore = [NoPower, I2cAddressNotSet,
+                              bnr.proxy.DeviceVersionMismatch]
                 else:
                     ignore = []
+
+            # Verify that the firmware version matches this driver.
+            self._check_device_version(ignore)
 
             # Check that we have power
             voltage = 120
@@ -150,14 +214,84 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
             elif I2cAddressNotSet not in ignore:
                 raise I2cAddressNotSet()
 
-            # Synchronize device millisecond counter to UTC time upon connection.
-            self.signals.signal('connected').connect(lambda *args: self.sync_time(), weak=False)
+            # Synchronize device millisecond counter to UTC time upon
+            # connection.
+            #
+            # NOTE `connected`/`disconnected` are emitted on the *serial*
+            # signals namespace (`AsyncSerialMonitor.serial_signals`), **not**
+            # on the device-event namespace exposed as `signals`.  Subscribing
+            # on `signals` meant this handler never fired on reconnection.
+            serial_signals = self.serial_signals
+            if serial_signals is not None:
+                serial_signals.signal('connected').connect(self._on_serial_connected, weak=False)
 
-            self.signals.signal('connected').send({'event': 'connected'})
+            # Sync immediately for the connection that has just been
+            # established; the `connected` signal for it was emitted before
+            # the receiver above could be attached.
+            self.sync_time()
         except Exception:
             _L().debug('Error connecting to device.', exc_info=True)
             self.terminate()
             raise
+
+    def _check_device_version(self, ignore: Optional[List] = None) -> None:
+        """
+        Compare the software version reported by the connected device against
+        the version of this driver.
+
+        Notes
+        -----
+        :class:`dropbot.proxy.SerialProxy` deliberately bypasses
+        :class:`base_node_rpc.proxy.SerialProxyMixin` (it drives
+        :class:`base_node_rpc.ser_async.BaseNodeSerialMonitor` directly), so
+        the version check performed by ``SerialProxyMixin._connect()`` never
+        runs.  This method restores that check, which in turn makes
+        ``ignore=[DeviceVersionMismatch]`` meaningful for
+        :class:`dropbot.proxy.SerialProxy` callers.
+
+        Parameters
+        ----------
+        ignore : list, optional
+            Exception types to ignore.  If
+            :class:`base_node_rpc.proxy.DeviceVersionMismatch` is included, a
+            mismatch is logged as a warning instead of raised.
+
+        Raises
+        ------
+        base_node_rpc.proxy.DeviceVersionMismatch
+            If the device firmware version does not match the driver version
+            and :class:`~base_node_rpc.proxy.DeviceVersionMismatch` is not
+            in :data:`ignore`.
+
+        Version log
+        -----------
+        .. versionadded:: 1.78.0
+        """
+        ignore = ignore or []
+        driver_version = getattr(self, 'device_version', None) or __version__
+
+        try:
+            device_version = self.properties.get('software_version')
+        except Exception:
+            _L().warning('Could not read software version from device; '
+                         'skipping firmware version check.', exc_info=True)
+            return
+
+        if device_version is None:
+            _L().warning('Device did not report a software version; skipping '
+                         'firmware version check.')
+            return
+
+        if _versions_match(driver_version, device_version):
+            return
+
+        if bnr.proxy.DeviceVersionMismatch in ignore:
+            _L().warning(f'Driver version (`{driver_version}`) does not match '
+                         f'version reported by device (`{device_version}`).  '
+                         f'Ignoring as requested.')
+            return
+
+        raise bnr.proxy.DeviceVersionMismatch(self, device_version)
 
     def _initialize_switching_boards(self) -> int:
         return super().initialize_switching_boards()
@@ -173,6 +307,51 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         self.__number_of_channels = self._initialize_switching_boards()
         return self.__number_of_channels
 
+    def _on_serial_connected(self, *args, **kwargs) -> None:
+        """
+        Re-synchronize the device clock once the serial connection has been
+        (re-)established.
+
+        Notes
+        -----
+        The ``connected`` signal is emitted from the serial monitor's *own*
+        event loop thread.  Issuing an RPC request directly from that thread
+        would dead-lock, because the response is parsed by the very loop that
+        would be blocked waiting for it.  The synchronization is therefore
+        dispatched to a short-lived worker thread.
+
+        Version log
+        -----------
+        .. versionadded:: 1.78.0
+        """
+
+        def _sync() -> None:
+            try:
+                self.sync_time()
+            except Exception:
+                _L().debug('Error synchronizing device time after '
+                           'reconnection.', exc_info=True)
+
+        threading.Thread(target=_sync, daemon=True).start()
+
+    @property
+    def serial_signals(self):
+        """
+        Namespace on which serial connection lifecycle signals
+        (``connected``/``disconnected``) are emitted.
+
+        Returns
+        -------
+        blinker.Namespace or None
+            ``None`` if no serial monitor is currently attached.
+
+        Version log
+        -----------
+        .. versionadded:: 1.78.0
+        """
+        monitor = getattr(self, 'monitor', None)
+        return getattr(monitor, 'serial_signals', None)
+
     def _connect(self, *args, **kwargs) -> None:
         """
         Reconnect to the device and emit a ``connected`` signal.
@@ -186,9 +365,16 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
             before any receivers have a chance to connect to the signal,
             but subsequent restored connection events after connecting to
             the ``connected`` signal will be received.
+
+        .. versionchanged:: 1.78.0
+            Emit ``connected`` on the ``serial_signals`` namespace, which is
+            where :class:`base_node_rpc.ser_async.BaseNodeSerialMonitor`
+            emits connection lifecycle signals.
         """
         self.connect()
-        self.signals.signal('connected').send({'event': 'connected'})
+        serial_signals = self.serial_signals
+        if serial_signals is not None:
+            serial_signals.signal('connected').send({'event': 'connected'})
 
     def sync_time(self) -> None:
         """
@@ -240,11 +426,16 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         data : list-like
             Bytes to write to :data:`eeprom_address`
         """
+        # Accept `bytes`/`bytearray` (as the type hint advertises) as well as
+        # any other sequence, by normalizing to a `list` of ints.  Slicing
+        # `bytes` yields `bytes`, which cannot be concatenated to a `list`.
+        data = list(data)
+
         i2c_packet_size = 16
         for i in range(int(math.ceil(len(data) / float(i2c_packet_size)))):
             start = i * i2c_packet_size
             end = min((i + 1) * i2c_packet_size, len(data))
-            # Commenting out this, seems unnecessary 
+            # Commenting out this, seems unnecessary
             # self.i2c_write(i2c_address, [eeprom_address + start] +
             #                (end - start) * [255])
             self.i2c_write(i2c_address, [eeprom_address + start] +
@@ -290,7 +481,9 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
             _L().debug('Communication error', exc_info=True)
 
     def i2c_send_command(self, address: int, cmd: bytes, data: bytes) -> bytes:
-        self.i2c_write(address, [cmd] + data)
+        # Normalize `data` to a `list` so that `bytes`/`bytearray` inputs (as
+        # advertised by the type hint) can be concatenated.
+        self.i2c_write(address, [cmd] + list(data))
         n = int(self.i2c_read(address, 1)[0])
         return self.i2c_read(address, n)
 
@@ -532,8 +725,19 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         return results
 
     def measure_input_voltage(self) -> float:
+        """
+        Version log
+        -----------
+        .. versionchanged:: 1.78.0
+            **SAFETY**: restore the saved high-voltage output state *after*
+            restoring the voltage.  The `voltage` setter force-enables and
+            force-selects the high-voltage output, so the previous restore
+            order (``hv_output_enabled`` then ``voltage``) left HV **energised**
+            for callers that had it switched off.
+        """
         # save the state of the output voltage
         hv_output_enabled = self.hv_output_enabled
+        hv_output_selected = self.hv_output_selected
         voltage = self.voltage
 
         # set the voltage to the minimum and wait for it to settle
@@ -547,9 +751,15 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         # take a measurement
         v = self.analog_reads_simple(1, 2000) / 2.0 ** 16 * 3.3 * 2e6 / 20e3
 
-        # restore the output voltage and let it settle
-        self.hv_output_enabled = hv_output_enabled
+        # Restore the output voltage and let it settle.
+        #
+        # SAFETY: `voltage` **must** be restored first, since its setter
+        # force-enables/selects the high-voltage output.  Restoring
+        # `hv_output_selected`/`hv_output_enabled` afterwards guarantees the
+        # final state matches the state saved above.
         self.voltage = voltage
+        self.hv_output_selected = hv_output_selected
+        self.hv_output_enabled = hv_output_enabled
         time.sleep(1)
         return np.sqrt(np.mean(v ** 2))
 
@@ -758,13 +968,10 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         raise NotImplementedError("reset_switching_boards is deprecated and "
                                   "not supported by DropBot v3 hardware.")
 
-    @property
-    def baud_rate(self) -> int:
-        return self.config.baud_rate
-
-    @baud_rate.setter
-    def baud_rate(self, baud_rate: int) -> None:
-        self.update_config(baud_rate=baud_rate)
+    # NOTE The `baud_rate` property was removed in 1.78.0: the corresponding
+    # `baud_rate` field is commented out of `src/config.proto` (marked
+    # "deprecated"), so both the getter and the setter raised.  The monorepo
+    # contained no callers.
 
     @property
     def id(self) -> str:
@@ -840,7 +1047,19 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
 
     @neighbours.setter
     def neighbours(self, value: pd.Series) -> None:
-        self.assign_neighbours(value.fillna(-1).astype('uint8').values)
+        """
+        Version log
+        -----------
+        .. versionchanged:: 1.78.0
+            Fill missing neighbours with ``255`` (the firmware "no neighbour"
+            sentinel, as mapped back to ``NaN`` by the getter) rather than
+            ``-1``.  ``pandas >= 2`` refuses to cast ``-1`` to ``uint8``
+            ("cannot losslessly cast"), and since the reindex performed by
+            `dropbot.chip.get_channel_neighbours()` essentially always leaves
+            at least one ``NaN``, this setter raised for virtually every
+            input.
+        """
+        self.assign_neighbours(value.fillna(255).astype('uint8').values)
 
     @property
     def drops(self) -> List[np.array]:
@@ -931,8 +1150,15 @@ class SerialProxy(ProxyMixin, Proxy):
         self.monitor = None
         port = kwargs.pop('port', None)
         if port is None:
-            # Find DropBots
-            df_devices = bnr.available_devices(timeout=settling_time_s)
+            # Find DropBots.
+            #
+            # NOTE `settling_time_s` is how long to wait *after opening* a port
+            # before probing it; `timeout` is how long to wait for the device
+            # to respond.  Passing `settling_time_s` as `timeout` (as was done
+            # previously) left only 50 ms for a response, so devices were
+            # routinely missed.
+            df_devices = bnr.available_devices(settling_time_s=settling_time_s,
+                                               timeout=self.default_timeout)
             if not df_devices.shape[0]:
                 raise IOError('No serial devices available for connection')
             df_dropbots = df_devices.loc[df_devices.device_name == self.device_name]
@@ -958,6 +1184,12 @@ class SerialProxy(ProxyMixin, Proxy):
             monitor.stop()
             raise IOError(f'Timed out waiting for connection to {self.port}')
         self.monitor = monitor
+        # Each `connect()` builds a *new* monitor, and therefore a new
+        # `serial_signals` namespace, so re-attach the clock-sync receiver.
+        # Guarded by `hasattr` because `connect()` is also called from
+        # `__init__` *before* `ProxyMixin.__init__` has run.
+        if hasattr(self, 'transaction_lock'):
+            monitor.serial_signals.signal('connected').connect(self._on_serial_connected, weak=False)
         return self.monitor
 
     def _send_command(self, packet: cPacket, timeout_s: Optional[float] = None, **kwargs):
@@ -989,15 +1221,33 @@ class SerialProxy(ProxyMixin, Proxy):
         self.terminate()
 
     def flash_firmware(self) -> None:
+        """
+        Version log
+        -----------
+        .. versionchanged:: 1.78.0
+            Log upload failures at ``warning`` level and re-raise them (after
+            attempting to restore the connection) rather than swallowing them.
+        """
         # currently, we're ignoring the hardware version, but eventually,
         # we will want to pass it to upload()
         self.terminate()
+        upload_error = None
         try:
             upload()
-        except Exception:
-            _L().debug('Error updating firmware', exc_info=True)
+        except Exception as exception:
+            _L().warning('Error updating firmware.', exc_info=True)
+            upload_error = exception
         time.sleep(0.5)
-        self.connect()
+        # Attempt to reconnect regardless, so the proxy is not left in a
+        # terminated state.
+        try:
+            self.connect()
+        except Exception:
+            if upload_error is None:
+                raise
+            _L().warning('Error reconnecting after failed firmware update.', exc_info=True)
+        if upload_error is not None:
+            raise upload_error
 
     def _reboot(self):
         """
