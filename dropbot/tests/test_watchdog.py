@@ -37,9 +37,18 @@ def proxy():
     '''
 
 
-    # XXX Ignore non-critical exceptions during initialization.
-    proxy_ = SerialProxy(ignore=[NoPower,
-                                    I2cAddressNotSet])
+    # XXX Ignore non-critical exceptions during initialization.  N.B.
+    # `DeviceVersionMismatch` is ignored so the tests run against boards
+    # carrying older firmware releases.
+    import base_node_rpc as bnr
+
+    try:
+        proxy_ = SerialProxy(ignore=[NoPower, I2cAddressNotSet,
+                                     bnr.proxy.DeviceVersionMismatch])
+    except (IOError, OSError) as e:
+        # Skip (rather than error) when no DropBot is connected, matching the
+        # behaviour of the other hardware test modules.
+        pytest.skip(f'No DropBot available: {e}')
     yield proxy_
     proxy_.terminate()
 
