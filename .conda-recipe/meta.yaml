@@ -41,21 +41,23 @@ requirements:
         - tabulate
         - aiosignal
         - matplotlib-base
-        - platformio
+        - platformio >=6.1.16
         - beautifulsoup4
-        - nadamq
+        - or-event >=0.2.3
+        - nadamq >=0.20.10
         - debounce
         - base-node >=0.16.4
         - svg-model
         - json-tricks
-        - serial-device
-        - arduino-rpc
-        - base-node-rpc
-        - teensy-minimal-rpc
+        - serial-device >=0.12.5
+        - asyncserial >=0.3.4
+        - arduino-rpc >=1.16.8
+        - base-node-rpc >=0.52.12
+        - teensy-minimal-rpc >=0.10.6
         - dropbot-headers
         - path-helpers
         - conda-helpers
-        - nanopb-helpers
+        - nanopb-helpers >=0.12.7
         - asyncio-helpers
         - logging-helpers
         - platformio-helpers
@@ -98,20 +100,23 @@ outputs:
         - tabulate
         - aiosignal
         - matplotlib-base
-        - platformio
+        - platformio >=6.1.16
         - beautifulsoup4
-        - nadamq
+        - or-event >=0.2.3
+        - nadamq >=0.20.10
         - debounce
         - base-node >=0.16.4
         - svg-model
         - json-tricks
-        - serial-device
-        - arduino-rpc
-        - base-node-rpc
-        - teensy-minimal-rpc
+        - serial-device >=0.12.5
+        - asyncserial >=0.3.4
+        - arduino-rpc >=1.16.8
+        - base-node-rpc >=0.52.12
+        - teensy-minimal-rpc >=0.10.6
+        - dropbot-headers
         - path-helpers
         - conda-helpers
-        - nanopb-helpers
+        - nanopb-helpers >=0.12.7
         - asyncio-helpers
         - logging-helpers
         - platformio-helpers
