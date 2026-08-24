@@ -91,7 +91,7 @@ def _versions_match(driver_version: str, device_version: str) -> bool:
 
     Version log
     -----------
-    .. versionadded:: 1.78.0
+    .. versionadded:: 1.74.4
     """
     if driver_version == device_version:
         return True
@@ -265,7 +265,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
 
         Version log
         -----------
-        .. versionadded:: 1.78.0
+        .. versionadded:: 1.74.4
         """
         ignore = ignore or []
         driver_version = getattr(self, 'device_version', None) or __version__
@@ -322,7 +322,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
 
         Version log
         -----------
-        .. versionadded:: 1.78.0
+        .. versionadded:: 1.74.4
         """
 
         def _sync() -> None:
@@ -347,7 +347,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
 
         Version log
         -----------
-        .. versionadded:: 1.78.0
+        .. versionadded:: 1.74.4
         """
         monitor = getattr(self, 'monitor', None)
         return getattr(monitor, 'serial_signals', None)
@@ -366,7 +366,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
             but subsequent restored connection events after connecting to
             the ``connected`` signal will be received.
 
-        .. versionchanged:: 1.78.0
+        .. versionchanged:: 1.74.4
             Emit ``connected`` on the ``serial_signals`` namespace, which is
             where :class:`base_node_rpc.ser_async.BaseNodeSerialMonitor`
             emits connection lifecycle signals.
@@ -728,7 +728,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         """
         Version log
         -----------
-        .. versionchanged:: 1.78.0
+        .. versionchanged:: 1.74.4
             **SAFETY**: restore the saved high-voltage output state *after*
             restoring the voltage.  The `voltage` setter force-enables and
             force-selects the high-voltage output, so the previous restore
@@ -1050,7 +1050,7 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         """
         Version log
         -----------
-        .. versionchanged:: 1.78.0
+        .. versionchanged:: 1.74.4
             Fill missing neighbours with ``255`` (the firmware "no neighbour"
             sentinel, as mapped back to ``NaN`` by the getter) rather than
             ``-1``.  ``pandas >= 2`` refuses to cast ``-1`` to ``uint8``
@@ -1224,7 +1224,7 @@ class SerialProxy(ProxyMixin, Proxy):
         """
         Version log
         -----------
-        .. versionchanged:: 1.78.0
+        .. versionchanged:: 1.74.4
             Log upload failures at ``warning`` level and re-raise them (after
             attempting to restore the connection) rather than swallowing them.
         """

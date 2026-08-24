@@ -34,7 +34,7 @@ def _signal(signals_, name):
     blinker.Signal or None
         ``None`` if :data:`signals_` is a plain mapping with no such key.
 
-    .. versionadded:: 1.78.0
+    .. versionadded:: 1.74.4
     """
     signal_factory = getattr(signals_, 'signal', None)
     if signal_factory is not None:
@@ -48,7 +48,7 @@ def _as_coroutine_function(func):
 
     Used as the ``_sync_wrapper`` argument of `blinker.Signal.send_async()`.
 
-    .. versionadded:: 1.78.0
+    .. versionadded:: 1.74.4
     """
 
     async def _wrapped(*args, **kwargs):
@@ -79,7 +79,7 @@ async def _send(signals_, name, *args, **kwargs) -> list:
     list
         ``(receiver, response)`` pairs.
 
-    .. versionadded:: 1.78.0
+    .. versionadded:: 1.74.4
     """
     signal = _signal(signals_, name)
     if signal is None:
@@ -170,7 +170,7 @@ async def monitor(signals_: dict, register_signal=None):
         Send `'no-power'` signal if 12V power supply not connected.  Receivers
         may return `'ignore'` to attempt to connect anyway.
 
-    .. versionchanged:: 1.78.0
+    .. versionchanged:: 1.74.4
         Use a single, consistent (`blinker`) signal API throughout.  A
         `'skip'` response to the `'no-power'`/`'version-mismatch'` prompts now
         actually skips the port instead of re-prompting forever, and a missing
