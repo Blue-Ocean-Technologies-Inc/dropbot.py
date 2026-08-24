@@ -44,6 +44,14 @@ EVENT_ENABLE = (1 << 0)
 
 I2cProxy = None
 
+#: Minimum device firmware release known to work with this driver.  Devices
+#: reporting **at least** this version connect with a warning on a version
+#: mismatch; anything older raises
+#: :class:`base_node_rpc.proxy.DeviceVersionMismatch` (unless ignored).
+#:
+#: .. versionadded:: 1.74.4
+MIN_DEVICE_VERSION = '1.73.6'
+
 
 class I2cAddressNotSet(Exception):
     pass
@@ -259,13 +267,18 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
         Raises
         ------
         base_node_rpc.proxy.DeviceVersionMismatch
-            If the device firmware version does not match the driver version
-            and :class:`~base_node_rpc.proxy.DeviceVersionMismatch` is not
-            in :data:`ignore`.
+            If the device firmware is **older** than
+            :data:`MIN_DEVICE_VERSION` and
+            :class:`~base_node_rpc.proxy.DeviceVersionMismatch` is not in
+            :data:`ignore`.  Firmware at or above the minimum supported
+            version connects with a warning on a mismatch.
 
         Version log
         -----------
         .. versionadded:: 1.74.4
+            Only raise for firmware older than :data:`MIN_DEVICE_VERSION`
+            (1.73.6); newer firmware connects with a warning so devices in
+            the field keep working without ``ignore=True``.
         """
         ignore = ignore or []
         driver_version = getattr(self, 'device_version', None) or __version__
@@ -289,6 +302,27 @@ class ProxyMixin(ConfigMixin, StateMixin, AdcDmaMixin):
             _L().warning(f'Driver version (`{driver_version}`) does not match '
                          f'version reported by device (`{device_version}`).  '
                          f'Ignoring as requested.')
+            return
+
+        # Firmware releases from `MIN_DEVICE_VERSION` onward are known to work
+        # with this driver: connect anyway, but warn about the mismatch so
+        # users know an update is available.  Only firmware **older** than the
+        # minimum supported version raises (and can still be ignored
+        # explicitly, e.g., via ``ignore=True``).
+        try:
+            device_ok = (_version.Version(device_version) >=
+                         _version.Version(MIN_DEVICE_VERSION))
+        except (_version.InvalidVersion, TypeError):
+            # Unparseable device versions are already tolerated by
+            # `_versions_match()`; treat defensively as too old here.
+            device_ok = False
+
+        if device_ok:
+            _L().warning(f'Driver version (`{driver_version}`) does not match '
+                         f'version reported by device (`{device_version}`), '
+                         f'but the device firmware is >= the minimum supported '
+                         f'version (`{MIN_DEVICE_VERSION}`).  Connecting '
+                         f'anyway; consider updating the device firmware.')
             return
 
         raise bnr.proxy.DeviceVersionMismatch(self, device_version)

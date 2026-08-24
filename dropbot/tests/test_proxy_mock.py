@@ -286,29 +286,47 @@ class _VersionNode:
                                     dtype=object)
 
 
-def test_check_device_version_raises_on_release_mismatch():
+def test_check_device_version_raises_below_minimum():
     """
     Guards the firmware version gate that ``SerialProxy`` bypasses.
 
+    Only firmware **older** than ``MIN_DEVICE_VERSION`` (1.73.6) raises;
     ``dropbot.proxy.SerialProxy`` drives the serial monitor directly and so
     never runs ``SerialProxyMixin._connect()``'s version check;
     ``_check_device_version()`` restores it.
     """
-    node = _VersionNode('1.78.0', '1.77.0')
+    node = _VersionNode('1.78.0', '1.72.0')
 
     with pytest.raises(bnr.proxy.DeviceVersionMismatch) as excinfo:
         ProxyMixin._check_device_version(node, [])
 
-    assert excinfo.value.device_version == '1.77.0'
+    assert excinfo.value.device_version == '1.72.0'
+
+
+@pytest.mark.parametrize('device', ['1.73.6', '1.73.7', '1.77.0'])
+def test_check_device_version_warns_at_or_above_minimum(caplog, device):
+    """
+    Guards the 1.74.5 policy change: firmware at or above
+    ``MIN_DEVICE_VERSION`` connects on a mismatch, emitting a warning that
+    names the minimum supported version, so fielded devices keep working
+    without ``ignore=True``.
+    """
+    caplog.set_level(logging.WARNING)
+
+    ProxyMixin._check_device_version(_VersionNode('1.78.0', device), [])
+
+    assert any('minimum supported' in record.getMessage()
+               for record in caplog.records)
 
 
 def test_check_device_version_honours_ignore_list(caplog):
     """
     Guards ``ignore=[DeviceVersionMismatch]`` staying meaningful for
-    ``dropbot.proxy.SerialProxy``: a mismatch must warn instead of raising.
+    ``dropbot.proxy.SerialProxy``: even a below-minimum mismatch must warn
+    instead of raising.
     """
     caplog.set_level(logging.WARNING)
-    node = _VersionNode('1.78.0', '1.77.0')
+    node = _VersionNode('1.78.0', '1.72.0')
 
     ProxyMixin._check_device_version(node,
                                      [bnr.proxy.DeviceVersionMismatch])
