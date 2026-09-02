@@ -1,3 +1,9 @@
+## v1.74.7 (2026-09-02)
+
+### Fix
+
+- restore the dropbot-dev sub-package
+
 ## v1.74.6 (2026-09-02)
 
 ### Fix

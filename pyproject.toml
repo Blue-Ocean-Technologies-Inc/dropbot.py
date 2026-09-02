@@ -1,6 +1,6 @@
 [project]
 name = "dropbot"
-version = "1.74.6"
+version = "1.74.7"
 description = "Firmware for the DropBot digital microfluidics control system and a Python module for communicating with it over a serial connection."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -42,7 +42,7 @@ preview = ["pixi-build"]
 
 [tool.pixi.package]
 name = "dropbot"
-version = "1.74.6"
+version = "1.74.7"
 
 [tool.pixi.package.build.backend]
 name = "pixi-build-rattler-build"

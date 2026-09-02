@@ -15,7 +15,7 @@
 # runs twice; the firmware is only compiled for dropbot-dev.
 context:
   name: dropbot
-  version: "1.74.6"
+  version: "1.74.7"
 
 recipe:
   name: ${{ name }}
