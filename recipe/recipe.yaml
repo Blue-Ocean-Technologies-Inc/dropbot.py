@@ -111,8 +111,10 @@ requirements:
     - logging-helpers
     - platformio-helpers
     - hv-switching-board
-    - if: win
-      then: ntfsutils
+    # No Windows-only run dependency here: this is a noarch package and a
+    # platform selector would only apply when the build itself runs on
+    # Windows, making local and CI builds differ. path-helpers needs
+    # `ntfsutils` on Windows; consumers add it for win-64 (microdrop-py does).
 
 tests:
   - python:
