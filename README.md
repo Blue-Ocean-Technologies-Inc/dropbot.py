@@ -49,11 +49,14 @@ To upload the pre-compiled firmware included in the Python package, from an
 Conda package contents
 ----------------------
 
-The `dropbot` Conda package includes:
+Two Conda packages are built from this repository:
 
- - `dropbot.SerialProxy` **Python class** providing a high-level interface to
-   the DropBot hardware.
- - **Compiled firmware binary** for the DropBot hardware.
+ - `dropbot` (noarch python): the `dropbot.SerialProxy` **Python class**
+   providing a high-level interface to the DropBot hardware. It pins the
+   matching `dropbot-dev`.
+ - `dropbot-dev` (noarch generic): the **compiled firmware binary** and the
+   generated **Arduino library headers**, for firmware builds that depend on
+   DropBot.
 
 The installed components (relative to the root of the Conda environment) are
 shown below:
@@ -145,12 +148,12 @@ New methods may be added to the Python API by adding new methods to the
 
 The Conda package is built with [pixi][2] through the rattler-build backend
 (`recipe/recipe.yaml`). The build generates the RPC code, compiles the
-protobufs, compiles the Teensy firmware with PlatformIO and installs the
-Python package, firmware binary and Arduino headers into one `noarch` package:
+protobufs, compiles the Teensy firmware with PlatformIO and splits the result
+into the `dropbot` and `dropbot-dev` `noarch` packages:
 
     pixi build
 
-The resulting `dropbot-<version>-*.conda` file lands in the current directory
+The resulting `.conda` files land in the current directory
 (`--output-dir` to change that).
 
 

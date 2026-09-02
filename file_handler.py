@@ -129,6 +129,9 @@ def cli_parser():
     parser.add_argument('source_dir', nargs='?', default=os.environ.get('SRC_DIR', path(__file__).parent))
     parser.add_argument('prefix', nargs='?', default=os.environ.get('PREFIX'))
     parser.add_argument('package_name', nargs='?', default='dropbot')
+    parser.add_argument('--skip-firmware', action='store_true',
+                        help='Only generate the RPC code and protobuf modules '
+                             '(no Arduino library install, no PlatformIO build).')
 
     args = parser.parse_args()
     args_dict = vars(args)
@@ -145,6 +148,10 @@ def execute(**kwargs):
 
     generate_all_code(properties)
     compile_protobufs(**kwargs)
+    if kwargs.get('skip_firmware'):
+        # Python-package build: the generated modules are all that is needed.
+        print('<' * len(top))
+        return
     transfer(**kwargs)
     # PlatformIO finds the generated Arduino library (and the sci-bots ones
     # installed by the conda dependencies) through PLATFORMIO_LIB_EXTRA_DIRS.
