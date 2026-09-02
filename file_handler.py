@@ -1,9 +1,8 @@
 # coding: utf-8
 import os
+import re
 import argparse
 import subprocess
-
-import versioneer
 
 import platformio_helpers as pioh
 
@@ -18,8 +17,15 @@ DEFAULT_ARDUINO_BOARDS = []
 PLATFORMIO_ENVS = ['teensy31']
 
 
+def read_version() -> str:
+    # Read the version without importing `dropbot` (whose generated modules do
+    # not exist yet while this script runs).
+    text = path(__file__).parent.joinpath('dropbot', '_version.py').read_text()
+    return re.search(r'^__version__ = "([^"]+)"', text, re.M).group(1)
+
+
 def get_properties(**kwargs) -> Dict:
-    version = versioneer.get_version()
+    version = read_version()
 
     try:
         base_node_version = import_module('base_node_rpc').__version__
@@ -116,21 +122,13 @@ def copy_compiled_firmware(**kwargs) -> None:
         print(f"Copied '{dest.name}' > '{dest}'")
 
 
-def transfer_icons(**kwargs) -> None:
-    prefix = kwargs.get('prefix')
-    src = path(__file__).joinpath('.conda-recipe')
-    dest = path(prefix).joinpath('Menu')
-    dest.makedirs(exist_ok=True)
-    for file in src.files('*[.ico|.json]'):
-        file.copy2(dest)
-        print(f"Copied '{file.name}' > '{file}'")
-
-
 def cli_parser():
-    parser = argparse.ArgumentParser(description='Transfer header files to include directory.')
-    parser.add_argument('source_dir')
-    parser.add_argument('prefix')
-    parser.add_argument('package_name')
+    # Defaults come from the rattler-build environment (see recipe/recipe.yaml)
+    # so the build script is the same on every platform.
+    parser = argparse.ArgumentParser(description='Generate RPC code, build firmware and install both into a prefix.')
+    parser.add_argument('source_dir', nargs='?', default=os.environ.get('SRC_DIR', path(__file__).parent))
+    parser.add_argument('prefix', nargs='?', default=os.environ.get('PREFIX'))
+    parser.add_argument('package_name', nargs='?', default='dropbot')
 
     args = parser.parse_args()
     args_dict = vars(args)
@@ -148,22 +146,24 @@ def execute(**kwargs):
     generate_all_code(properties)
     compile_protobufs(**kwargs)
     transfer(**kwargs)
-    try:
-        # Set up environment with PLATFORMIO_LIB_EXTRA_DIRS
-        env = os.environ.copy()
-        env['PLATFORMIO_LIB_EXTRA_DIRS'] = str(pioh.conda_arduino_include_path())
-        print(f"Setting PLATFORMIO_LIB_EXTRA_DIRS={env['PLATFORMIO_LIB_EXTRA_DIRS']}")
-
-        # Run platformio with the modified environment
-        subprocess.run(['pio', 'run'], env=env)
-        copy_compiled_firmware(**kwargs)
-    except FileNotFoundError:
-        print('Failed to generate firmware')
-    transfer_icons(**kwargs)
+    # PlatformIO finds the generated Arduino library (and the sci-bots ones
+    # installed by the conda dependencies) through PLATFORMIO_LIB_EXTRA_DIRS.
+    env = os.environ.copy()
+    env['PLATFORMIO_LIB_EXTRA_DIRS'] = str(pioh.conda_arduino_include_path())
+    if 'PLATFORMIO_CORE_DIR' not in env and os.name == 'nt' and env.get('HOMEDRIVE') and env.get('HOMEPATH'):
+        # rattler-build points HOME/USERPROFILE at its (deep) work directory.
+        # The ARM toolchain's include paths from there exceed MAX_PATH and the
+        # MinGW-built GCC then cannot find its own C++ headers, so keep the
+        # PlatformIO core dir in the real user profile (HOMEPATH is untouched).
+        env['PLATFORMIO_CORE_DIR'] = os.path.join(env['HOMEDRIVE'] + env['HOMEPATH'], '.platformio')
+    print(f"Setting PLATFORMIO_CORE_DIR={env.get('PLATFORMIO_CORE_DIR', '<default>')}", flush=True)
+    print(f"Setting PLATFORMIO_LIB_EXTRA_DIRS={env['PLATFORMIO_LIB_EXTRA_DIRS']}", flush=True)
+    # A firmware build failure must fail the package build.
+    subprocess.run(['pio', 'run'], env=env, check=True)
+    copy_compiled_firmware(**kwargs)
 
     print('<' * len(top))
 
-import os
-os.getcwd()
+
 if __name__ == '__main__':
     cli_parser()

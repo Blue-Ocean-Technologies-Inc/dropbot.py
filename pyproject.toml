@@ -1,0 +1,66 @@
+[project]
+name = "dropbot"
+version = "1.74.4"
+description = "Firmware for the DropBot digital microfluidics control system and a Python module for communicating with it over a serial connection."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "BSD-3-Clause"
+license-files = ["COPYING"]
+authors = [{ name = "Christian Fobel", email = "christian@fobel.net" }]
+# The full runtime dependency set (sci-bots RPC stack, PlatformIO, ...) is
+# conda-only and lives in recipe/recipe.yaml; this is the pip-visible subset.
+dependencies = ["networkx"]
+
+[project.urls]
+Homepage = "https://github.com/Vigne-hub/dropbot.py"
+
+[project.scripts]
+dropbot-self-test = "dropbot.bin.self_test:main"
+dropbot-upload = "dropbot.bin.upload:upload"
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+# Package data (generated node.py/config.py/state.py/metadata.py, static
+# assets, notebooks) is selected by MANIFEST.in.
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["dropbot*"]
+
+# --- pixi -----------------------------------------------------------------
+# `pixi build` / `pixi publish` build the conda package through the
+# rattler-build backend from recipe/recipe.yaml, which also generates the RPC
+# code and compiles the Teensy firmware. Binary dependencies are declared in
+# the recipe, not here.
+[tool.pixi.workspace]
+channels = ["conda-forge", "alexsk", "vignesh229"]
+platforms = ["win-64", "linux-64"]
+preview = ["pixi-build"]
+
+[tool.pixi.package]
+name = "dropbot"
+version = "1.74.4"
+
+[tool.pixi.package.build.backend]
+name = "pixi-build-rattler-build"
+version = "0.*"
+channels = ["https://prefix.dev/conda-forge"]
+
+# --- commitizen -----------------------------------------------------------
+# `cz bump` derives the next version from Conventional Commits, stamps every
+# copy of the version below (Python package, firmware DEVICE_ID_RESPONSE via
+# dropbot/_version.py, conda recipe), updates CHANGELOG.md and tags vX.Y.Z.
+[tool.commitizen]
+name = "cz_conventional_commits"
+version_provider = "pep621"
+tag_format = "v$version"
+bump_message = "chore: release v$new_version [skip ci]"
+update_changelog_on_bump = true
+version_files = [
+    "pyproject.toml:^version",
+    "dropbot/_version.py:^__version__",
+    "recipe/recipe.yaml:^  version",
+]

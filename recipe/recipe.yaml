@@ -1,0 +1,137 @@
+# rattler-build recipe, driven by `pixi build` / `pixi publish` (see
+# pyproject.toml). Ported from the former conda-build .conda-recipe/meta.yaml.
+#
+# The build script does more than install a wheel: file_handler.py generates
+# the RPC glue (node.py/config.py/state.py/metadata.py, Node headers), compiles
+# the protobufs, copies the Arduino library into $PREFIX/share/platformio/
+# include, compiles the Teensy firmware with PlatformIO and drops the hex under
+# $PREFIX/share/platformio/bin/dropbot/teensy31/. Everything ships in this
+# single noarch package (the old dropbot-dev split is gone).
+context:
+  name: dropbot
+  version: "1.74.4"
+
+package:
+  name: ${{ name }}
+  version: ${{ version }}
+
+source:
+  # .gitignore is honoured, so .pio/, .pixi/, generated code etc. stay out.
+  path: ..
+
+build:
+  number: 0
+  noarch: python
+  script:
+    # SRC_DIR / PREFIX / package name default from the build environment.
+    - python file_handler.py
+    - python -m pip install . --no-deps --no-build-isolation -vv
+  python:
+    entry_points:
+      - dropbot-self-test = dropbot.bin.self_test:main
+      - dropbot-upload = dropbot.bin.upload:upload
+
+requirements:
+  host:
+    - python
+    - pip
+    - setuptools
+    # code generation + firmware build (file_handler.py, build_flags.py)
+    - base-node-rpc >=0.52.12
+    - nanopb-helpers >=0.12.7
+    - platformio >=6.1.16
+    - platformio-helpers
+    - path-helpers
+    - dropbot-headers
+    - arduino-rpc >=1.16.8
+    - teensy-minimal-rpc >=0.10.6
+    - base-node >=0.16.4
+    - nadamq >=0.20.10
+    - protobuf 5.29.*
+    - jinja2
+    - numpy
+    - pandas
+    - pint
+    - pytables
+    - networkx
+    - tabulate
+    - aiosignal
+    - matplotlib-base
+    - beautifulsoup4
+    - or-event >=0.2.3
+    - debounce
+    - svg-model
+    - json-tricks
+    - serial-device >=0.12.5
+    - asyncserial >=0.3.4
+    - conda-helpers
+    - asyncio-helpers
+    - logging-helpers
+    - hv-switching-board
+    - pandoc
+    - pypandoc
+    - pytest
+    # path-helpers imports ntfsutils on Windows
+    - if: win
+      then: ntfsutils
+  run:
+    - python >=3.9
+    - pint
+    - tqdm
+    - numpy
+    - pandas
+    - pandoc
+    - pypandoc
+    - jinja2
+    - pytest
+    - pytables
+    - networkx
+    - protobuf 5.29.*
+    - tabulate
+    - aiosignal
+    - matplotlib-base
+    - platformio >=6.1.16
+    - beautifulsoup4
+    - or-event >=0.2.3
+    - nadamq >=0.20.10
+    - debounce
+    - base-node >=0.16.4
+    - svg-model
+    - json-tricks
+    - serial-device >=0.12.5
+    - asyncserial >=0.3.4
+    - arduino-rpc >=1.16.8
+    - base-node-rpc >=0.52.12
+    - teensy-minimal-rpc >=0.10.6
+    - dropbot-headers
+    - path-helpers
+    - conda-helpers
+    - nanopb-helpers >=0.12.7
+    - asyncio-helpers
+    - logging-helpers
+    - platformio-helpers
+    - hv-switching-board
+    - if: win
+      then: ntfsutils
+
+tests:
+  - python:
+      imports:
+        - dropbot
+        - dropbot._version
+        - dropbot.bin
+        - dropbot.config
+        - dropbot.hardware_test
+        - dropbot.metadata
+        - dropbot.proxy
+        - dropbot.state
+      pip_check: false
+  - script:
+      # The compiled firmware must ship with the package.
+      - python -c "import os, pathlib, sys; p = pathlib.Path(os.environ['PREFIX']) / 'share' / 'platformio' / 'bin' / 'dropbot' / 'teensy31' / 'firmware.hex'; print(p); sys.exit(0 if p.is_file() else 1)"
+
+about:
+  homepage: https://github.com/Vigne-hub/dropbot.py
+  license: BSD-3-Clause
+  license_file: COPYING
+  summary: Dropbot API
