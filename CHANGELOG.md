@@ -1,3 +1,9 @@
+## v1.74.6 (2026-09-02)
+
+### Fix
+
+- honour --port and --hardware-version in dropbot-upload
+
 ## v1.74.5 (2026-09-02)
 
 ## v1.74.4
