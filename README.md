@@ -12,10 +12,10 @@ module for communicating with it over a serial connection.
     * [Example interactive session](#example-interactive-session)
 * [Develop](#develop)
     * [Adding new remote procedure call (RPC) methods](#adding-new-remote-procedure-call-rpc-methods)
-    * [Set up development environment (within a Conda environment)](#set-up-development-environment-within-a-conda-environment)
+    * [Build the package](#build-the-package)
+    * [Release](#release)
     * [Build firmware](#build-firmware)
     * [Flash/upload firmware](#flashupload-firmware)
-    * [Unlink development working copy](#unlink-development-working-copy)
 * [Contributors](#contributors)
 
 <!-- vim-markdown-toc -->
@@ -25,12 +25,15 @@ module for communicating with it over a serial connection.
 Install
 -------
 
-The latest [`dropbot` release][3] is available as a [Conda][2] package from the
-[`sci-bots`][4] channel.
+Releases are published as a Conda package to the [`vigne-hub/scibots`][3]
+channel on prefix.dev. Add the channel (plus the channels carrying the
+sci-bots dependency stack) to a [pixi][2] workspace and depend on `dropbot`:
 
-To install `dropbot` in an **activated Conda environment**, run:
+    [workspace]
+    channels = ["conda-forge", "alexsk", "vignesh229", "https://prefix.dev/vigne-hub/scibots"]
 
-    conda install -c wheeler-microfluidics -c conda-forge dropbot
+    [dependencies]
+    dropbot = ">=1.74.4,<2"
 
 -------------------------------------------------------------------------------
 
@@ -46,11 +49,14 @@ To upload the pre-compiled firmware included in the Python package, from an
 Conda package contents
 ----------------------
 
-The `dropbot` Conda package includes:
+Two Conda packages are built from this repository:
 
- - `dropbot.SerialProxy` **Python class** providing a high-level interface to
-   the DropBot hardware.
- - **Compiled firmware binary** for the DropBot hardware.
+ - `dropbot` (noarch python): the `dropbot.SerialProxy` **Python class**
+   providing a high-level interface to the DropBot hardware. It pins the
+   matching `dropbot-dev`.
+ - `dropbot-dev` (noarch generic): the **compiled firmware binary** and the
+   generated **Arduino library headers**, for firmware builds that depend on
+   DropBot.
 
 The installed components (relative to the root of the Conda environment) are
 shown below:
@@ -59,14 +65,17 @@ shown below:
     │   └───site-packages
     │       └───dropbot (Python package)
     │
-    └───Library
-        └───bin
-            └───platformio
+    └───share
+        └───platformio
+            ├───include
+            │   └───Dropbot (generated Arduino library headers)
+            │
+            └───bin
                 └───dropbot (compiled firmware binaries)
                     │   platformio.ini   (PlatformIO environment information)
                     │
                     └───teensy31
-                        firmware.hex
+                            firmware.hex
 
 -------------------------------------------------------------------------------
 
@@ -135,22 +144,31 @@ New methods may be added to the Python API by adding new methods to the
 `dropbot::Node` C++ class in the file `Node.h`.
 
 
-### Set up development environment (within a Conda environment) ###
+### Build the package ###
 
- 1. **Clone `dropbot`** source code from [GitHub repository][5].
- 2. Run the following command within the root of the cloned repository to
-    **install run-time dependencies** and link working copy of firmware
-    binaries and Python package for run-time use:
+The Conda package is built with [pixi][2] through the rattler-build backend
+(`recipe/recipe.yaml`). The build generates the RPC code, compiles the
+protobufs, compiles the Teensy firmware with PlatformIO and splits the result
+into the `dropbot` and `dropbot-dev` `noarch` packages:
 
-        paver develop_link
+    pixi build
 
- 4. **Restart terminal and reactivate Conda environment (e.g., `activate` if
-    Conda was installed with default settings).**
+The resulting `.conda` files land in the current directory
+(`--output-dir` to change that).
 
-Step **4** is necessary since at least one of the installed dependencies sets
-environment variables, which are only initialized on subsequent activations of
-the Conda environment (i.e., they do not take effect immediately within the
-running environment).
+
+### Release ###
+
+Releases are automated (`.github/workflows/publish.yml`). Every push to
+`master` with release-worthy [Conventional Commits][6] (`fix` -> patch,
+`feat` -> minor, `BREAKING CHANGE` -> major) makes [commitizen][7] bump the
+version in `pyproject.toml`, `dropbot/_version.py` and `recipe/recipe.yaml`,
+update `CHANGELOG.md`, build and publish the package with `pixi publish`, and
+then push the release commit and `vX.Y.Z` tag. Authentication is prefix.dev
+trusted publishing (GitHub OIDC), so no API key is stored in the repository.
+
+To force a release with an explicit version, run the workflow manually from
+the Actions tab and fill in the version input.
 
 
 ### Build firmware ###
@@ -158,14 +176,15 @@ running environment).
 Run the following command within the root of the cloned repository to **build
 the firmware**:
 
-    paver build_firmware
+    pio run
 
-The compiled firmware binary is available under the `.pioenvs` directory, as
+The compiled firmware binary is available under the `.pio/build` directory, as
 shown below:
 
-    └───.pioenvs
-        └───teensy31
-                firmware.hex
+    └───.pio
+        └───build
+            └───teensy31
+                    firmware.hex
 
 
 ### Flash/upload firmware ###
@@ -175,16 +194,6 @@ from the root of the repository:
 
     pio run --target upload --target nobuild
 
-
-### Unlink development working copy ###
-
-Run the following command within the root of the cloned repository to unlink
-working copy of firmware binaries and Python package:
-
-    paver develop_unlink
-
-This will allow, for example, installation of a main-line release of the
-`dropbot` Conda package.
 
 -------------------------------------------------------------------------------
 
@@ -197,7 +206,7 @@ Contributors
 
 
 [1]: http://sci-bots.com/dropbot
-[2]: https://conda.io/
-[3]: https://anaconda.org/sci-bots/dropbot
-[4]: https://anaconda.org/sci-bots
-[5]: https://gitlab.com/sci-bots/dropbot.py/
+[2]: https://pixi.sh/
+[3]: https://prefix.dev/channels/vigne-hub/scibots
+[6]: https://www.conventionalcommits.org/
+[7]: https://commitizen-tools.github.io/commitizen/

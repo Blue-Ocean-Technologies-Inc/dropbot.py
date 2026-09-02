@@ -14,7 +14,7 @@ src/*state_validate.h
 src/*config_validate.h
 src/*state_validate.h
 src/*RPCBuffer.h
-lib/
+lib/Dropbot/
 *.o
 .sconsign.dblite
 .ipynb_checkpoints
@@ -36,3 +36,8 @@ dropbot/notebooks/.results
 .pytest_cache
 # Mac crap
 .DS_Store
+# pixi
+.pixi/
+# rattler-build (pixi build) output
+.pixi-build/
+recipe/output/

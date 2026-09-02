@@ -1,0 +1,114 @@
+name: Publish to prefix.dev
+
+# Builds the conda package with pixi-build using the rattler-build backend
+# (recipe/recipe.yaml, which also compiles the Teensy firmware with PlatformIO)
+# and publishes it to https://prefix.dev/vigne-hub/scibots on every push to
+# master that contains release-worthy conventional commits. commitizen derives
+# the bump from the commit messages since the last v* tag (fix/refactor/perf ->
+# patch, feat -> minor, BREAKING CHANGE / ! -> major), stamps pyproject.toml
+# (see [tool.commitizen] version_files), and maintains
+# CHANGELOG.md. Pushes with nothing release-worthy (docs/ci/chore or
+# non-conventional messages) skip publishing cleanly.
+#
+# The release commit + tag are pushed only after a successful publish, so
+# the repo always reflects the channel. For a forced or explicit release,
+# run the workflow manually with a version input.
+#
+# Auth: auth is prefix.dev trusted publishing — this repo is registered as a
+# trusted publisher on the channel, and `pixi publish` picks up the GitHub OIDC
+# token (`id-token: write`) automatically; no stored secret is needed.
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - "README.md"
+      - "CHANGELOG.md"
+      - "docs/**"
+      - ".github/**"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Explicit version (X.Y.Z); empty = derive from conventional commits"
+        required: false
+        default: ""
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+env:
+  PLATFORMIO_CORE_DIR: /home/runner/.platformio
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # push the release commit + tag
+      id-token: write   # for prefix.dev trusted publishing, if enabled later
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # commitizen reads the commit history + v* tags
+
+      - uses: prefix-dev/setup-pixi@v0.10.2
+        with:
+          pixi-version: v0.78.0
+          run-install: false
+
+      # Teensy platform + toolchain download (~200 MB) is reused between runs.
+      # rattler-build runs the build with HOME inside its work directory, so
+      # the core dir is pinned explicitly (see env above) to keep it cacheable.
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PLATFORMIO_CORE_DIR }}
+          key: platformio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+
+      - name: Install commitizen
+        run: pipx install "commitizen>=4,<5"
+
+      - name: Bump version + changelog (commitizen)
+        id: bump
+        # Exit codes verified against cz 4.16: 3 = no commits since the
+        # last tag, 21 = commits exist but none are release-worthy — both
+        # mean "nothing to publish", not failure.
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          set +e
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            cz bump --yes "${{ github.event.inputs.version }}"
+          else
+            cz bump --yes
+          fi
+          rc=$?
+          set -e
+          if [ "$rc" -eq 3 ] || [ "$rc" -eq 21 ]; then
+            echo "No release-worthy commits since the last tag; skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          [ "$rc" -eq 0 ] || exit "$rc"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          grep -n '^version' pyproject.toml
+
+      # `pixi publish --target-channel` keeps only the last URL segment as
+      # the channel name, which drops the `vigne-hub` namespace of this
+      # non-primary channel (upload lands on a nonexistent user channel ->
+      # 403). `pixi upload prefix` takes the canonical `namespace/channel`
+      # reference and uses the same trusted-publishing code path.
+      - name: Build
+        if: steps.bump.outputs.skip != 'true'
+        run: pixi build --output-dir dist
+
+      - name: Publish
+        if: steps.bump.outputs.skip != 'true'
+        run: pixi upload prefix --channel vigne-hub/scibots dist/*.conda
+
+      - name: Push release commit + tag
+        if: steps.bump.outputs.skip != 'true'
+        # Only after a successful publish, so the repo never claims a
+        # version the channel doesn't have. The [skip ci] in bump_message
+        # prevents a publish loop.
+        run: git push origin "HEAD:${GITHUB_REF_NAME:-master}" --tags
