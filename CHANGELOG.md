@@ -1,3 +1,5 @@
+## v1.74.5 (2026-09-02)
+
 ## v1.74.4
 
 Baseline for commitizen-managed releases; matches the last conda-build

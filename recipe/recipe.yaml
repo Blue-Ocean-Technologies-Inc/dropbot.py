@@ -9,7 +9,7 @@
 # single noarch package (the old dropbot-dev split is gone).
 context:
   name: dropbot
-  version: "1.74.4"
+  version: "1.74.5"
 
 package:
   name: ${{ name }}
