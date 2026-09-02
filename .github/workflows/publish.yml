@@ -93,9 +93,18 @@ jobs:
           echo "skip=false" >> "$GITHUB_OUTPUT"
           grep -n '^version' pyproject.toml
 
-      - name: Build + publish
+      # `pixi publish --target-channel` keeps only the last URL segment as
+      # the channel name, which drops the `vigne-hub` namespace of this
+      # non-primary channel (upload lands on a nonexistent user channel ->
+      # 403). `pixi upload prefix` takes the canonical `namespace/channel`
+      # reference and uses the same trusted-publishing code path.
+      - name: Build
         if: steps.bump.outputs.skip != 'true'
-        run: pixi publish --target-channel https://prefix.dev/vigne-hub/scibots
+        run: pixi build --output-dir dist
+
+      - name: Publish
+        if: steps.bump.outputs.skip != 'true'
+        run: pixi upload prefix --channel vigne-hub/scibots dist/*.conda
 
       - name: Push release commit + tag
         if: steps.bump.outputs.skip != 'true'
